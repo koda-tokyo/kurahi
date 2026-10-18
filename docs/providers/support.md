@@ -10,7 +10,7 @@ title: "Provider support"
 
 The provider registry has **209 entries**. They are not all equal.
 
-| Level | What it means | Count in 2.0.2 |
+| Level | What it means | Count in 2.0.3 |
 |---|---|---|
 | **Curated** | Configuration written and maintained by KODA: endpoint, authentication, region note, defaults, list prices where published. Supported: we fix problems with these. | 17 |
 | **Catalogue** | Imported from a public provider catalogue so you can try them. Listed, not tested; best effort only. | 192 |
