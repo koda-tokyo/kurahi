@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/health-watchdog",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Gateway liveness watchdog: lease + listener checks, supervisor restart, escalation",
   "type": "module",
   "devDependencies": {

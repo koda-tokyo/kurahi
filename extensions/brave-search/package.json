@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/brave-search",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Brave Search API plugin — 2,000 queries/month free",
   "type": "module",
   "devDependencies": {

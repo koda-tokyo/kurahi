@@ -2,7 +2,7 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
-## Unreleased
+## 2.0.3 — 2026-10-19
 
 - Docs: vendor-specific model and authentication recommendations removed (security guide, FAQ, getting started, wizard, authentication, models concept, provider list, Venice and local-model pages). Guidance is now neutral: prefer current, instruction-hardened models for agents with tools, check the provider's published safety evaluations, and see KODA-tested results.
 - Docs: "Ransomware shield" is now named "Ransomware detection" in the documentation (the `/shield` page, policy key `shield` and CLI commands are unchanged).

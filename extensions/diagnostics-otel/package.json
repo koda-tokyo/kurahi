@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/diagnostics-otel",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Kurahi diagnostics OpenTelemetry exporter",
   "type": "module",
   "dependencies": {
