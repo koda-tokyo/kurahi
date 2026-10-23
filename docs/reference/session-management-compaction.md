@@ -209,6 +209,10 @@ Kurahi also enforces a safety floor for embedded runs:
 - Default floor is `20000` tokens.
 - Set `agents.defaults.compaction.reserveTokensFloor: 0` to disable the floor.
 - If it’s already higher, Kurahi leaves it alone.
+- The reserve never exceeds half of the model's context window. Compaction runs once the context
+  passes `contextWindow - reserveTokens`, so a reserve at or above the window (the default floor on
+  a 16k model) would add a summarising call to every turn; Kurahi clamps it and logs a warning, and
+  `kurahi doctor` names the models whose window the floor does not fit.
 
 Why: leave enough headroom for multi-turn “housekeeping” (like memory writes) before compaction becomes unavoidable.
 

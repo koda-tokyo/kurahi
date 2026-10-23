@@ -18,18 +18,19 @@ the bundle's own files.
 
 ## What is recorded
 
-| Event         | Fields                                                                                                              |
-| ------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `job.start`   | agent, session, kind, provider and model requested, run id, workspace, SHA-256 and length of the prompt             |
-| `model.turn`  | provider, model, token usage, stop reason, SHA-256 and length of the assistant text, a redacted excerpt (512 bytes) |
-| `tool.call`   | tool name, meta, SHA-256 of the arguments, the arguments redacted and bounded                                       |
-| `tool.result` | SHA-256 and length of the result, the result text redacted and bounded, duration, error flag                        |
-| `snapshot`    | id and file list of the [pre-edit snapshot](/tools/snapshots) taken before an edit tool ran                         |
-| `permission`  | allow or deny from the [permission rules](/agents-permissions), class, target, matching rule                        |
-| `loop_guard`  | reason, summary, step count and limits when the loop guard stopped the run                                          |
-| `audit`       | seq and hash of an [audit chain](/cli/security) entry written for this job (loop stop, denial)                      |
-| `truncated`   | the log hit `evidence.maxEvents` or `evidence.maxBytesPerJob`; only `job.end` follows                               |
-| `job.end`     | status, steps, tool calls, duration, error, summary                                                                 |
+| Event         | Fields                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `job.start`   | agent, session, kind, provider and model requested, run id, workspace, SHA-256 and length of the prompt, SHA-256 of the policy in force and the inventory configuration digest |
+| `model.turn`  | provider, model, token usage, stop reason, SHA-256 and length of the assistant text, a redacted excerpt (512 bytes)                                                            |
+| `tool.call`   | tool name, meta, SHA-256 of the arguments, the arguments redacted and bounded                                                                                                  |
+| `tool.result` | SHA-256 and length of the result, the result text redacted and bounded, duration, error flag                                                                                   |
+| `snapshot`    | id and file list of the [pre-edit snapshot](/tools/snapshots) taken before an edit tool ran                                                                                    |
+| `permission`  | allow or deny from the [permission rules](/agents-permissions), class, target, matching rule                                                                                   |
+| `approval`    | a human decision on a policy approval request: tool, allow or deny, rule, approval id, approver, SHA-256 of the arguments                                                      |
+| `loop_guard`  | reason, summary, step count and limits when the loop guard stopped the run                                                                                                     |
+| `audit`       | seq and hash of an [audit chain](/cli/security) entry written for this job (loop stop, denial)                                                                                 |
+| `truncated`   | the log hit `evidence.maxEvents` or `evidence.maxBytesPerJob`; only `job.end` follows                                                                                          |
+| `job.end`     | status, steps, tool calls, duration, error, summary, declared outputs (path and SHA-256), cost snapshot (tokens per model priced from the KODA tested catalogue, price date)   |
 
 Every line carries `seq`, `ts`, `prev` (hash of the previous line, 64 zeros for the first) and `hash`
 (`sha256(prev + "\n" + canonical JSON of the line without prev and hash)`). Editing, removing,

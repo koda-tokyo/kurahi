@@ -27,6 +27,8 @@ kurahi plugins install <path-or-spec> [--link]
 kurahi plugins update <id> | --all [--dry-run]
 kurahi plugins reload <id> [--json]
 kurahi plugins doctor
+kurahi plugins pin <id> | --all [--force] [--json]
+kurahi plugins verify [--json]
 ```
 
 - `list` shows every discovered plugin with its source (bundled, workspace, global, config path)
@@ -35,6 +37,10 @@ kurahi plugins doctor
   spec. `--link` links a local path instead of copying it. Installs are recorded under
   `plugins.installs` in the config.
 - `update` applies only to npm installs; `--dry-run` prints what would change.
+- `pin` scans a plugin package and approves its SHA-256 into the supply-chain lock; `verify`
+  checks every skill and plugin against it. In `integrity.supplyChain.mode: enforce` (new
+  installs) an unpinned or changed non-bundled plugin is not loaded. See
+  [Skill and plugin integrity](/security/skill-integrity).
 - `reload` asks the running gateway to reload one plugin without a restart and reports whether it
   came back, was disabled, or was quarantined.
 - `doctor` reports load issues (live gateway state when one runs) and the last self-check.

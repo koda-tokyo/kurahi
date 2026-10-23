@@ -42,6 +42,7 @@ All skills-related configuration lives under `skills` in `~/.kolo/kolo.json`.
 
 - `allowBundled`: optional allowlist for **bundled** skills only. When set, only
   bundled skills in the list are eligible (managed/workspace skills unaffected).
+  An empty list (`[]`) allows no bundled skill; leave it unset to allow them all.
 - `load.extraDirs`: additional skill directories to scan (lowest precedence).
 - `load.watch`: watch skill folders and refresh the skills snapshot (default: true).
 - `load.watchDebounceMs`: debounce for skill watcher events in milliseconds (default: 250).

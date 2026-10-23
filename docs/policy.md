@@ -14,6 +14,10 @@ signed by an owner key, loaded at boot and on every save, and enforced by the ru
 decision points. Every decision is written to the audit log with the id of the clause that made
 it, so an audit line points back into the document that was signed.
 
+New installations get the starter policy, signed, from `kurahi init` (budgets and job limits:
+see [Secure defaults](/security/secure-defaults)). An installation without a policy has no
+budgets or job limits; `kurahi doctor` and the gateway log say so.
+
 ```
 kurahi policy init                 # starter policy, owner key, signature
 kurahi policy validate             # schema and semantic checks

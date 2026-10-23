@@ -159,11 +159,33 @@ Common `agentTurn` fields:
 - `channel`: `last` or a specific channel.
 - `to`: channel-specific target (phone/chat/channel id).
 - `bestEffortDeliver`: avoid failing the job if delivery fails.
+- `preExec` (CLI: `--pre-exec <command>`, `--pre-exec-keep-tools`, `--pre-exec-pin-head`, edit:
+  `--clear-pre-exec`): `{ "command": "...", "keepTools"?: true, "pinHead"?: true }`. A deterministic pre-step: before the model turn the
+  runtime runs `command` through the agent's own `exec` tool, exactly as if the agent had called
+  exec with only `command` (same tool policy, host, sandbox, security, allowlist, approvals and
+  hardline guard; the child sees `KOLO_EXEC_ORIGIN=cron`). The model then gets the output and
+  only reports on it; its turn has no tools unless `keepTools` is true. A command that could not
+  run (refused, not allowlisted, exec not allowed for the agent, or one that needs an approval,
+  which nobody can give unattended) fails the job without a model turn. The run log entry keeps
+  `preExec: { status: ok|failed|error, exitCode, head, error, durationMs }`, where `head` is the
+  first output line, so the result is on record even when the model reports nothing.
+  With `pinHead`, that first line leads everything the job delivers, posts to the main session
+  and logs as its summary (it is added in front unless the reply already starts with it), so a
+  model reply can follow the command's verdict but never replace or contradict it in what a
+  person reads. The run log then also keeps `preExec.pinned: true` and `preExec.modelSummary`
+  (the model's own reply, at most 300 chars) for measuring the model.
+- `promptMode` (CLI: `--prompt-mode full|minimal`, edit: `--clear-prompt-mode`): the system
+  prompt for the turn. `full` (default) is the agent's whole prompt. `minimal` is the subagent
+  prompt: tools, safety, workspace and runtime, without the skills list, memory, messaging,
+  reply-tag, voice, docs and self-update sections. It suits a single-tool ops job on a small
+  local model, where the full prompt can take most of the context window. In a patch, `null`
+  restores the default. CLI backends (`claude-cli`, `codex-cli`) build their own prompt and
+  ignore it.
 
 Isolation options (only for `session=isolated`):
 
 - `postToMainPrefix` (CLI: `--post-prefix`): prefix for the system event in main.
-- `postToMainMode`: `summary` (default) or `full`.
+- `postToMainMode`: `summary` (default), `full`, or `none` (post nothing back to main).
 - `postToMainMaxChars`: max chars when `postToMainMode=full` (default 8000).
 
 ### Model and thinking overrides

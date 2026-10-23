@@ -223,6 +223,7 @@ Rules:
 - `config`: optional bag for custom per-skill fields; custom keys must live here.
 - `allowBundled`: optional allowlist for **bundled** skills only. If set, only
   bundled skills in the list are eligible (managed/workspace skills unaffected).
+  An empty list (`[]`) allows no bundled skill; leave it unset to allow them all.
 
 ## Environment injection (per agent run)
 

@@ -29,7 +29,14 @@ Background sessions are scoped per agent; `process` only sees sessions from the 
 
 Notes:
 
-- `host` defaults to `sandbox`.
+- `host` defaults to `sandbox`. The host is configuration, not the model's choice: a `host` the
+  model passes that differs from the configured one is ignored (logged), and the command runs on
+  the configured host under the same security, approvals and allowlist. When the host is set
+  explicitly (`tools.exec.host`, `agents.list[].tools.exec.host` or `/exec host=...`) the tool
+  schema omits `host`, `security`, `ask` (and `node` unless the host is `node`).
+- `security`/`ask` passed by the model can only tighten the configured values.
+- The child gets `KOLO_EXEC_ORIGIN` (`agent` for a model call, `cron` for a cron job's
+  `preExec`), set by the runtime; a model-supplied value is overwritten.
 - `elevated` is ignored when sandboxing is off (exec already runs on the host).
 - `gateway`/`node` approvals are controlled by `~/.kolo/exec-approvals.json`.
 - `node` requires a paired node (companion app or headless node host).
@@ -47,6 +54,14 @@ Notes:
 - `tools.exec.notifyOnExit` (default: true): when true, backgrounded exec sessions enqueue a system event and request a heartbeat on exit.
 - `tools.exec.approvalRunningNoticeMs` (default: 10000): emit a single “running” notice when an approval-gated exec runs longer than this (0 disables).
 - `tools.exec.host` (default: `sandbox`)
+- `agents.list[].tools.exec.*` overrides `tools.exec.*` for that agent (host, node, paths,
+  timings). `security` and `ask` there can only tighten the global values.
+- `tools.exec.unsandboxed`: what happens with `host=sandbox` when the session has no sandbox
+  container (sandbox off, or a main session under `non-main`). `approve` runs the command on the
+  gateway host through exec approvals (allowlist, ask on miss); `deny` refuses; `host` runs it on
+  the host with no approvals. New installations get `approve`; when unset, the legacy `host`
+  behaviour applies with a warning (see [Secure defaults](/security/secure-defaults)). A session
+  that must be sandboxed but whose container cannot start refuses exec whatever this says.
 - `tools.exec.security` (default: `deny` for sandbox, `allowlist` for gateway + node when unset)
 - `tools.exec.ask` (default: `on-miss`)
 - `tools.exec.node` (default: unset)
@@ -86,6 +101,15 @@ Kurahi config set agents.list[0].tools.exec.node "node-id-or-name"
 ```
 
 Control UI: the Nodes tab includes a small “Exec node binding” panel for the same settings.
+
+## Destructive-command guard
+
+Before any of the above, every command is checked against an unconditional blocklist (recursive
+deletes of `/`, system folders, the home folder or `KOLO_HOME`, `mkfs`, `dd` to a block device,
+fork bombs, shutdown and reboot, `wsl --shutdown`, killing the gateway, `sudo -S`). A match is
+refused, never sent for approval: no allowlist, approval, `security=full` or elevated mode runs it.
+Both refusals and the commands that pass are written to the audit log as `exec.guard`. The same
+check covers `process` write/send-keys/paste, `nodes` run and `system.run` on node hosts.
 
 ## Session overrides (`/exec`)
 

@@ -108,3 +108,20 @@ Report to security@kodasoken.com. Acknowledgement within 3 working days, triage 
 ## 12. Licensing and provenance
 
 Open core: MIT for the protocol, SDK, plugin API and CLI; Functional Source License (FSL-1.1-Apache-2.0) for the gateway runtime and its subsystems; a proprietary licence for the identity engine and enterprise features. Third-party components keep their licences (`NOTICE`, `ATTRIBUTION.md`). Evaluation terms: [Evaluation licence](/EVALUATION_LICENSE).
+
+## 13. Agent-specific controls
+
+Controls for the risks that are specific to agents, each on its own page with its modes and its
+limits. New installations get them switched on; existing installations are told by `kurahi doctor`
+which ones are still off ([Secure defaults](/security/secure-defaults)).
+
+| Control                                                  | What it does                                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [Supply-chain lock](/security/skill-integrity)           | Skills and plugins load only when their SHA-256 matches a pin in a lock signed by the owner key               |
+| [Memory provenance](/security/memory-provenance)         | Every memory write records who wrote it; writes after untrusted input are held for operator review            |
+| [Agent message signing](/security/agent-message-signing) | Messages between agents are signed per agent and verified (sender, recipient, time, nonce, payload schema)    |
+| [Console terminal broker](/security/terminal-broker)     | The Work Console shell is owned by the gateway: each line gated, approvals, file diffs, audit                 |
+| [Secure defaults](/security/secure-defaults)             | Credential isolation, sandbox, exec approvals, budgets and the destructive-command guard on new installations |
+
+How these map to the OWASP Top 10 for Agentic Applications, with a rating per risk:
+[OWASP Agentic Top 10](/security/owasp-agentic).

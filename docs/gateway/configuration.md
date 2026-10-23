@@ -1926,7 +1926,9 @@ See [/concepts/session-pruning](/concepts/session-pruning) for behavior details.
 `agents.defaults.compaction.mode` selects the compaction summarization strategy. Defaults to `default`; set `safeguard` to enable chunked summarization for very long histories. See [/concepts/compaction](/concepts/compaction).
 
 `agents.defaults.compaction.reserveTokensFloor` enforces a minimum `reserveTokens`
-value for Pi compaction (default: `20000`). Set it to `0` to disable the floor.
+value for Pi compaction (default: `20000`). Set it to `0` to disable the floor. The reserve
+is clamped to half of the model's context window, so a small window (e.g. 16k) does not compact
+on every turn; `doctor` warns when the floor does not fit a configured window.
 
 `agents.defaults.compaction.memoryFlush` runs a **silent** agentic turn before
 auto-compaction, instructing the model to store durable memories on disk (e.g.
@@ -2970,6 +2972,9 @@ Control UI base path:
   (Tailscale Serve) or `127.0.0.1`.
 - `gateway.controlUi.dangerouslyDisableDeviceAuth` disables device identity checks for the
   Control UI (token/password only). Default: `false`. Break-glass only.
+- `gateway.controlUi.defaultLocale` sets the organisation default language of the Control UI
+  (BCP 47, for example `"ja"` or `"en"`). Each user can still pick a language in Settings or the
+  sidebar switch; an unsupported value falls back to the OS language. Default: unset (OS language).
 
 Related docs:
 

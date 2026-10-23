@@ -51,3 +51,7 @@ kramdown:
   input: GFM
   hard_wrap: false
   syntax_highlighter: rouge
+
+# Notes for maintainers; not part of the published site or the npm package.
+exclude:
+  - internal

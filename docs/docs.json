@@ -841,6 +841,10 @@
             "pages": [
               "index",
               "QUICKSTART",
+              "editions",
+              "industrial-modernisation",
+              "work-console",
+              "scholars",
               "start/phone",
               "start/getting-started",
               "start/wizard",
@@ -1019,6 +1023,12 @@
               "shield",
               "factory",
               "security/SECURITY_OVERVIEW",
+              "security/secure-defaults",
+              "security/skill-integrity",
+              "security/memory-provenance",
+              "security/agent-message-signing",
+              "security/terminal-broker",
+              "security/owasp-agentic",
               "security/privacy",
               "security/formal-verification",
               "gateway/sandbox-vs-tool-policy-vs-elevated",
@@ -1098,14 +1108,19 @@
             "pages": [
               "tools/index",
               "tools/lobster",
+              "tools/legacy-analyzer",
+              "tools/legacy-mcp",
+              "tools/legacy-design-docs",
               "tools/llm-task",
               "plugin",
               "plugins/manifest",
               "plugins/agent-tools",
               "plugins/voice-call",
+              "plugins/a2a",
               "plugins/zalouser",
               "code-mode",
               "tools/lsp",
+              "tools/voice",
               "tools/formatters",
               "tools/snapshots",
               "tools/exec",
@@ -1206,7 +1221,14 @@
         "groups": [
           {
             "group": "はじめに",
-            "pages": ["ja/QUICKSTART", "ja/start/phone"]
+            "pages": [
+              "ja/QUICKSTART",
+              "ja/start/phone",
+              "ja/editions",
+              "ja/industrial-modernisation",
+              "ja/work-console",
+              "ja/scholars"
+            ]
           },
           {
             "group": "プロバイダー",
@@ -1214,7 +1236,15 @@
           },
           {
             "group": "セキュリティ",
-            "pages": ["ja/security/SECURITY_OVERVIEW", "ja/security/privacy"]
+            "pages": [
+              "ja/security/SECURITY_OVERVIEW",
+              "ja/security/privacy",
+              "ja/security/owasp-agentic"
+            ]
+          },
+          {
+            "group": "ツール",
+            "pages": ["ja/tools/legacy-mcp", "ja/plugins/a2a"]
           }
         ]
       }

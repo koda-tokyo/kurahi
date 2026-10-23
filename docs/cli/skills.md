@@ -1,5 +1,5 @@
 ---
-summary: "CLI reference for `Kurahi skills` (list/info/check) and skill eligibility"
+summary: "CLI reference for `kurahi skills` (list/info/check/pin/verify) and skill eligibility"
 read_when:
   - You want to see which skills are available and ready to run
   - You want to debug missing binaries/env/config for skills
@@ -19,8 +19,12 @@ Related:
 ## Commands
 
 ```bash
-Kurahi skills list
-Kurahi skills list --eligible
-Kurahi skills info <name>
-Kurahi skills check
+kurahi skills list
+kurahi skills list --eligible
+kurahi skills info <name>
+kurahi skills check
+kurahi skills verify            # skills and plugins against the supply-chain lock
+kurahi skills pin <name>        # scan, then approve (pin) a skill; --all, --force, --agent, --json
 ```
+
+Pinning and the load-time check are described in [Skill and plugin integrity](/security/skill-integrity).
