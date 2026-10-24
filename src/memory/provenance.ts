@@ -112,12 +112,27 @@ export function sha256File(absPath: string): string | null {
 }
 
 /** Canonical key for a memory file path (resolved, symlinks of the parent folded). */
+/**
+ * Canonical key for a path: symlinks are resolved through the nearest EXISTING ancestor and the
+ * rest is appended. Resolving only the direct parent left paths under a not-yet-created folder
+ * unresolved while the existing store root was resolved, so on macOS (/var -> /private/var) a
+ * write into the provenance store did not match the store and was not refused.
+ */
 export function memoryPathKey(absPath: string): string {
   const resolved = path.resolve(absPath);
-  try {
-    return path.join(fs.realpathSync(path.dirname(resolved)), path.basename(resolved));
-  } catch {
-    return resolved;
+  const rest: string[] = [];
+  let cur = resolved;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync(cur), ...rest.toReversed());
+    } catch {
+      const parent = path.dirname(cur);
+      if (parent === cur) {
+        return resolved;
+      }
+      rest.push(path.basename(cur));
+      cur = parent;
+    }
   }
 }
 

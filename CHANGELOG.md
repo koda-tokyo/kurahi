@@ -35,6 +35,7 @@ The Industrial Edition release. Kurahi Desktop 0.4.0 ships with it.
 
 ### Security
 
+- Path checks for the memory provenance store, integrity-protected folders and project folders now resolve symlinks through the nearest existing folder, so protected locations reached through a symlinked path (for example macOS temporary or home folders) are recognised.
 - Supply-chain lock for skills and plugins: signed lock file, digests and a pin-time scan, verified at load. `kurahi skills pin|verify` and `kurahi plugins pin|verify`; agents cannot pin. Enforced on new installations.
 - Memory provenance: memory written by agents is tagged with its origin, untrusted writes are quarantined, and recalled memory is marked by trust. `memory.provenance` (`off|warn|enforce`) and `kurahi memory quarantine list|show|approve|reject`.
 - Signed agent messages: per-agent Ed25519 keys and an owner-signed key registry; inter-agent messages, `sibling.send` and queued sub-agent announces are signed and verified, with persistent replay protection and an access re-check on receipt. `agents.messaging.signing` (`off|warn|enforce`).

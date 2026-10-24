@@ -256,3 +256,22 @@ describe("quarantine review", () => {
     expect(fs.readFileSync(file, "utf8")).toBe("a\nc\n");
   });
 });
+
+describe("path keys through symlinks", () => {
+  it("resolves symlinks through the nearest existing ancestor, even for paths that do not exist yet", () => {
+    const realDir = fs.mkdtempSync(path.join(os.tmpdir(), "prov-real-"));
+    const alias = `${realDir}-alias`;
+    fs.symlinkSync(realDir, alias, "dir");
+    try {
+      expect(memoryPathKey(path.join(alias, "main", "index.jsonl"))).toBe(
+        path.join(fs.realpathSync(realDir), "main", "index.jsonl"),
+      );
+      expect(memoryPathKey(path.join(alias, "a", "b", "c.md"))).toBe(
+        path.join(fs.realpathSync(realDir), "a", "b", "c.md"),
+      );
+    } finally {
+      fs.rmSync(alias, { force: true });
+      fs.rmSync(realDir, { recursive: true, force: true });
+    }
+  });
+});

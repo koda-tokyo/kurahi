@@ -83,6 +83,30 @@ describe("evaluateWritePolicy", () => {
   });
 });
 
+describe("protected dirs reached through a symlink", () => {
+  it("blocks a write under a not-yet-created folder inside a protected dir via a symlinked path", () => {
+    fs.mkdirSync(path.join(home, "integrity"), { recursive: true });
+    const alias = `${home}-alias`;
+    fs.symlinkSync(home, alias, "dir");
+    try {
+      const protectedSet = buildProtectedSet({
+        registered: [],
+        dirs: [path.join(home, "integrity")],
+      });
+      const target = path.join(alias, "integrity", "new-dir", "supply-chain.lock.json");
+      const blocked = evaluateWritePolicy({
+        toolName: "write",
+        toolParams: { path: target, content: "{}" },
+        baseDir: home,
+        set: protectedSet,
+      }).blocked;
+      expect(blocked).toBe(true);
+    } finally {
+      fs.rmSync(alias, { force: true });
+    }
+  });
+});
+
 describe("core before_tool_call policy (global hook runner)", () => {
   it("denies writes to registered files with an audit event, even with no plugins loaded", async () => {
     initRegistry({ patterns: ["workspace-*/SOUL.md"], loc: resolveIntegrityLocations() });

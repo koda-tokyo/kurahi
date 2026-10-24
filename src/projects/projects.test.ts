@@ -124,6 +124,25 @@ describe("project store", () => {
     }
   });
 
+  it("refuses the home directory even when HOME goes through a symlink", () => {
+    const realHome = fs.mkdtempSync(path.join(os.tmpdir(), "proj-home-real-"));
+    const alias = `${realHome}-alias`;
+    fs.symlinkSync(realHome, alias, "dir");
+    const prev = process.env.HOME;
+    const prevProfile = process.env.USERPROFILE;
+    process.env.HOME = alias;
+    process.env.USERPROFILE = alias;
+    try {
+      expect(() => validateProjectFolder(alias, home)).toThrow(/home directory/);
+      expect(() => validateProjectFolder(realHome, home)).toThrow(/home directory/);
+    } finally {
+      process.env.HOME = prev;
+      process.env.USERPROFILE = prevProfile;
+      fs.rmSync(alias, { force: true });
+      fs.rmSync(realHome, { recursive: true, force: true });
+    }
+  });
+
   it("cleans folder-relative paths", () => {
     expect(cleanRelPath("output/")).toBe("output");
     expect(cleanRelPath(".")).toBe(".");

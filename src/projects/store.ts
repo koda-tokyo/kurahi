@@ -230,7 +230,13 @@ export function validateProjectFolder(raw: unknown, home: string = resolveKoloHo
   if (real === root) {
     throw new Error("the filesystem root cannot be a project folder");
   }
-  if (real === os.homedir()) {
+  let homeReal = os.homedir();
+  try {
+    homeReal = fs.realpathSync(homeReal);
+  } catch {
+    // keep the unresolved home path
+  }
+  if (real === homeReal || real === os.homedir()) {
     throw new Error("the home directory itself cannot be a project folder");
   }
   let stateReal = home;

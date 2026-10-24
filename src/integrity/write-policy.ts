@@ -33,15 +33,22 @@ const PIN_CMD_RE = /\b(skills|plugins)\s+pin\b/;
 /** Memory quarantine decisions are operator review (src/memory/quarantine.ts, ASI06). */
 const MEMORY_REVIEW_CMD_RE = /\bmemory\s+quarantine\s+(approve|reject)\b/;
 
+/** Resolves symlinks through the nearest existing ancestor, so a write under a not-yet-created
+ * folder still matches a protected root whose path contains a symlink (e.g. macOS /var). */
 function realish(p: string): string {
   const abs = path.resolve(p);
-  try {
-    return fs.realpathSync(abs);
-  } catch {
+  const rest: string[] = [];
+  let cur = abs;
+  for (;;) {
     try {
-      return path.join(fs.realpathSync(path.dirname(abs)), path.basename(abs));
+      return path.join(fs.realpathSync(cur), ...rest.toReversed());
     } catch {
-      return abs;
+      const parent = path.dirname(cur);
+      if (parent === cur) {
+        return abs;
+      }
+      rest.push(path.basename(cur));
+      cur = parent;
     }
   }
 }
