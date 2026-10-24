@@ -682,27 +682,31 @@ process.stdout.write(JSON.stringify({
     return dir;
   };
 
-  it("writes a 0600 WAV only for the run and leaves nothing on disk after stop", async () => {
-    const dir = tmpRoot();
-    const { manager, audits } = setup(
-      {
-        stt: {
-          adapter: "local-cli",
-          localCli: { binary: process.execPath, args: [engine, "{input}", "{lang}"] },
+  // POSIX file modes; Windows has no 0600 mode (privacy there comes from the per-user temp folder ACL).
+  it.skipIf(process.platform === "win32")(
+    "writes a 0600 WAV only for the run and leaves nothing on disk after stop",
+    async () => {
+      const dir = tmpRoot();
+      const { manager, audits } = setup(
+        {
+          stt: {
+            adapter: "local-cli",
+            localCli: { binary: process.execPath, args: [engine, "{input}", "{lang}"] },
+          },
         },
-      },
-      { tmpRoot: dir },
-    );
-    const { sessionId } = manager.start(A, { lang: "auto" });
-    await manager.audio(A, { sessionId, chunk: pcm(3200), seq: 0 });
-    await manager.audio(A, { sessionId, chunk: pcm(3200), seq: 1 });
-    expect(fs.readdirSync(dir)).toEqual([]); // audio stays in memory until stop
-    const final = await manager.stop(A, { sessionId });
-    expect(final.text).toBe(`mode=600 size=${44 + 6400} lang=auto`);
-    expect(final.lang).toBe("ja");
-    expect(fs.readdirSync(dir)).toEqual([]);
-    expect(audits.find((a) => a.action === "voice.stop")?.outcome).toBe("ok");
-  });
+        { tmpRoot: dir },
+      );
+      const { sessionId } = manager.start(A, { lang: "auto" });
+      await manager.audio(A, { sessionId, chunk: pcm(3200), seq: 0 });
+      await manager.audio(A, { sessionId, chunk: pcm(3200), seq: 1 });
+      expect(fs.readdirSync(dir)).toEqual([]); // audio stays in memory until stop
+      const final = await manager.stop(A, { sessionId });
+      expect(final.text).toBe(`mode=600 size=${44 + 6400} lang=auto`);
+      expect(final.lang).toBe("ja");
+      expect(fs.readdirSync(dir)).toEqual([]);
+      expect(audits.find((a) => a.action === "voice.stop")?.outcome).toBe("ok");
+    },
+  );
 
   it("removes temp audio after an engine failure as well", async () => {
     const dir = tmpRoot();
@@ -724,27 +728,31 @@ process.stdout.write(JSON.stringify({
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 
-  it("keeps audio only with the explicit admin opt-in, as 0600 files", async () => {
-    const dir = tmpRoot();
-    const keep = path.join(root, "kept");
-    const { manager } = setup(
-      {
-        stt: {
-          adapter: "local-cli",
-          localCli: { binary: process.execPath, args: [engine, "{input}", "{lang}"] },
+  // POSIX file modes; Windows has no 0600 mode (privacy there comes from the per-user temp folder ACL).
+  it.skipIf(process.platform === "win32")(
+    "keeps audio only with the explicit admin opt-in, as 0600 files",
+    async () => {
+      const dir = tmpRoot();
+      const keep = path.join(root, "kept");
+      const { manager } = setup(
+        {
+          stt: {
+            adapter: "local-cli",
+            localCli: { binary: process.execPath, args: [engine, "{input}", "{lang}"] },
+          },
+          privacy: { keepAudio: true, keepAudioDir: keep },
         },
-        privacy: { keepAudio: true, keepAudioDir: keep },
-      },
-      { tmpRoot: dir },
-    );
-    const { sessionId } = manager.start(A, { lang: "en" });
-    await manager.audio(A, { sessionId, chunk: pcm(320), seq: 0 });
-    await manager.stop(A, { sessionId });
-    expect(fs.readdirSync(dir)).toEqual([]);
-    const kept = fs.readdirSync(keep);
-    expect(kept).toEqual([`${sessionId}-audio-1.wav`]);
-    expect(fs.statSync(path.join(keep, kept[0])).mode & 0o777).toBe(0o600);
-    // keepAudio without a directory is not honoured.
-    expect(resolveVoiceConfig({ privacy: { keepAudio: true } }).keepAudio).toBe(false);
-  });
+        { tmpRoot: dir },
+      );
+      const { sessionId } = manager.start(A, { lang: "en" });
+      await manager.audio(A, { sessionId, chunk: pcm(320), seq: 0 });
+      await manager.stop(A, { sessionId });
+      expect(fs.readdirSync(dir)).toEqual([]);
+      const kept = fs.readdirSync(keep);
+      expect(kept).toEqual([`${sessionId}-audio-1.wav`]);
+      expect(fs.statSync(path.join(keep, kept[0])).mode & 0o777).toBe(0o600);
+      // keepAudio without a directory is not honoured.
+      expect(resolveVoiceConfig({ privacy: { keepAudio: true } }).keepAudio).toBe(false);
+    },
+  );
 });

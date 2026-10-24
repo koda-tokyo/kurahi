@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_LOCK_GRACE_MS,
@@ -196,7 +196,7 @@ describe("refresh lock", () => {
     const modulePath = fileURLToPath(new URL("./refresh-lock.ts", import.meta.url));
     const tsx = path.resolve(path.dirname(modulePath), "../../node_modules/tsx/dist/esm/index.mjs");
     const script = (goAt: number) => `
-      import { acquireRefreshLock } from ${JSON.stringify(modulePath)};
+      import { acquireRefreshLock } from ${JSON.stringify(pathToFileURL(modulePath).href)};
       while (Date.now() < ${goAt}) {}
       const got = acquireRefreshLock(${JSON.stringify(lockPath)}, { timeoutMs: Infinity });
       process.stdout.write(got ? "1" : "0");
@@ -204,7 +204,13 @@ describe("refresh lock", () => {
     `;
     const run = (code: string) =>
       new Promise<string>((resolve, reject) => {
-        const child = spawn(process.execPath, ["--import", tsx, "--input-type=module", "-e", code]);
+        const child = spawn(process.execPath, [
+          "--import",
+          pathToFileURL(tsx).href,
+          "--input-type=module",
+          "-e",
+          code,
+        ]);
         let out = "";
         child.stdout.on("data", (d) => (out += String(d)));
         child.on("error", reject);

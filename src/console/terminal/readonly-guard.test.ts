@@ -7,6 +7,9 @@ import { checkLinePaths } from "./path-guard.js";
 import { checkReadOnlyWrites, readOnlyFolderOf } from "./readonly-guard.js";
 import { resolveTerminalSettings } from "./settings.js";
 
+// The terminal broker refuses to open sessions on Windows gateways; these POSIX shell/path rules are tested on POSIX.
+const describeUnix = describe.skipIf(process.platform === "win32");
+
 let base: string;
 let root: string;
 const RO = ["source", "data", "docs"];
@@ -46,7 +49,7 @@ const gate = (line: string, mode: "plan" | "act", extra: Partial<GateInput> = {}
     ...extra,
   });
 
-describe("read-only folders: refused writes", () => {
+describeUnix("read-only folders: refused writes", () => {
   it.each([
     "touch source/x",
     "mkdir source/new",
@@ -124,7 +127,7 @@ describe("read-only folders: refused writes", () => {
   });
 });
 
-describe("read-only folders: allowed lines", () => {
+describeUnix("read-only folders: allowed lines", () => {
   it.each([
     "cat source/cobol/PAY.cbl",
     "grep -rn MOVE source",
@@ -159,7 +162,7 @@ describe("read-only folders: allowed lines", () => {
   });
 });
 
-describe("gate: read-only-path is refused in every mode, never approvable", () => {
+describeUnix("gate: read-only-path is refused in every mode, never approvable", () => {
   for (const mode of ["plan", "act"] as const) {
     it(`${mode} mode`, () => {
       const d = gate("touch source/x", mode);
@@ -181,7 +184,7 @@ describe("gate: read-only-path is refused in every mode, never approvable", () =
   });
 });
 
-describe("path guard: `..` after a symlink", () => {
+describeUnix("path guard: `..` after a symlink", () => {
   it("follows the link before applying `..`", () => {
     fs.symlinkSync(base, path.join(root, "output", "outside"));
     try {
@@ -196,7 +199,7 @@ describe("path guard: `..` after a symlink", () => {
   });
 });
 
-describe("readOnlyFolderOf (diff paths)", () => {
+describeUnix("readOnlyFolderOf (diff paths)", () => {
   it("maps project-relative paths to their read-only folder", () => {
     expect(readOnlyFolderOf("source/cobol/PAY.cbl", RO)).toBe("source");
     expect(readOnlyFolderOf("docs", RO)).toBe("docs");

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { GatewayRequestContext, RespondFn } from "../gateway/server-methods/types.js";
 import { flushAudit } from "../audit/audit-log.js";
@@ -301,8 +301,9 @@ describe("cross-process concurrency", () => {
     fs.writeFileSync(
       script,
       [
-        `import { getProject } from ${JSON.stringify(path.join(here, "../projects/store.ts"))};`,
-        `import { updateWorkItem } from ${JSON.stringify(path.join(here, "lifecycle.ts"))};`,
+        // file:// URLs: on Windows an absolute path is not a valid ESM specifier.
+        `import { getProject } from ${JSON.stringify(pathToFileURL(path.join(here, "../projects/store.ts")).href)};`,
+        `import { updateWorkItem } from ${JSON.stringify(pathToFileURL(path.join(here, "lifecycle.ts")).href)};`,
         `const p = getProject(${JSON.stringify(projectId)});`,
         `for (let i = 0; i < 10; i++) updateWorkItem(p, ${JSON.stringify(id)}, { title: "r" + process.argv[2] + "-" + i }, { id: "device:race", kind: "person" }, undefined);`,
       ].join("\n"),
