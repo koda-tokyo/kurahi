@@ -42,18 +42,22 @@ describe("terminal redaction", () => {
     expect(s.flush()).toBe("next");
   });
 
-  it("the shell environment is an allowlist without gateway secrets", () => {
-    const env = buildShellEnv("/work/project", {
-      PATH: "/usr/bin:relative/bin:/bin",
-      OPENAI_API_KEY: "sk-should-not-pass",
-      KOLO_GATEWAY_TOKEN: "x".repeat(40),
-      LANG: "ja_JP.UTF-8",
-    });
-    expect(env.PATH).toBe("/usr/bin:/bin");
-    expect(env.HOME).toBe("/work/project");
-    expect(env.LANG).toBe("ja_JP.UTF-8");
-    expect(env.EDITOR).toBe("false");
-    expect(Object.keys(env)).not.toContain("OPENAI_API_KEY");
-    expect(Object.keys(env)).not.toContain("KOLO_GATEWAY_TOKEN");
-  });
+  // POSIX PATH semantics; the terminal broker does not run on Windows gateways.
+  it.skipIf(process.platform === "win32")(
+    "the shell environment is an allowlist without gateway secrets",
+    () => {
+      const env = buildShellEnv("/work/project", {
+        PATH: "/usr/bin:relative/bin:/bin",
+        OPENAI_API_KEY: "sk-should-not-pass",
+        KOLO_GATEWAY_TOKEN: "x".repeat(40),
+        LANG: "ja_JP.UTF-8",
+      });
+      expect(env.PATH).toBe("/usr/bin:/bin");
+      expect(env.HOME).toBe("/work/project");
+      expect(env.LANG).toBe("ja_JP.UTF-8");
+      expect(env.EDITOR).toBe("false");
+      expect(Object.keys(env)).not.toContain("OPENAI_API_KEY");
+      expect(Object.keys(env)).not.toContain("KOLO_GATEWAY_TOKEN");
+    },
+  );
 });

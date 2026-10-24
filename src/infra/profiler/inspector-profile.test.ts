@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, test } from "vitest";
 import {
   captureInspectorProfile,
@@ -50,9 +51,9 @@ describe("inspector profile capture", () => {
         "--profile-startup",
         "/tmp/a.cpuprofile",
       ]),
-    ).toBe("/tmp/a.cpuprofile");
+    ).toBe(path.resolve("/tmp/a.cpuprofile"));
     expect(parseProfileStartupArg(["node", "kolo", "gateway", "--profile-startup=/tmp/b"])).toBe(
-      "/tmp/b",
+      path.resolve("/tmp/b"),
     );
     expect(
       parseProfileStartupArg(["node", "kolo", "status", "--profile-startup", "/tmp/c"]),

@@ -116,9 +116,12 @@ describe("project store", () => {
     expect(() => validateProjectFolder(path.join(withKeys, "_answer-keys"), home)).toThrow(
       /excluded/,
     );
-    const glob = path.join(tmpRoot, "we*ird");
-    fs.mkdirSync(glob);
-    expect(() => validateProjectFolder(glob, home)).toThrow(/may not contain/);
+    // Windows does not allow "*" in folder names; the rule is still exercised on POSIX.
+    if (process.platform !== "win32") {
+      const glob = path.join(tmpRoot, "we*ird");
+      fs.mkdirSync(glob);
+      expect(() => validateProjectFolder(glob, home)).toThrow(/may not contain/);
+    }
   });
 
   it("cleans folder-relative paths", () => {

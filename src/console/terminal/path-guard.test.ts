@@ -26,7 +26,8 @@ afterAll(() => {
 
 const check = (line: string, cwd = root) => checkLinePaths(line, { root, cwd });
 
-describe("checkLinePaths", () => {
+// The terminal broker refuses to open sessions on Windows gateways; its POSIX path rules are tested on POSIX.
+describe.skipIf(process.platform === "win32")("checkLinePaths", () => {
   it("allows paths inside the project", () => {
     for (const line of [
       "ls src",
