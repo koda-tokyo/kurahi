@@ -86,8 +86,27 @@ export function openServerState(root: ProjectRoot): ServerState {
   };
 
   const appendAudit = (entry: Record<string, unknown>) => {
+    // O_NOFOLLOW does not exist on Windows, so also refuse a symlink explicitly, and after
+    // opening make sure the descriptor is the same file as the path (no swap in between).
+    const refuseLink = () => {
+      try {
+        if (fs.lstatSync(auditFile).isSymbolicLink()) {
+          throw new Error(`audit file is a symbolic link: ${auditFile}`);
+        }
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+          throw err;
+        }
+      }
+    };
+    refuseLink();
     const fd = fs.openSync(auditFile, O_WRONLY | O_APPEND | O_CREAT | O_NOFOLLOW, 0o600);
     try {
+      const opened = fs.fstatSync(fd);
+      const onDisk = fs.lstatSync(auditFile);
+      if (onDisk.isSymbolicLink() || opened.ino !== onDisk.ino || opened.dev !== onDisk.dev) {
+        throw new Error(`audit file changed while opening: ${auditFile}`);
+      }
       fs.writeSync(fd, `${JSON.stringify(entry)}\n`);
     } finally {
       fs.closeSync(fd);
