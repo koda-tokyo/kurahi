@@ -106,6 +106,29 @@ const MESSAGES: Table = {
   "init.k.port": { en: "port", ja: "ポート" },
   "init.k.provider": { en: "provider", ja: "プロバイダー" },
   "init.k.doctor": { en: "doctor", ja: "診断" },
+  "init.k.security": { en: "security", ja: "セキュリティ" },
+  "init.k.policy": { en: "policy", ja: "ポリシー" },
+  "init.security.secure": {
+    en: "secure defaults: credential isolation, sandbox for non-main sessions, exec approvals, pinned skills and plugins, memory quarantine",
+    ja: "安全な既定値: 認証情報の分離、メイン以外のセッションはサンドボックス、コマンド実行は承認制、スキルとプラグインは固定済みのみ、メモリ書き込みの隔離",
+  },
+  "init.security.legacy": {
+    en: "existing config kept; {n} setting(s) still use legacy defaults (see kurahi doctor)",
+    ja: "既存の設定を維持。{n} 件の設定が従来の既定値のままです (kurahi doctor を参照)",
+  },
+  "init.policy.installed": {
+    en: "starter policy installed and signed (budgets and job limits): {path}",
+    ja: "スターターポリシーを導入・署名しました (予算とジョブ上限): {path}",
+  },
+  "init.policy.kept": { en: "existing policy kept: {path}", ja: "既存のポリシーを維持: {path}" },
+  "init.policy.none": {
+    en: "no policy: no budgets or job limits (run kurahi policy init)",
+    ja: "ポリシーなし: 予算・ジョブ上限なし (kurahi policy init を実行)",
+  },
+  "init.sandbox.noRuntime": {
+    en: "no container runtime found: exec is refused in sandboxed sessions until Docker and the sandbox image are installed",
+    ja: "コンテナランタイムが見つかりません: Docker とサンドボックスイメージを導入するまで、サンドボックスのセッションではコマンド実行を拒否します",
+  },
   "init.token.created": { en: "created", ja: "生成" },
   "init.token.kept": { en: "kept", ja: "既存" },
   "init.bind.remoteNote": {

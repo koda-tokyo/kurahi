@@ -24,6 +24,18 @@ export type EvidenceSignal =
       restored: number;
     }
   | {
+      /** A human decision on a policy `ask` (Workflow Evaluator: approvals as evidence). */
+      kind: "approval";
+      sessionKey: string;
+      tool: string;
+      decision: "allow" | "deny";
+      ruleId?: string;
+      approvalId?: string;
+      /** Who decided, as reported by the approval path (device/user id); null when unknown. */
+      approver?: string | null;
+      argsDigest?: string;
+    }
+  | {
       kind: "snapshot";
       sessionKey: string;
       snapshotId: string;

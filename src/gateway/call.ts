@@ -201,7 +201,13 @@ export async function withGatewaySession<T>(
   const formatCloseError = (code: number, reason: string) => {
     const reasonText = reason?.trim() || "no close reason";
     const hint =
-      code === 1006 ? "abnormal closure (no close frame)" : code === 1000 ? "normal closure" : "";
+      code === 1006
+        ? "abnormal closure (no close frame)"
+        : code === 1000
+          ? "normal closure"
+          : code === 1013
+            ? "try again later"
+            : "";
     const suffix = hint ? ` ${hint}` : "";
     return `gateway closed (${code}${suffix}): ${reasonText}\n${connectionDetails.message}`;
   };

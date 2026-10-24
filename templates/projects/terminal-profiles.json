@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "note": "Terminal profiles are data only in v0.3; the terminal itself arrives in v0.4. Every profile is off by default.",
+  "profiles": [
+    {
+      "id": "standard",
+      "label": { "ja": "標準", "en": "Standard" },
+      "allowedCommandsPolicy": {
+        "ja": "プロジェクトフォルダー内での一般的なシェル操作。書き込みはプロジェクトの書き込み可能フォルダーのみ。",
+        "en": "Everyday shell commands inside the project folder; writes only to the project's writable folders."
+      },
+      "enabledByDefault": false,
+      "clientIsolated": false,
+      "justInTime": false
+    },
+    {
+      "id": "data",
+      "label": { "ja": "データ", "en": "Data" },
+      "allowedCommandsPolicy": {
+        "ja": "読み取り専用の SQL コンソール、PowerShell / Bash。データの変更や外部送信は承認が必要。",
+        "en": "Read-only SQL console, PowerShell / Bash. Changing data or sending it out needs approval."
+      },
+      "enabledByDefault": false,
+      "clientIsolated": false,
+      "justInTime": false
+    },
+    {
+      "id": "operations",
+      "label": { "ja": "運用", "en": "Operations" },
+      "allowedCommandsPolicy": {
+        "ja": "運用手順書に沿ったサービス確認コマンド。再起動や設定変更は承認が必要。",
+        "en": "Service checks that follow the runbook. Restarts and configuration changes need approval."
+      },
+      "enabledByDefault": false,
+      "clientIsolated": false,
+      "justInTime": false
+    },
+    {
+      "id": "legacy",
+      "label": { "ja": "レガシー", "en": "Legacy" },
+      "allowedCommandsPolicy": {
+        "ja": "3270 / 5250 エミュレーション、GnuCOBOL シェル、SSH。既定は読み取り専用。",
+        "en": "3270 / 5250 emulation, GnuCOBOL shell, SSH. Read-only by default."
+      },
+      "enabledByDefault": false,
+      "clientIsolated": false,
+      "justInTime": false
+    },
+    {
+      "id": "scientific",
+      "label": { "ja": "科学計算", "en": "Scientific" },
+      "allowedCommandsPolicy": {
+        "ja": "Python / R / Julia、Jupyter カーネル、クラスターへの SSH / Slurm。",
+        "en": "Python / R / Julia, Jupyter kernels, cluster SSH / Slurm."
+      },
+      "enabledByDefault": false,
+      "clientIsolated": false,
+      "justInTime": false
+    },
+    {
+      "id": "learning-sandbox",
+      "label": { "ja": "学習サンドボックス", "en": "Learning sandbox" },
+      "allowedCommandsPolicy": {
+        "ja": "ネットワークなし。クラスフォルダーのみ。教員がリセットできる。",
+        "en": "No network. Class folder only. The teacher can reset it."
+      },
+      "enabledByDefault": false,
+      "clientIsolated": false,
+      "justInTime": false
+    }
+  ]
+}

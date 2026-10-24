@@ -39,6 +39,7 @@ import {
 } from "../config/config.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { DOCS_URL } from "../config/product-urls.js";
+import { applySecureDefaults } from "../config/secure-defaults.js";
 import { resolveLocalGatewayToken } from "../gateway/token-file.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
@@ -184,8 +185,11 @@ export async function runOnboardingWizard(
         ],
       })) as ResetScope;
       await handleReset(resetScope, resolveUserPath(workspaceDefault), runtime);
-      baseConfig = {};
+      baseConfig = applySecureDefaults({}).config;
     }
+  } else {
+    // A fresh config starts from the secure defaults (docs/security/secure-defaults.md).
+    baseConfig = applySecureDefaults(baseConfig).config;
   }
 
   const quickstartGateway: QuickstartGatewayDefaults = (() => {

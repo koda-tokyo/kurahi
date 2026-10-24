@@ -1,0 +1,80 @@
+{
+  "fixture": "line3-2026-10-14",
+  "line": "L3",
+  "date": "2026-10-14",
+  "rows": 1240,
+  "fictional": true,
+  "exceptionCount": 7,
+  "exceptions": [
+    {
+      "rowId": "L3-20261014-0037",
+      "characteristic": "flange_thickness",
+      "measured": 3.328,
+      "lowerLimit": 3.12,
+      "upperLimit": 3.28,
+      "unit": "mm",
+      "deviation": 0.048,
+      "source": "input.csv#row=37"
+    },
+    {
+      "rowId": "L3-20261014-0214",
+      "characteristic": "overall_length",
+      "measured": 141.56,
+      "lowerLimit": 141.8,
+      "upperLimit": 142.2,
+      "unit": "mm",
+      "deviation": -0.24,
+      "source": "input.csv#row=214"
+    },
+    {
+      "rowId": "L3-20261014-0388",
+      "characteristic": "bend_angle",
+      "measured": 90.58,
+      "lowerLimit": 89.5,
+      "upperLimit": 90.5,
+      "unit": "deg",
+      "deviation": 0.08,
+      "source": "input.csv#row=388"
+    },
+    {
+      "rowId": "L3-20261014-0501",
+      "characteristic": "hole_diameter",
+      "measured": 7.93,
+      "lowerLimit": 7.95,
+      "upperLimit": 8.05,
+      "unit": "mm",
+      "deviation": -0.02,
+      "source": "input.csv#row=501"
+    },
+    {
+      "rowId": "L3-20261014-0777",
+      "characteristic": "flange_thickness",
+      "measured": 3.44,
+      "lowerLimit": 3.12,
+      "upperLimit": 3.28,
+      "unit": "mm",
+      "deviation": 0.16,
+      "source": "input.csv#row=777"
+    },
+    {
+      "rowId": "L3-20261014-1003",
+      "characteristic": "bend_angle",
+      "measured": 89.38,
+      "lowerLimit": 89.5,
+      "upperLimit": 90.5,
+      "unit": "deg",
+      "deviation": -0.12,
+      "source": "input.csv#row=1003"
+    },
+    {
+      "rowId": "L3-20261014-1198",
+      "characteristic": "bend_angle",
+      "measured": 90.95,
+      "lowerLimit": 89.5,
+      "upperLimit": 90.5,
+      "unit": "deg",
+      "deviation": 0.45,
+      "source": "input.csv#row=1198"
+    }
+  ]
+}

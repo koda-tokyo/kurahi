@@ -1,6 +1,5 @@
-// gateway-v3 health — forwards lease + biology state to /health.
+// gateway-v3 health — forwards lease + consciousness dispatcher state to /health.
 
-import type { BiologyBootSupervisor } from "./biology/boot.js";
 import type { LeaseManager } from "./supervisor/lease.js";
 
 export type NodePosture = "alive" | "handoff_ready" | "degraded" | "unhealthy" | "serviceable";
@@ -8,18 +7,20 @@ export type NodePosture = "alive" | "handoff_ready" | "degraded" | "unhealthy" |
 export interface V3HealthSnapshot {
   posture: NodePosture;
   lease: { held: boolean; holdingMs: number } | null;
-  biology: { organCount: number; healthyOrgans: number; lastTickAt: number } | null;
+  /** Registered v3 consciousness dispatchers, or null when v3 dispatch is not booted. */
+  dispatchers: { count: number } | null;
 }
 
 let v3LeaseSingleton: LeaseManager | null = null;
-let v3BiologySingleton: BiologyBootSupervisor | null = null;
+let v3DispatcherCount: (() => number) | null = null;
 
 export function setV3LeaseSingleton(lease: LeaseManager | null): void {
   v3LeaseSingleton = lease;
 }
 
-export function setV3BiologyHealthSingleton(biology: BiologyBootSupervisor): void {
-  v3BiologySingleton = biology;
+/** Wire the live dispatcher count (gateway.v3.enabled); null unwires it. */
+export function setV3DispatcherCountSource(source: (() => number) | null): void {
+  v3DispatcherCount = source;
 }
 
 /** Real lease state, or null when the lease is disabled / not booted. */
@@ -34,8 +35,6 @@ export function getV3HealthSnapshot(): V3HealthSnapshot {
   return {
     posture: lease && !lease.held ? "handoff_ready" : "alive",
     lease,
-    biology: v3BiologySingleton
-      ? { organCount: 6, healthyOrgans: 6, lastTickAt: v3BiologySingleton.getSignals().lastTick }
-      : null,
+    dispatchers: v3DispatcherCount ? { count: v3DispatcherCount() } : null,
   };
 }

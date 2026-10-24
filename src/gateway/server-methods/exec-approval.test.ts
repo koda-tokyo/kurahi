@@ -99,7 +99,7 @@ describe("exec approval handlers", () => {
     expect(resolveRespond).toHaveBeenCalledWith(true, { ok: true }, undefined);
     expect(respond).toHaveBeenCalledWith(
       true,
-      expect.objectContaining({ id, decision: "allow-once" }),
+      expect.objectContaining({ id, decision: "allow-once", resolvedBy: expect.any(String) }),
       undefined,
     );
     expect(broadcasts.some((entry) => entry.event === "exec.approval.resolved")).toBe(true);

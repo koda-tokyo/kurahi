@@ -10,6 +10,7 @@ import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
 import {
   buildInventory,
   finalizeInventory,
+  inventoryConfigDigest,
   inventoryToCsv,
   redactEndpoint,
   verifyInventory,
@@ -238,5 +239,18 @@ describe("AI inventory", () => {
     expect(out.join("\n")).toContain("ops-bot (default) · Ops");
     expect(redactEndpoint({ url: "not a url" })).toBe("(invalid url)");
     expect(redactEndpoint({ command: "C:\\tools\\srv.exe" })).toBe("srv.exe");
+  });
+
+  test("the configuration digest ignores time and evidence counts but tracks configuration", () => {
+    const before = inventoryConfigDigest(cfg, { env });
+    record("job-3", "ops-bot");
+    expect(inventoryConfigDigest(cfg, { env })).toBe(before);
+    const changed = {
+      ...cfg,
+      agents: { ...cfg.agents, list: [...(cfg.agents?.list ?? []), { id: "new-agent" }] },
+    } as unknown as KoLoConfig;
+    expect(inventoryConfigDigest(changed, { env })).not.toBe(before);
+    writePolicy("version: 1\nagents:\n  '*':\n    tools:\n      deny: [exec]\n");
+    expect(inventoryConfigDigest(cfg, { env })).not.toBe(before);
   });
 });

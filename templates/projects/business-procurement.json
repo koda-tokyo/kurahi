@@ -1,0 +1,56 @@
+{
+  "id": "business-procurement",
+  "name": {
+    "ja": "購買 / 購買申請",
+    "en": "Purchase requests"
+  },
+  "description": {
+    "ja": "購買申請をキューで受け付け、エージェントが見積の比較と発注案を下書きし、予算権限者が承認します。発注は承認後に人が行います。",
+    "en": "Take purchase requests in a queue; the agent compares quotes and drafts the order proposal, and the budget holder approves. A person places the order after approval."
+  },
+  "folders": ["quotes", "output"],
+  "rules": {
+    "readOnly": ["quotes"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "エージェントは下書きのみを作成します。承認・差戻し・取消は必ず人が行います。",
+        "en": "Agents only draft. Approve, send back and cancel are always done by a person."
+      },
+      {
+        "ja": "申請内容と添付資料にない事実は書かず、不足は【要確認】と明記してください。",
+        "en": "Use only facts from the request and its attachments; mark anything missing as 【要確認 / to confirm】."
+      },
+      {
+        "ja": "承認されるまで、送信・発注・支払・予約・共有は一切しないでください。",
+        "en": "Never send, order, pay, book or share anything until the item is approved."
+      },
+      {
+        "ja": "見積書（quotes/）は読み取り専用です。",
+        "en": "Quotes (quotes/) are read-only."
+      },
+      {
+        "ja": "発注・取引先への連絡は行わず、発注案として保存してください。",
+        "en": "Do not place orders or contact vendors; save the order proposal for approval."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "この購買申請の見積を比較し、発注案を作成してください。",
+      "en": "Compare the quotes for this purchase request and draft the order proposal."
+    },
+    {
+      "ja": "相見積が必要か、社内基準に照らして確認してください。",
+      "en": "Check whether competing quotes are required under the internal rules."
+    },
+    {
+      "ja": "取引先への発注依頼メールの下書きを作成してください（送信しない）。",
+      "en": "Draft the order email to the vendor (do not send)."
+    }
+  ],
+  "terminalProfile": "data"
+}

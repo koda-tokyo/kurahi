@@ -1,10 +1,10 @@
 import type { proto, WAMessage } from "@whiskeysockets/baileys";
-import { downloadMediaMessage, normalizeMessageContent } from "@whiskeysockets/baileys";
 import type { createWaSocket } from "../session.js";
 import { logVerbose } from "../../globals.js";
+import { baileys } from "../baileys.js";
 
 function unwrapMessage(message: proto.IMessage | undefined): proto.IMessage | undefined {
-  const normalized = normalizeMessageContent(message);
+  const normalized = baileys().normalizeMessageContent(message);
   return normalized;
 }
 
@@ -33,7 +33,7 @@ export async function downloadInboundMedia(
     return undefined;
   }
   try {
-    const buffer = await downloadMediaMessage(
+    const buffer = await baileys().downloadMediaMessage(
       msg as WAMessage,
       "buffer",
       {},

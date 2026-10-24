@@ -62,7 +62,7 @@ async function runSandboxScript(scriptRel: string, runtime: RuntimeEnv): Promise
   return true;
 }
 
-async function isDockerAvailable(): Promise<boolean> {
+export async function isDockerAvailable(): Promise<boolean> {
   try {
     await runExec("docker", ["version", "--format", "{{.Server.Version}}"], {
       timeoutMs: 5_000,
@@ -188,7 +188,10 @@ export async function maybeRepairSandboxImages(
 
   const dockerAvailable = await isDockerAvailable();
   if (!dockerAvailable) {
-    note("Docker not available; skipping sandbox image checks.", "Sandbox");
+    note(
+      `Docker not available; skipping sandbox image checks. Sandbox mode is ${mode}: exec is refused in sandboxed sessions (it never falls back to the host) until Docker and the sandbox image are installed.`,
+      "Sandbox",
+    );
     return cfg;
   }
 

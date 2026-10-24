@@ -127,6 +127,8 @@ export type SessionSkillSnapshot = {
   skills: Array<{ name: string; primaryEnv?: string }>;
   resolvedSkills?: Skill[];
   version?: number;
+  /** Fingerprint of the skills config the snapshot was built under (see resolveSkillsConfigKey). */
+  configKey?: string;
 };
 
 export type SessionSystemPromptReport = {

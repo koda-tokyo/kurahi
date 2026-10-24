@@ -141,7 +141,7 @@ describe("media understanding auto-detect (e2e)", () => {
       await writeExecutable(
         binDir,
         "gemini",
-        `#!/usr/bin/env bash\necho '{\\"response\\":\\"gemini ok\\"' + "}'\n`,
+        `#!/usr/bin/env bash\necho '{"response":"gemini ok"}'\n`,
       );
 
       process.env.PATH = `${binDir}:/usr/bin:/bin`;

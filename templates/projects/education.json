@@ -1,0 +1,27 @@
+{
+  "id": "education",
+  "name": { "ja": "教育", "en": "Education" },
+  "description": {
+    "ja": "教員用ワークスペース。授業計画、ワークシート、JLPT 対策問題を作成します。v0.3 では学習者の個人情報は扱いません。",
+    "en": "A teacher workspace for lesson plans, worksheets and JLPT practice. No learner personal data in v0.3."
+  },
+  "folders": ["output"],
+  "rules": {
+    "readOnly": ["syllabus", "readings", "templates"],
+    "writable": ["output"],
+    "artifactApprovalRequired": false,
+    "instructions": [
+      { "ja": "これは教員用のワークスペースです。", "en": "This is a teacher workspace." },
+      { "ja": "学習者の氏名や連絡先などの個人情報は扱わないでください（v0.3）。", "en": "Do not handle learner personal data such as names or contact details (v0.3)." }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    { "ja": "ごみの出し方の読み物を使った N4 の授業計画を作成してください。", "en": "Write an N4 lesson plan for the rubbish-rules reading." },
+    { "ja": "この読み物のワークシートを作成してください。", "en": "Make a worksheet for this reading." },
+    { "ja": "JLPT N4 形式の練習問題を 5 問作成してください。", "en": "Write five JLPT N4-style practice questions." }
+  ],
+  "terminalProfile": "learning-sandbox",
+  "demoFolder": "~/kurahi-demo-packs/education-nihongo"
+}

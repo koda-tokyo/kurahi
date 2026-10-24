@@ -17,6 +17,11 @@ export type PluginManifest = {
   description?: string;
   version?: string;
   uiHints?: Record<string, PluginConfigUiHint>;
+  /**
+   * The plugin may be enabled for one project only (a project template's `plugins`), without
+   * being enabled for the whole gateway. Only bundled, tool-only plugins honour it.
+   */
+  projectScope?: boolean;
 };
 
 export type PluginManifestLoadResult =
@@ -97,6 +102,7 @@ export function loadPluginManifest(rootDir: string): PluginManifestLoadResult {
       description,
       version,
       uiHints,
+      ...(raw.projectScope === true ? { projectScope: true } : {}),
     },
     manifestPath,
   };

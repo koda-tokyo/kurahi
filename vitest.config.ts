@@ -39,6 +39,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "extensions/**/*.test.ts",
       "packages/client/test/**/*.test.ts",
+      "packages/legacy-analyzer/src/**/*.test.ts",
       "test/format-error.test.ts",
       "test/privacy-check.test.ts",
     ],

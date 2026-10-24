@@ -98,6 +98,16 @@ describe("auth isolation", () => {
     expect(store.lastGood).toEqual({ anthropic: "anthropic:default" });
   });
 
+  it('explicit: a "*" grant (kurahi init\'s identity agent) sees every profile', async () => {
+    await writeConfig({ isolation: "explicit", grants: { worker: ["*"] } });
+    const store = ensureAuthProfileStore(kidDir);
+    expect(Object.keys(store.profiles).toSorted()).toEqual(["openai:default", "sakura:default"]);
+    const { isProfileGranted } = await import("./isolation.js");
+    expect(isProfileGranted(["*"], "anything:default")).toBe(true);
+    expect(isProfileGranted(["a:x"], "b:y")).toBe(false);
+    expect(isProfileGranted(undefined, "a:x")).toBe(false);
+  });
+
   it("explicit: the main agent itself is unaffected", async () => {
     await writeConfig({ isolation: "explicit" });
     const store = ensureAuthProfileStore();

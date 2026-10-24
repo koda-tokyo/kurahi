@@ -93,6 +93,7 @@ export function buildGatewayCronService(params: {
           runAtMs: evt.runAtMs,
           durationMs: evt.durationMs,
           nextRunAtMs: evt.nextRunAtMs,
+          ...(evt.preExec ? { preExec: evt.preExec } : {}),
         }).catch((err) => {
           cronLogger.warn({ err: String(err), logPath }, "cron: run log append failed");
         });

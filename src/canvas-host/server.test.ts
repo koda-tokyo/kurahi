@@ -235,7 +235,9 @@ describe("canvas host", () => {
       const bundleRes = await fetch(`http://127.0.0.1:${server.port}/__KOLO__/a2ui/a2ui.bundle.js`);
       const js = await bundleRes.text();
       expect(bundleRes.status).toBe(200);
-      expect(js).toContain("KoLoA2UI");
+      // Both the real bundle (`globalThis.koloA2UI = api`) and the stub written above when the
+      // bundle has not been built carry the global name; the class name is only in the real one.
+      expect(js).toContain("koloA2UI");
     } finally {
       await server.close();
       if (createdBundle) {

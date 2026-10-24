@@ -65,7 +65,7 @@ import { createPluginsHttpHandlers } from "./plugins-http.js";
 import { createPolicyHttpHandlers } from "./policy-http.js";
 import {
   checkHttpRateLimit,
-  checkWsConnectionRateLimit,
+  decideWsConnectionRateLimit,
   WsMessageLimiter,
 } from "./rate-limiter.js";
 import { routeMinScope } from "./scopes.js";
@@ -656,8 +656,18 @@ export function attachGatewayUpgradeHandler(opts: {
     // ── WebSocket connection rate limiting (Gateway v3 — Phase 1 hardening)
     const configSnapshot = loadConfig();
     const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
-    if (!checkWsConnectionRateLimit(req, trustedProxies)) {
-      return; // socket already destroyed by rate limiter
+    const rate = decideWsConnectionRateLimit(req, trustedProxies);
+    if (!rate.allowed) {
+      if (!rate.explain) {
+        socket.destroy();
+        return;
+      }
+      // Tell the client why (1013 = try again later) instead of a bare 1006. The connection is
+      // never handed to the gateway: no "connection" event, no auth, no messages.
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        ws.close(1013, rate.reason);
+      });
+      return;
     }
 
     // Canvas live-reload WS: same gate as the canvas HTTP routes for non-local clients (M2a).

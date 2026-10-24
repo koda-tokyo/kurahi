@@ -1,11 +1,14 @@
+import fs from "node:fs";
 import type { ChannelId } from "../channels/plugins/types.js";
 import type { KoLoConfig, GatewayBindMode } from "../config/config.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { listChannelPlugins } from "../channels/plugins/index.js";
 import { formatCliCommand } from "../cli/command-format.js";
+import { findLegacyDefaults } from "../config/secure-defaults.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
 import { isLoopbackHost, resolveGatewayBindHost } from "../gateway/net.js";
 import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
+import { resolvePolicyLocations } from "../policy/paths.js";
 import { note } from "../terminal/note.js";
 
 export async function noteSecurityWarnings(cfg: KoLoConfig) {
@@ -182,4 +185,32 @@ export async function noteSecurityWarnings(cfg: KoLoConfig) {
   const lines = warnings.length > 0 ? warnings : ["- No channel security warnings detected."];
   lines.push(auditHint);
   note(lines.join("\n"), "Security");
+}
+
+/**
+ * Secure defaults (OWASP ASI03, ASI05, ASI07, ASI08): settings this config leaves to an old permissive
+ * fallback, and a missing policy (no budgets or job limits). Warnings only; nothing is changed.
+ */
+export function noteSecureDefaults(cfg: KoLoConfig, env: NodeJS.ProcessEnv = process.env) {
+  const lines: string[] = [];
+  for (const d of findLegacyDefaults(cfg)) {
+    lines.push(`- ${d.key} is not set: legacy default ${d.legacy} (new installs: ${d.secure}).`);
+    lines.push(`  ${d.detail}`);
+  }
+  const policyPath = resolvePolicyLocations(env).policyPath;
+  if (!fs.existsSync(policyPath)) {
+    lines.push(`- No policy at ${policyPath}: no budgets or job limits apply.`);
+    lines.push(`  Fix: ${formatCliCommand("kurahi policy init")} (signed starter policy)`);
+  }
+  if (lines.length > 0) {
+    note(
+      [
+        "This installation predates the secure defaults; it keeps working as before.",
+        ...lines,
+        `- Docs: docs/security/secure-defaults.md`,
+      ].join("\n"),
+      "Secure defaults",
+    );
+  }
+  return lines.length;
 }

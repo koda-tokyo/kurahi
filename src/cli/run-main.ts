@@ -89,6 +89,8 @@ export async function runCli(argv: string[] = process.argv) {
   if (!shouldSkipPluginRegistration) {
     // Register plugin CLI commands before parsing
     const { registerPluginCliCommands } = await import("../plugins/cli.js");
+    const { preparePluginSdk } = await import("../plugins/loader.js");
+    await preparePluginSdk();
     const { loadConfig } = await import("../config/config.js");
     registerPluginCliCommands(program, loadConfig());
   }

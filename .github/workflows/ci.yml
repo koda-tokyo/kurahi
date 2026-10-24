@@ -38,6 +38,11 @@ jobs:
       - name: Privacy check
         run: node scripts/privacy-check.mjs
 
+      - name: Family-internal check
+        # Private-deployment identifiers must not ship (scripts/family-internal-check.mjs,
+        # exceptions with reasons in .family-internal-allow).
+        run: node scripts/family-internal-check.mjs
+
   checks:
     name: ${{ matrix.name }}
     needs: privacy

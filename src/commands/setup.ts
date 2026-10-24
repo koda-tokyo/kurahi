@@ -4,6 +4,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../agents/workspace.js";
 import { type KoLoConfig, createConfigIO, writeConfigFile } from "../config/config.js";
 import { formatConfigPath, logConfigUpdated } from "../config/logging.js";
+import { applySecureDefaults } from "../config/secure-defaults.js";
 import { resolveSessionTranscriptsDir } from "../config/sessions.js";
 import { defaultRuntime } from "../runtime.js";
 import { shortenHomePath } from "../utils.js";
@@ -41,12 +42,14 @@ export async function setupCommand(
 
   const workspace = desiredWorkspace ?? defaults.workspace ?? DEFAULT_AGENT_WORKSPACE_DIR;
 
+  // A fresh config starts from the secure defaults; an existing one is kept as it is.
+  const base: KoLoConfig = existingRaw.exists ? cfg : applySecureDefaults(cfg).config;
   const next: KoLoConfig = {
-    ...cfg,
+    ...base,
     agents: {
-      ...cfg.agents,
+      ...base.agents,
       defaults: {
-        ...defaults,
+        ...base.agents?.defaults,
         workspace,
       },
     },

@@ -15,6 +15,7 @@ import { formatDocsLink } from "../terminal/links.js";
 import { colorize, isRich, theme } from "../terminal/theme.js";
 import { shortenHomeInString, shortenHomePath } from "../utils.js";
 import { formatErrorMessage, withManager } from "./cli-utils.js";
+import { registerMemoryQuarantineCli } from "./memory-quarantine-cli.js";
 import { withProgress, withProgressTotals } from "./progress.js";
 
 type MemoryCommandOptions = {
@@ -471,6 +472,8 @@ export function registerMemoryCli(program: Command) {
     .command("memory")
     .description("Memory search tools")
     .addHelpText("after", () => `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/memory")}\n`);
+
+  registerMemoryQuarantineCli(memory);
 
   memory
     .command("status")

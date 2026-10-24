@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { GatewayRequestHandlers } from "./types.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
+import { checkInboundAgentMessage } from "../../agents/messaging/inbound.js";
 import { agentCommand } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
 import {
@@ -84,6 +85,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       timeout?: number;
       label?: string;
       spawnedBy?: string;
+      agentEnvelope?: Record<string, unknown>;
     };
     const cfg = loadConfig();
     const idem = request.idempotencyKey;
@@ -102,6 +104,20 @@ export const agentHandlers: GatewayRequestHandlers = {
         cached: true,
       });
       return;
+    }
+    // Inter-agent messages: verify the signed envelope and payload (OWASP ASI07).
+    const a2a = checkInboundAgentMessage({
+      cfg,
+      request,
+      resolveCanonicalKey: (key) => loadSessionEntry(key).canonicalKey,
+    });
+    if (a2a.kind === "reject") {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, a2a.error));
+      return;
+    }
+    if (a2a.kind === "deliver") {
+      request.message = a2a.message;
+      request.extraSystemPrompt = a2a.extraSystemPrompt;
     }
     const normalizedAttachments =
       request.attachments

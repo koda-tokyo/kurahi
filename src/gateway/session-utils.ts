@@ -27,6 +27,7 @@ import {
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { normalizeSessionDeliveryFields } from "../utils/delivery-context.js";
+import { collapseDocumentBlocks, stripEnvelope, stripProjectContext } from "./chat-sanitize.js";
 import {
   readFirstUserMessageFromTranscript,
   readLastMessagePreviewFromTranscript,
@@ -149,6 +150,10 @@ function truncateTitle(text: string, maxLen: number): string {
   return cut + "…";
 }
 
+function stripMessageIdHintsForTitle(text: string): string {
+  return text.replace(/\n?\s*\[message_id:[^\]]*\]\s*$/i, "");
+}
+
 export function deriveSessionTitle(
   entry: SessionEntry | undefined,
   firstUserMessage?: string | null,
@@ -165,8 +170,13 @@ export function deriveSessionTitle(
     return entry.subject.trim();
   }
 
-  if (firstUserMessage?.trim()) {
-    const normalized = firstUserMessage.replace(/\s+/g, " ").trim();
+  const visibleFirst = firstUserMessage
+    ? collapseDocumentBlocks(
+        stripMessageIdHintsForTitle(stripEnvelope(stripProjectContext(firstUserMessage))),
+      )
+    : firstUserMessage;
+  if (visibleFirst?.trim()) {
+    const normalized = visibleFirst.replace(/\s+/g, " ").trim();
     return truncateTitle(normalized, DERIVED_TITLE_MAX_LEN);
   }
 

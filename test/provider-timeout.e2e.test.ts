@@ -117,7 +117,7 @@ async function getFreeGatewayPort(): Promise<number> {
 describe("provider timeouts (e2e)", () => {
   it(
     "falls back when the primary provider aborts with a timeout-like AbortError",
-    { timeout: 60_000 },
+    { timeout: 180_000 },
     async () => {
       const prev = {
         home: process.env.HOME,

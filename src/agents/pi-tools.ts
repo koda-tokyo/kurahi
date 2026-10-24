@@ -12,14 +12,26 @@ import type { SandboxContext } from "./sandbox.js";
 import { createCodeModeTool, finalizeCodeModeTool } from "../code-mode/tool.js";
 import { createFactoryTools } from "../factory/tools.js";
 import { wrapToolWithFormatter } from "../format/wrapper.js";
+import { maxAsk, minSecurity } from "../infra/exec-approvals.js";
 import { logWarn } from "../logger.js";
 import { wrapToolWithLspDiagnostics } from "../lsp/diagnostics-wrapper.js";
-import { getPluginToolMeta } from "../plugins/tools.js";
+import {
+  createMemoryTurn,
+  resolveMemoryGuardContext,
+  wrapToolWithMemoryProvenance,
+} from "../memory/provenance-guard.js";
+import { getPluginToolMeta, resolveProjectScopedPluginTools } from "../plugins/tools.js";
 import { wrapToolWithPolicyGuard } from "../policy/guard.js";
+import {
+  parseProjectSessionKey,
+  projectPermissionSet,
+  projectPluginIds,
+} from "../projects/scope.js";
+import { getProject } from "../projects/store.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { wrapToolWithSnapshots } from "../snapshots/wrapper.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
-import { resolveDefaultAgentId } from "./agent-scope.js";
+import { resolveAgentConfig, resolveDefaultAgentId } from "./agent-scope.js";
 import { createApplyPatchTool } from "./apply-patch.js";
 import {
   createExecTool,
@@ -30,7 +42,8 @@ import {
 import { listChannelAgentTools } from "./channel-tools.js";
 import { createKipEngineTaskTool } from "./kip-engine-task.js";
 import { createKoLoTools } from "./kolo-tools.js";
-import { resolveToolPermissions } from "./permissions.js";
+import { resolveMemorySearchConfig } from "./memory-search.js";
+import { resolveToolPermissions, wrapToolWithPermissionGuard } from "./permissions.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import {
@@ -97,20 +110,38 @@ function isApplyPatchAllowedForModel(params: {
   });
 }
 
-function resolveExecConfig(cfg: KoLoConfig | undefined) {
+/**
+ * Effective exec settings for one agent: `agents.list[].tools.exec` over `tools.exec`.
+ * Host, node, paths and timings take the agent's value. Security and ask may only be tightened
+ * by the agent entry (the stricter of the two wins), so a per-agent block can never loosen what
+ * the global block enforces.
+ */
+export function resolveExecConfig(cfg: KoLoConfig | undefined, agentId?: string) {
   const globalExec = cfg?.tools?.exec;
+  const agentExec = cfg && agentId ? resolveAgentConfig(cfg, agentId)?.tools?.exec : undefined;
+  const pick = <K extends keyof NonNullable<typeof globalExec>>(key: K) =>
+    agentExec?.[key] ?? globalExec?.[key];
+  const security =
+    agentExec?.security && globalExec?.security
+      ? minSecurity(globalExec.security, agentExec.security)
+      : (agentExec?.security ?? globalExec?.security);
+  const ask =
+    agentExec?.ask && globalExec?.ask
+      ? maxAsk(globalExec.ask, agentExec.ask)
+      : (agentExec?.ask ?? globalExec?.ask);
   return {
-    host: globalExec?.host,
-    security: globalExec?.security,
-    ask: globalExec?.ask,
-    node: globalExec?.node,
-    pathPrepend: globalExec?.pathPrepend,
-    safeBins: globalExec?.safeBins,
-    backgroundMs: globalExec?.backgroundMs,
-    timeoutSec: globalExec?.timeoutSec,
-    approvalRunningNoticeMs: globalExec?.approvalRunningNoticeMs,
-    cleanupMs: globalExec?.cleanupMs,
-    notifyOnExit: globalExec?.notifyOnExit,
+    host: pick("host"),
+    unsandboxed: pick("unsandboxed"),
+    security,
+    ask,
+    node: pick("node"),
+    pathPrepend: pick("pathPrepend"),
+    safeBins: pick("safeBins"),
+    backgroundMs: pick("backgroundMs"),
+    timeoutSec: pick("timeoutSec"),
+    approvalRunningNoticeMs: pick("approvalRunningNoticeMs"),
+    cleanupMs: pick("cleanupMs"),
+    notifyOnExit: pick("notifyOnExit"),
     applyPatch: globalExec?.applyPatch,
   };
 }
@@ -130,6 +161,11 @@ export function createKoLoCodingTools(options?: {
   messageTo?: string;
   messageThreadId?: string | number;
   sandbox?: SandboxContext | null;
+  /**
+   * The session had to be sandboxed but the container could not be started. Exec is refused
+   * with this reason and file tools are confined to the workspace (never the whole host).
+   */
+  sandboxUnavailable?: { reason: string } | null;
   sessionKey?: string;
   agentDir?: string;
   workspaceDir?: string;
@@ -174,6 +210,8 @@ export function createKoLoCodingTools(options?: {
   hasRepliedRef?: { value: boolean };
   /** If true, the model has native vision capability */
   modelHasVision?: boolean;
+  /** The prompt that started this run (memory provenance: external-content markers). */
+  turnPrompt?: string;
 }): AnyAgentTool[] {
   const execToolName = "exec";
   const sandbox = options?.sandbox?.enabled ? options.sandbox : undefined;
@@ -238,10 +276,12 @@ export function createKoLoCodingTools(options?: {
     sandbox?.tools,
     subagentPolicy,
   ]);
-  const execConfig = resolveExecConfig(options?.config);
-  const sandboxRoot = sandbox?.workspaceDir;
-  const allowWorkspaceWrites = sandbox?.workspaceAccess !== "ro";
+  const execConfig = resolveExecConfig(options?.config, agentId);
   const workspaceRoot = options?.workspaceDir ?? process.cwd();
+  const sandboxUnavailable = !sandbox ? options?.sandboxUnavailable?.reason : undefined;
+  // Degraded sandbox (container unavailable): keep the file tools inside the workspace.
+  const sandboxRoot = sandbox?.workspaceDir ?? (sandboxUnavailable ? workspaceRoot : undefined);
+  const allowWorkspaceWrites = sandbox?.workspaceAccess !== "ro";
   const applyPatchConfig = options?.config?.tools?.exec?.applyPatch;
   const applyPatchEnabled =
     !!applyPatchConfig?.enabled &&
@@ -282,9 +322,13 @@ export function createKoLoCodingTools(options?: {
     return [tool];
   });
   const { cleanupMs: cleanupMsOverride, ...execDefaults } = options?.exec ?? {};
+  const execHost = options?.exec?.host ?? execConfig.host;
   const execTool = createExecTool({
     ...execDefaults,
-    host: options?.exec?.host ?? execConfig.host,
+    host: execHost,
+    hostPinned: execHost !== undefined,
+    unsandboxed: options?.exec?.unsandboxed ?? execConfig.unsandboxed,
+    sandboxUnavailable,
     security: options?.exec?.security ?? execConfig.security,
     ask: options?.exec?.ask ?? execConfig.ask,
     node: options?.exec?.node ?? execConfig.node,
@@ -292,7 +336,8 @@ export function createKoLoCodingTools(options?: {
     safeBins: options?.exec?.safeBins ?? execConfig.safeBins,
     agentId,
     cwd: options?.workspaceDir,
-    allowBackground,
+    // A caller may turn background continuation off (cron pre-steps run to completion).
+    allowBackground: options?.exec?.allowBackground === false ? false : allowBackground,
     scopeKey,
     sessionKey: options?.sessionKey,
     messageProvider: options?.messageProvider,
@@ -313,6 +358,8 @@ export function createKoLoCodingTools(options?: {
   const processTool = createProcessTool({
     cleanupMs: cleanupMsOverride ?? execConfig.cleanupMs,
     scopeKey,
+    agentId,
+    sessionKey: options?.sessionKey,
   });
   const applyPatchTool =
     !applyPatchEnabled || (sandboxRoot && !allowWorkspaceWrites)
@@ -388,7 +435,7 @@ export function createKoLoCodingTools(options?: {
     ...listChannelAgentTools({ cfg: options?.config }),
     ...createKoLoTools({
       sandboxBrowserBridgeUrl: sandbox?.browser?.bridgeUrl,
-      allowHostBrowserControl: sandbox ? sandbox.browserAllowHostControl : true,
+      allowHostBrowserControl: sandbox ? sandbox.browserAllowHostControl : !sandboxUnavailable,
       agentSessionKey: options?.sessionKey,
       agentChannel: resolveGatewayMessageChannel(options?.messageProvider),
       agentAccountId: options?.agentAccountId,
@@ -421,6 +468,33 @@ export function createKoLoCodingTools(options?: {
       requesterAgentIdOverride: agentId,
     }),
   ];
+  // Kurahi v0.3 projects: plugins the project's template enables for this project only (not for
+  // the gateway). They pass through the same tool policies and the project permission guard
+  // below as every other tool. Relative paths resolve against the same directory the guard uses,
+  // so the guard always judges the path the tool will actually open.
+  const projectRef = parseProjectSessionKey(options?.sessionKey);
+  const project = projectRef ? getProject(projectRef.projectId) : null;
+  if (project && !project.archived) {
+    const scopedPluginIds = projectPluginIds(project);
+    if (scopedPluginIds.length > 0) {
+      tools.push(
+        ...resolveProjectScopedPluginTools({
+          pluginIds: scopedPluginIds,
+          context: {
+            config: options?.config,
+            workspaceDir: workspaceRoot,
+            agentDir: options?.agentDir,
+            agentId,
+            sessionKey: options?.sessionKey,
+            messageChannel: resolveGatewayMessageChannel(options?.messageProvider),
+            agentAccountId: options?.agentAccountId,
+            sandboxed: false,
+          },
+          existingToolNames: new Set(tools.map((tool) => tool.name)),
+        }),
+      );
+    }
+  }
   const coreToolNames = new Set(
     tools
       .filter((tool) => !getPluginToolMeta(tool))
@@ -493,7 +567,27 @@ export function createKoLoCodingTools(options?: {
     : sandboxed;
   // Always normalize tool JSON Schemas before handing them to pi-agent/pi-ai.
   // Without this, some providers (notably OpenAI) will reject root-level union schemas.
-  const normalized = subagentFiltered.map(normalizeToolParameters);
+  // ASI06: memory writes are tagged with this turn's trust and held for review when it read
+  // untrusted input (src/memory/provenance-guard.ts). Innermost, so only calls every guard allowed.
+  const memoryAgentId = agentId ?? resolveDefaultAgentId(options?.config ?? {});
+  const memoryGuard = resolveMemoryGuardContext({
+    config: options?.config,
+    turn: createMemoryTurn({
+      agentId: memoryAgentId,
+      sessionKey: options?.sessionKey,
+      senderId: options?.senderId,
+      messageProvider: options?.messageProvider,
+      prompt: options?.turnPrompt,
+    }),
+    root: sandboxRoot ?? workspaceRoot,
+    workspaceDir: workspaceRoot,
+    extraPaths: options?.config
+      ? resolveMemorySearchConfig(options.config, memoryAgentId)?.extraPaths
+      : undefined,
+  });
+  const normalized = subagentFiltered
+    .map(normalizeToolParameters)
+    .map((tool) => (memoryGuard ? wrapToolWithMemoryProvenance(tool, memoryGuard) : tool));
   const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
       agentId,
@@ -526,6 +620,29 @@ export function createKoLoCodingTools(options?: {
     }),
   );
 
+  // Kurahi v0.3 projects: a project session may only reach the project's folder and data area
+  // (read), its writable folders (write), and never exec. Same guard as the M5 rules, stricter
+  // defaults. An unknown or archived project denies every file and exec call.
+  const projectGuarded = projectRef
+    ? permissionGuarded.map((tool) =>
+        wrapToolWithPermissionGuard(tool, {
+          permissionSet:
+            project && !project.archived
+              ? projectPermissionSet(project)
+              : {
+                  active: true,
+                  rules: [],
+                  problems: [],
+                  denyByDefault: ["read", "write", "exec"],
+                  label: "an unknown or archived project",
+                },
+          workspaceDir: workspaceRoot,
+          agentId,
+          sessionKey: options?.sessionKey,
+        }),
+      )
+    : permissionGuarded;
+
   // Outermost gate: the backend's declared tool capability (enforced, not prompted).
   const capability =
     options?.toolCapability ??
@@ -535,8 +652,8 @@ export function createKoLoCodingTools(options?: {
   // Tools keep their identity on the default (gateway) path; plugin metadata is keyed by object.
   const capabilityGuarded =
     capability === "gateway"
-      ? permissionGuarded
-      : filterToolsByCapability(permissionGuarded, capability).map((tool) =>
+      ? projectGuarded
+      : filterToolsByCapability(projectGuarded, capability).map((tool) =>
           wrapToolWithCapabilityGuard(tool, {
             capability: () => capability,
             agentId,

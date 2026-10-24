@@ -185,7 +185,7 @@ describe("tool dispatch", () => {
       e.evaluate("tool", {
         agentId: "a",
         tool: "read",
-        args: { path: `${home}/.ssh/id_ed25519` },
+        args: { path: `${os.homedir()}/.ssh/id_ed25519` },
         workspaceDir: ws,
       }),
     ).toMatchObject({ effect: "deny", ruleId: "data.neverRead[0]" });

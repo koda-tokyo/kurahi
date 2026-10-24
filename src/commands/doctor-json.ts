@@ -5,12 +5,17 @@
 import fs from "node:fs";
 import os from "node:os";
 import process from "node:process";
+import type { KoLoConfig } from "../config/types.js";
 import { readConfigFileSnapshot } from "../config/io.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { resolveConfigPath, resolveGatewayPort } from "../config/paths.js";
+import { findLegacyDefaults } from "../config/secure-defaults.js";
 import { probeGatewayHealth } from "../daemon/supervisor/index.js";
 import { defaultGatewayTokenFilePath } from "../gateway/token-file.js";
 import { currentLang } from "../i18n/index.js";
+import { resolveSupplyChainMode } from "../integrity/supply-chain-gate.js";
+import { readLockState, resolveSupplyChainLocations } from "../integrity/supply-chain-lock.js";
+import { resolvePolicyLocations } from "../policy/paths.js";
 import { VERSION } from "../version.js";
 
 export type DoctorCheckLevel = "ok" | "warn" | "error";
@@ -43,6 +48,7 @@ export type DoctorJsonReport = {
 
 export async function buildDoctorJsonReport(
   env: NodeJS.ProcessEnv = process.env,
+  deps: { dockerAvailable?: () => Promise<boolean> } = {},
 ): Promise<DoctorJsonReport> {
   const checks: DoctorCheck[] = [];
   const next: string[] = [];
@@ -53,11 +59,13 @@ export async function buildDoctorJsonReport(
   let configValid = false;
   let gatewayMode: string | null = null;
   let port = resolveGatewayPort(undefined, env);
+  let config: KoLoConfig | null = null;
   try {
     const snapshot = await readConfigFileSnapshot();
     configExists = snapshot.exists;
     configValid = snapshot.exists && snapshot.valid;
     if (snapshot.exists && snapshot.valid) {
+      config = snapshot.config;
       gatewayMode = snapshot.config.gateway?.mode ?? null;
       port = resolveGatewayPort(snapshot.config, env);
     }
@@ -81,6 +89,55 @@ export async function buildDoctorJsonReport(
         id: "gateway.mode",
         level: "warn",
         detail: "gateway.mode is not set; `kurahi gateway` will refuse to start",
+      });
+    }
+  }
+
+  // Secure defaults (warnings only: an existing install keeps its behaviour).
+  if (config) {
+    for (const d of findLegacyDefaults(config)) {
+      checks.push({
+        id: `secure-defaults.${d.id}`,
+        level: "warn",
+        detail: `${d.key} not set (legacy ${d.legacy}; new installs ${d.secure}). ${d.detail}`,
+      });
+    }
+    const policyPath = resolvePolicyLocations(env).policyPath;
+    const hasPolicy = fs.existsSync(policyPath);
+    checks.push({
+      id: "policy.present",
+      level: hasPolicy ? "ok" : "warn",
+      detail: hasPolicy
+        ? policyPath
+        : `no policy at ${policyPath}: no budgets or job limits; run \`kurahi policy init\``,
+    });
+    // ASI04: the lock's trust (per-artifact status is `kurahi skills verify`).
+    const supplyMode = resolveSupplyChainMode(config);
+    const lock = readLockState(resolveSupplyChainLocations(env));
+    const pinned = Object.keys(lock.lock?.entries ?? {}).length;
+    checks.push({
+      id: "supply-chain.lock",
+      level: lock.trust === "untrusted" ? "warn" : "ok",
+      detail:
+        lock.trust === "untrusted"
+          ? `supply-chain lock is not trusted (${lock.reason ?? "bad signature"}); mode ${supplyMode} ${supplyMode === "enforce" ? "refuses every non-bundled skill and plugin" : "only warns"}. Review, then \`kurahi skills pin --all\` and \`kurahi plugins pin --all\``
+          : `mode ${supplyMode}; lock ${lock.trust}, ${pinned} pinned (\`kurahi skills verify\` for details)`,
+    });
+    const sandboxModes = [
+      config.agents?.defaults?.sandbox?.mode,
+      ...(config.agents?.list ?? []).map((a) => a.sandbox?.mode),
+    ].filter((m) => m && m !== "off");
+    if (sandboxModes.length > 0) {
+      const probeDocker =
+        deps.dockerAvailable ??
+        (async () => (await import("./doctor-sandbox.js")).isDockerAvailable());
+      const docker = await probeDocker().catch(() => false);
+      checks.push({
+        id: "sandbox.runtime",
+        level: docker ? "ok" : "warn",
+        detail: docker
+          ? "container runtime available"
+          : "sandbox is on but no container runtime answers: exec is refused in sandboxed sessions (no host fallback) until Docker and the sandbox image are installed",
       });
     }
   }

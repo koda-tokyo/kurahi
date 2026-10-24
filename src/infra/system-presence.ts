@@ -154,7 +154,9 @@ function touchSelfPresence() {
   }
 }
 
-initSelfPresence();
+// The self entry is seeded on first use (every export calls ensureSelfPresence), not at import:
+// enumerating interfaces (and, on macOS, spawning sysctl/sw_vers) at module load taxed every CLI
+// command and gateway start that merely imports this module.
 
 function parsePresence(text: string): SystemPresence {
   const trimmed = text.trim();

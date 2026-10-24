@@ -189,7 +189,7 @@ describe("config view", () => {
       container,
     );
 
-    const input = container.querySelector(".config-search__input");
+    const input = container.querySelector<HTMLInputElement>(".config-search__input");
     expect(input).not.toBeNull();
     if (!input) {
       return;

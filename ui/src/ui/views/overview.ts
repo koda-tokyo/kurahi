@@ -1,4 +1,4 @@
-import { html, nothing } from "lit";
+import { html } from "lit";
 import type { GatewayHelloOk } from "../gateway";
 import type { UiSettings } from "../storage";
 import { formatAgo, formatDurationMs } from "../format";
@@ -27,21 +27,6 @@ export function renderOverview(props: OverviewProps) {
   const snapshot = props.hello?.snapshot as
     | { uptimeMs?: number; policy?: { tickIntervalMs?: number } }
     | undefined;
-  const body =
-    props.health && typeof props.health === "object"
-      ? ((props.health as { body?: Record<string, unknown> }).body ?? null)
-      : null;
-  const humanPrompts =
-    body && typeof body.humanPrompts === "object"
-      ? (body.humanPrompts as {
-          mode?: string;
-          reason?: string;
-          domains?: string[];
-          suggestions?: string[];
-          questions?: string[];
-          if_then_plans?: string[];
-        })
-      : null;
   const uptime = snapshot?.uptimeMs ? formatDurationMs(snapshot.uptimeMs) : "n/a";
   const tick = snapshot?.policy?.tickIntervalMs ? `${snapshot.policy.tickIntervalMs}ms` : "n/a";
   const authHint = (() => {
@@ -185,7 +170,7 @@ export function renderOverview(props: OverviewProps) {
                 const v = (e.target as HTMLInputElement).value;
                 props.onSettingsChange({ ...props.settings, token: v });
               }}
-              placeholder="KOLO_GATEWAY_TOKEN"
+              placeholder="Paste the gateway token"
             />
           </label>
           <label class="field">
@@ -270,75 +255,6 @@ export function renderOverview(props: OverviewProps) {
         }
       </div>
     </section>
-
-    ${
-      humanPrompts
-        ? html`
-            <section class="card" style="margin-top: 18px;">
-              <div class="card-title">Human Prompts</div>
-              <div class="card-sub">
-                Biology-derived prompts from the agent's body state, surfaced directly in the TUI.
-              </div>
-              <div class="row" style="margin-top: 14px; gap: 8px; flex-wrap: wrap;">
-                <span class="pill">Mode <span class="mono">${humanPrompts.mode ?? "n/a"}</span></span>
-                <span class="pill">Reason <span class="mono">${humanPrompts.reason ?? "n/a"}</span></span>
-                ${
-                  Array.isArray(humanPrompts.domains)
-                    ? humanPrompts.domains.map(
-                        (domain) => html`<span class="pill">${domain}</span>`,
-                      )
-                    : nothing
-                }
-              </div>
-              ${
-                Array.isArray(humanPrompts.suggestions) && humanPrompts.suggestions.length > 0
-                  ? html`
-                      <div style="margin-top: 14px;">
-                        <div class="note-title">Suggestions</div>
-                        <div class="list" style="margin-top: 8px;">
-                          ${humanPrompts.suggestions.map(
-                            (item) =>
-                              html`<div class="list-item"><div class="list-title">${item}</div></div>`,
-                          )}
-                        </div>
-                      </div>
-                    `
-                  : nothing
-              }
-              ${
-                Array.isArray(humanPrompts.questions) && humanPrompts.questions.length > 0
-                  ? html`
-                      <div style="margin-top: 14px;">
-                        <div class="note-title">Questions</div>
-                        <div class="list" style="margin-top: 8px;">
-                          ${humanPrompts.questions.map(
-                            (item) =>
-                              html`<div class="list-item"><div class="list-title">${item}</div></div>`,
-                          )}
-                        </div>
-                      </div>
-                    `
-                  : nothing
-              }
-              ${
-                Array.isArray(humanPrompts.if_then_plans) && humanPrompts.if_then_plans.length > 0
-                  ? html`
-                      <div style="margin-top: 14px;">
-                        <div class="note-title">If-Then Plans</div>
-                        <div class="list" style="margin-top: 8px;">
-                          ${humanPrompts.if_then_plans.map(
-                            (item) =>
-                              html`<div class="list-item"><div class="list-title">${item}</div></div>`,
-                          )}
-                        </div>
-                      </div>
-                    `
-                  : nothing
-              }
-            </section>
-          `
-        : nothing
-    }
 
     <section class="card" style="margin-top: 18px;">
       <div class="card-title">Notes</div>

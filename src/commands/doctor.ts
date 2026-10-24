@@ -27,6 +27,7 @@ import {
   maybeRepairAnthropicOAuthProfileId,
   noteAuthProfileHealth,
 } from "./doctor-auth.js";
+import { noteCompactionReserveWarnings } from "./doctor-compaction.js";
 import { loadAndMaybeMigrateDoctorConfig } from "./doctor-config-flow.js";
 import { maybeRepairGatewayDaemon } from "./doctor-gateway-daemon-flow.js";
 import { checkGatewayHealth } from "./doctor-gateway-health.js";
@@ -42,7 +43,7 @@ import {
 } from "./doctor-platform-notes.js";
 import { createDoctorPrompter, type DoctorOptions } from "./doctor-prompter.js";
 import { maybeRepairSandboxImages, noteSandboxScopeWarnings } from "./doctor-sandbox.js";
-import { noteSecurityWarnings } from "./doctor-security.js";
+import { noteSecureDefaults, noteSecurityWarnings } from "./doctor-security.js";
 import { noteSelfCheckReport } from "./doctor-self-check.js";
 import { noteStateIntegrity, noteWorkspaceBackupTip } from "./doctor-state-integrity.js";
 import {
@@ -194,6 +195,7 @@ export async function doctorCommand(
   await noteMacLaunchctlGatewayEnvOverrides(cfg);
 
   await noteSecurityWarnings(cfg);
+  noteSecureDefaults(cfg);
   noteSelfCheckReport();
 
   if (cfg.hooks?.gmail?.model?.trim()) {
@@ -261,6 +263,7 @@ export async function doctorCommand(
   }
 
   noteWorkspaceStatus(cfg);
+  noteCompactionReserveWarnings(cfg);
 
   const { healthOk } = await checkGatewayHealth({
     runtime,

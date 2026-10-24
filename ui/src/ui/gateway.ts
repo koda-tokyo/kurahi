@@ -280,7 +280,12 @@ export class GatewayBrowserClient {
       if (res.ok) {
         pending.resolve(res.payload);
       } else {
-        pending.reject(new Error(res.error?.message ?? "request failed"));
+        pending.reject(
+          Object.assign(new Error(res.error?.message ?? "request failed"), {
+            code: res.error?.code,
+            details: res.error?.details,
+          }),
+        );
       }
       return;
     }

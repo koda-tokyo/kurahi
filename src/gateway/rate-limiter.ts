@@ -113,7 +113,15 @@ const authLimiter = new SlidingWindow(HTTP_RATE_LIMITS.auth.limit, HTTP_RATE_LIM
 const llmLimiter = new SlidingWindow(HTTP_RATE_LIMITS.llm.limit, HTTP_RATE_LIMITS.llm.windowMs);
 
 /** WebSocket connection rate limiter — 10 connections per minute per IP. */
-const wsConnLimiter = new SlidingWindow(10, 60_000);
+export const WS_CONNECTIONS_PER_MINUTE = 10;
+const wsConnLimiter = new SlidingWindow(WS_CONNECTIONS_PER_MINUTE, 60_000);
+/**
+ * How many rejected connections per minute per IP still get a proper close frame with the
+ * reason (WebSocket 1013 "try again later"). Beyond that a flood gets the bare socket destroy, so
+ * explaining the limit never costs more than a bounded number of handshakes.
+ */
+const WS_REJECT_NOTICES_PER_MINUTE = 20;
+const wsRejectNoticeLimiter = new SlidingWindow(WS_REJECT_NOTICES_PER_MINUTE, 60_000);
 
 /** Prune all windows every 5 minutes. */
 const pruneInterval = setInterval(() => {
@@ -121,6 +129,7 @@ const pruneInterval = setInterval(() => {
   authLimiter.prune();
   llmLimiter.prune();
   wsConnLimiter.prune();
+  wsRejectNoticeLimiter.prune();
 }, 5 * 60_000);
 
 // Allow the process to exit cleanly
@@ -198,6 +207,43 @@ export function checkHttpRateLimit(
  * Call this in the upgrade handler, before wss.handleUpgrade.
  * Returns false if the IP has exceeded its connection quota.
  */
+export type WsConnectionRateDecision =
+  | { allowed: true }
+  | {
+      allowed: false;
+      retryAfterMs: number;
+      /** Close reason for the client (fits a WebSocket close frame). */
+      reason: string;
+      /** Complete the handshake and close with 1013 + reason (false: destroy the socket). */
+      explain: boolean;
+    };
+
+/**
+ * WebSocket connection rate limit decision, without touching the socket. A rejected client is
+ * told why (1013 + reason) for the first rejections in a window, so a CLI sees "rate limited,
+ * retry in Ns" instead of a bare 1006; past that budget the caller destroys the socket.
+ */
+export function decideWsConnectionRateLimit(
+  req: {
+    socket?: { remoteAddress?: string };
+    headers?: Record<string, string | string[] | undefined>;
+  },
+  trustedProxies: string[] = ["127.0.0.1"],
+): WsConnectionRateDecision {
+  const ip = getClientIp(req, trustedProxies);
+  const result = wsConnLimiter.check(ip);
+  if (result.allowed) {
+    return { allowed: true };
+  }
+  const retrySec = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+  return {
+    allowed: false,
+    retryAfterMs: result.retryAfterMs,
+    reason: `rate limited: over ${WS_CONNECTIONS_PER_MINUTE} new connections per minute from this address; retry in ${retrySec}s`,
+    explain: wsRejectNoticeLimiter.check(ip).allowed,
+  };
+}
+
 export function checkWsConnectionRateLimit(
   req: {
     socket?: { remoteAddress?: string };
@@ -253,6 +299,7 @@ export function resetRateLimiters(): void {
   (authLimiter as any).windows.clear();
   (llmLimiter as any).windows.clear();
   (wsConnLimiter as any).windows.clear();
+  (wsRejectNoticeLimiter as any).windows.clear();
   authAttemptLimiter.reset();
 }
 

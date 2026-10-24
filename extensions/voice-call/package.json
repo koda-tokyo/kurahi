@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/voice-call",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Kurahi voice-call plugin",
   "type": "module",
   "dependencies": {

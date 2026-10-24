@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Kurahi Desktop MSIX manifest template. build-msix.sh fills the @...@ fields.
+
+  PLACEHOLDERS: @IDENTITY_NAME@, @IDENTITY_PUBLISHER@ and @PUBLISHER_DISPLAY_NAME@ must be
+  copied EXACTLY from Partner Center > the app > Product management > Product identity
+  ("Package/Identity/Name", "Package/Identity/Publisher", "Package/Properties/PublisherDisplayName").
+  The Store rejects the upload if any of the three differ. Defaults in build-msix.sh are dummies.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="@IDENTITY_NAME@"
+    Publisher="@IDENTITY_PUBLISHER@"
+    Version="@VERSION@"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Kurahi</DisplayName>
+    <PublisherDisplayName>@PUBLISHER_DISPLAY_NAME@</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Kurahi Desktop: the desktop control app for the Kurahi governed agent runtime, by KODA SōKEN.</Description>
+  </Properties>
+
+  <Dependencies>
+    <!-- 10.0.17763.0 = Windows 10 1809. WebView2 (Evergreen) is required at runtime; it is
+         not a framework package, so it cannot be declared here. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+    <Resource Language="ja-JP" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Kurahi"
+                 Executable="Kurahi.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Kurahi"
+        Description="Kurahi Desktop by KODA SōKEN"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" ShortName="Kurahi" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Full-trust Win32 desktop app (Tauri + WebView2). The loopback gateway connection needs no
+         capability: AppContainer loopback isolation does not apply to full-trust apps. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

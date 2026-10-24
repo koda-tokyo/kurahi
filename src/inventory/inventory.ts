@@ -100,6 +100,8 @@ export type BuildInventoryOptions = {
   now?: Date;
   /** Include the machine's host name (off by default: inventories travel to third parties). */
   includeHost?: boolean;
+  /** Skip reading evidence job counts (fast path for per-job configuration digests). */
+  skipEvidenceStats?: boolean;
 };
 
 const uniqSorted = (xs: Iterable<string>) => [...new Set(xs)].filter(Boolean).toSorted();
@@ -151,7 +153,7 @@ export function buildInventory(cfg: KoLoConfig, opts: BuildInventoryOptions = {}
 
   let evidenceRows: ReturnType<typeof listEvidenceJobs> = [];
   try {
-    evidenceRows = listEvidenceJobs(env);
+    evidenceRows = opts.skipEvidenceStats ? [] : listEvidenceJobs(env);
   } catch {
     evidenceRows = [];
   }
@@ -265,6 +267,26 @@ export function buildInventory(cfg: KoLoConfig, opts: BuildInventoryOptions = {}
 
 export function inventoryDigest(body: InventoryBody): string {
   return sha256Hex(canonicalJson(body));
+}
+
+/**
+ * Digest of the configuration an inventory describes, without its volatile parts (generation
+ * time, evidence counts, host). Two jobs started under the same agents, models, tools, policy and
+ * channels get the same value. Recorded in each job's `job.start` evidence.
+ */
+export function inventoryConfigDigest(
+  cfg: KoLoConfig,
+  opts: { env?: NodeJS.ProcessEnv } = {},
+): string {
+  const body = buildInventory(cfg, { env: opts.env, skipEvidenceStats: true, now: new Date(0) });
+  const stable: InventoryBody = {
+    ...body,
+    generatedAt: "",
+    runtime: { ...body.runtime, host: null },
+    agents: body.agents.map((a) => ({ ...a, evidence: { jobs: 0, lastStartedAt: null } })),
+    totals: { ...body.totals, evidenceJobs: 0 },
+  };
+  return inventoryDigest(stable);
 }
 
 function signingInput(digest: string): string {

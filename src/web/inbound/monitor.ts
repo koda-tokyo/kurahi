@@ -1,5 +1,4 @@
 import type { AnyMessageContent, proto, WAMessage } from "@whiskeysockets/baileys";
-import { DisconnectReason, isJidGroup } from "@whiskeysockets/baileys";
 import type { WebInboundMessage, WebListenerCloseReason } from "./types.js";
 import { createInboundDebouncer } from "../../auto-reply/inbound-debounce.js";
 import { formatLocationText } from "../../channels/location.js";
@@ -9,6 +8,7 @@ import { getChildLogger } from "../../logging/logger.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { saveMediaBuffer } from "../../media/store.js";
 import { jidToE164, resolveJidToE164 } from "../../utils.js";
+import { baileys, loadBaileys } from "../baileys.js";
 import { createWaSocket, getStatusCode, waitForWaConnection } from "../session.js";
 import { checkInboundAccessControl } from "./access-control.js";
 import { isRecentInboundMessage } from "./dedupe.js";
@@ -35,6 +35,7 @@ export async function monitorWebInbox(options: {
   /** Optional debounce gating predicate. */
   shouldDebounce?: (msg: WebInboundMessage) => boolean;
 }) {
+  await loadBaileys();
   const inboundLogger = getChildLogger({ module: "web-inbound" });
   const inboundConsoleLog = createSubsystemLogger("gateway/channels/whatsapp").child("inbound");
   const sock = await createWaSocket(false, options.verbose, {
@@ -170,7 +171,7 @@ export async function monitorWebInbox(options: {
         continue;
       }
 
-      const group = isJidGroup(remoteJid) === true;
+      const group = baileys().isJidGroup(remoteJid) === true;
       if (id) {
         const dedupeKey = `${options.accountId}:${remoteJid}:${id}`;
         if (isRecentInboundMessage(dedupeKey)) {
@@ -349,7 +350,7 @@ export async function monitorWebInbox(options: {
         const status = getStatusCode(update.lastDisconnect?.error);
         resolveClose({
           status,
-          isLoggedOut: status === DisconnectReason.loggedOut,
+          isLoggedOut: status === baileys().DisconnectReason.loggedOut,
           error: update.lastDisconnect?.error,
         });
       }

@@ -84,4 +84,6 @@ export type SkillSnapshot = {
   skills: Array<{ name: string; primaryEnv?: string }>;
   resolvedSkills?: Skill[];
   version?: number;
+  /** resolveSkillsConfigKey() of the config the snapshot was built under. */
+  configKey?: string;
 };

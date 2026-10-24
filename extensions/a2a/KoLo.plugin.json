@@ -1,0 +1,119 @@
+{
+  "id": "a2a",
+  "name": "A2A",
+  "description": "Agent2Agent protocol: expose listed agents as A2A servers (off by default) and call allowlisted remote A2A agents",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "server": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean", "default": false },
+          "basePath": { "type": "string" },
+          "allowNonLoopback": { "type": "boolean", "default": false },
+          "publicUrl": { "type": "string" },
+          "defaultAgent": { "type": "string" },
+          "publicCard": { "type": "boolean", "default": true },
+          "streaming": { "type": "boolean", "default": true },
+          "maxBodyBytes": { "type": "integer", "minimum": 1024 },
+          "maxInputChars": { "type": "integer", "minimum": 100 },
+          "maxParts": { "type": "integer", "minimum": 1 },
+          "requestsPerMinute": { "type": "integer", "minimum": 1 },
+          "maxConcurrentTasks": { "type": "integer", "minimum": 1 },
+          "maxTasks": { "type": "integer", "minimum": 10 },
+          "taskTtlMinutes": { "type": "integer", "minimum": 1 },
+          "provider": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "organization": { "type": "string" },
+              "url": { "type": "string" }
+            }
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["agentId", "name", "description", "skills"],
+              "properties": {
+                "agentId": { "type": "string" },
+                "slug": { "type": "string" },
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "version": { "type": "string" },
+                "allowTools": { "type": "boolean", "default": false },
+                "instructions": { "type": "string" },
+                "timeoutSeconds": { "type": "integer", "minimum": 5 },
+                "skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["id", "name", "description"],
+                    "properties": {
+                      "id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "description": { "type": "string" },
+                      "tags": { "type": "array", "items": { "type": "string" } },
+                      "examples": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "clients": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "token", "agents"],
+              "properties": {
+                "id": { "type": "string" },
+                "token": { "type": "string" },
+                "agents": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      },
+      "client": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "timeoutMs": { "type": "integer", "minimum": 1000 },
+          "maxResponseBytes": { "type": "integer", "minimum": 1024 },
+          "maxMessageChars": { "type": "integer", "minimum": 1 },
+          "cardTtlSeconds": { "type": "integer", "minimum": 0 },
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "cardUrl"],
+              "properties": {
+                "name": { "type": "string" },
+                "cardUrl": { "type": "string" },
+                "rpcUrl": { "type": "string" },
+                "token": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "uiHints": {
+    "server.enabled": { "label": "Serve A2A" },
+    "server.allowNonLoopback": { "label": "Accept non-loopback callers", "advanced": true },
+    "server.clients": {
+      "label": "A2A clients",
+      "help": "Each client has its own bearer token (use a $secret ref)."
+    },
+    "client.agents": { "label": "Remote A2A agents" }
+  }
+}

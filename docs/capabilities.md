@@ -1,5 +1,5 @@
 ---
-summary: "What Kurahi 2.0.3 includes today, what is licensed separately, what is in preview and what is research, with platforms and known limits"
+summary: "What Kurahi 2.1.0 includes today, what is licensed separately, what is in preview and what is research, with platforms and known limits"
 read_when:
   - You are deciding what to evaluate, and need to know what ships in this release
   - You need to tell a stakeholder which capabilities are available, licensed separately or still research
@@ -8,7 +8,7 @@ title: "Capabilities in this release"
 
 # Capabilities in this release
 
-Release **Kurahi 2.0.3**, stable channel, published 19 October 2026
+Release **Kurahi 2.1.0**, stable channel, published 24 October 2026
 ([release notes](/CHANGELOG), [downloads](https://kurahi.kodasoken.com/download/)). Platforms:
 Linux x64, macOS arm64 and Windows x64. Builds are not yet code-signed or notarised.
 

@@ -1,10 +1,22 @@
 import type { OutboundSendDeps } from "../infra/outbound/deliver.js";
-import { logWebSelfId, sendMessageWhatsApp } from "../channels/web/index.js";
-import { sendMessageDiscord } from "../discord/send.js";
-import { sendMessageIMessage } from "../imessage/send.js";
-import { sendMessageSignal } from "../signal/send.js";
-import { sendMessageSlack } from "../slack/send.js";
-import { sendMessageTelegram } from "../telegram/send.js";
+import { lazyModule } from "../shared/lazy-module.js";
+import { logWebSelfId } from "../web/auth-store.js";
+
+// Each channel's send module (and its SDK) loads on the first send through it, not when the CLI or
+// the gateway builds its deps; see src/shared/lazy-module.ts.
+const webSend = lazyModule(() => import("../channels/web/index.js"));
+const discordSend = lazyModule(() => import("../discord/send.js"));
+const imessageSend = lazyModule(() => import("../imessage/send.js"));
+const signalSend = lazyModule(() => import("../signal/send.js"));
+const slackSend = lazyModule(() => import("../slack/send.js"));
+const telegramSend = lazyModule(() => import("../telegram/send.js"));
+
+const sendMessageWhatsApp = webSend.fn("sendMessageWhatsApp");
+const sendMessageDiscord = discordSend.fn("sendMessageDiscord");
+const sendMessageIMessage = imessageSend.fn("sendMessageIMessage");
+const sendMessageSignal = signalSend.fn("sendMessageSignal");
+const sendMessageSlack = slackSend.fn("sendMessageSlack");
+const sendMessageTelegram = telegramSend.fn("sendMessageTelegram");
 
 export type CliDeps = {
   sendMessageWhatsApp: typeof sendMessageWhatsApp;

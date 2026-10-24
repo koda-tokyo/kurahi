@@ -30,7 +30,7 @@ import {
   resolvePolicyMode,
 } from "../policy/paths.js";
 import { policyJsonSchema } from "../policy/schema.js";
-import { STARTER_POLICY_YAML } from "../policy/starter.js";
+import { starterPolicyYaml } from "../policy/starter.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 
 export const POLICY_EXIT = { ok: 0, failed: 1, usage: 2 } as const;
@@ -163,6 +163,58 @@ function resolveFile(loc: PolicyLocations, file?: string): string {
 
 // ── init ──────────────────────────────────────────────────────────────────────────────────
 
+/** Write the starter policy, create (or reuse) the owner key, pin it and sign the policy. */
+async function installStarterPolicy(
+  loc: PolicyLocations,
+  env: NodeJS.ProcessEnv,
+  now: () => Date,
+  source = "policy.init",
+) {
+  fs.mkdirSync(loc.dir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(loc.policyPath, starterPolicyYaml(loc.home, [loc.ownerKeyPath]), {
+    mode: 0o600,
+  });
+  const hadKey = readOwnerKey(loc.ownerKeyPath) !== null;
+  const key = loadOrCreateOwnerKey(loc.ownerKeyPath);
+  const pinned = addOwner(
+    loc.ownersPath,
+    { publicKey: key.publicKey, label: operatorIdentity() },
+    now(),
+  );
+  const sig = signPolicyFile({
+    policyPath: loc.policyPath,
+    signaturePath: loc.signaturePath,
+    key,
+    now: now(),
+  });
+  const integrity = reRegisterIntegrity(loc, env);
+  await audit(source, "ok", {
+    path: loc.policyPath,
+    keyId: key.keyId,
+    createdKey: !hadKey,
+    pinned,
+    sha256: sig.sha256,
+    integrity,
+  });
+  return { key, hadKey, pinned, sha256: sig.sha256, integrity };
+}
+
+/**
+ * Secure default for new installations (`kurahi init`): install and sign the starter policy
+ * (budgets and job limits) when no policy exists. An existing policy is never touched.
+ */
+export async function installStarterPolicyIfAbsent(
+  env: NodeJS.ProcessEnv = process.env,
+  now: () => Date = () => new Date(),
+): Promise<{ installed: boolean; path: string; keyId?: string; createdKey?: boolean }> {
+  const loc = resolvePolicyLocations(env);
+  if (fs.existsSync(loc.policyPath)) {
+    return { installed: false, path: loc.policyPath };
+  }
+  const { key, hadKey } = await installStarterPolicy(loc, env, now, "policy.init.default");
+  return { installed: true, path: loc.policyPath, keyId: key.keyId, createdKey: !hadKey };
+}
+
 export async function runPolicyInit(
   opts: { force?: boolean; json?: boolean },
   deps?: PolicyCliDeps,
@@ -174,30 +226,7 @@ export async function runPolicyInit(
       `policy already exists at ${loc.policyPath}; edit it and run \`kurahi policy sign\`, or pass --force to overwrite`,
     );
   }
-  fs.mkdirSync(loc.dir, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(loc.policyPath, STARTER_POLICY_YAML, { mode: 0o600 });
-  const hadKey = readOwnerKey(loc.ownerKeyPath) !== null;
-  const key = loadOrCreateOwnerKey(loc.ownerKeyPath);
-  const pinned = addOwner(
-    loc.ownersPath,
-    { publicKey: key.publicKey, label: operatorIdentity() },
-    ctx.now(),
-  );
-  const sig = signPolicyFile({
-    policyPath: loc.policyPath,
-    signaturePath: loc.signaturePath,
-    key,
-    now: ctx.now(),
-  });
-  const integrity = reRegisterIntegrity(loc, ctx.env);
-  await audit("policy.init", "ok", {
-    path: loc.policyPath,
-    keyId: key.keyId,
-    createdKey: !hadKey,
-    pinned,
-    sha256: sig.sha256,
-    integrity,
-  });
+  const { key, hadKey, pinned, integrity } = await installStarterPolicy(loc, ctx.env, ctx.now);
   if (opts.json) {
     runtime.log(
       JSON.stringify(

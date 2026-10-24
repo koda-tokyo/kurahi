@@ -281,6 +281,7 @@ src/commands/models/auth-anthropic-oauth.ts
 
 # prebuilt release bundles (scripts/bundle.mjs)
 release/
+release-out/
 
 # operator overlay: family and internal material, never part of the product tree (see private/README.md)
 private/

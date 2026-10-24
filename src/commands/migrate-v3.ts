@@ -64,7 +64,6 @@ export type MigrateV3Options = {
  */
 const V3_DEFAULTS: Record<string, unknown> = {
   enabled: true,
-  biology: true,
   scoring: true,
   health: true,
   memoryBudget: {

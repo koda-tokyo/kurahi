@@ -10,6 +10,9 @@ import { chromium } from "playwright-core";
 import { formatErrorMessage } from "../infra/errors.js";
 import { getHeadersWithAuth } from "./cdp.helpers.js";
 import { getChromeWebSocketUrl } from "./chrome.js";
+import { markPlaywrightSessionLoaded } from "./pw-loaded.js";
+
+markPlaywrightSessionLoaded();
 
 export type BrowserConsoleMessage = {
   type: string;

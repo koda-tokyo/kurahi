@@ -1,7 +1,7 @@
 import type { MessagingToolSend } from "../../agents/pi-embedded-messaging.js";
 import type { KoLoConfig } from "../../config/config.js";
 import type { AgentDefaultsConfig } from "../../config/types.js";
-import type { CronJob } from "../types.js";
+import type { CronJob, CronPreExecOutcome } from "../types.js";
 import {
   resolveAgentConfig,
   resolveAgentDir,
@@ -29,7 +29,7 @@ import {
   resolveThinkingDefault,
 } from "../../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
-import { buildWorkspaceSkillSnapshot } from "../../agents/skills.js";
+import { buildWorkspaceSkillSnapshot, resolveSkillsConfigKey } from "../../agents/skills.js";
 import { getSkillsSnapshotVersion } from "../../agents/skills/refresh.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { hasNonzeroUsage } from "../../agents/usage.js";
@@ -61,6 +61,7 @@ import {
   pickSummaryFromPayloads,
   resolveHeartbeatAckMaxChars,
 } from "./helpers.js";
+import { buildPreExecPrompt, pinHeadPayloads, runCronPreExec } from "./pre-exec.js";
 import { resolveCronSession } from "./session.js";
 
 function matchesMessagingToolDeliveryTarget(
@@ -87,9 +88,11 @@ export type RunCronAgentTurnResult = {
   /** Last non-empty agent text output (not truncated). */
   outputText?: string;
   error?: string;
+  /** The job's deterministic pre-step (payload.preExec), when it has one. */
+  preExec?: CronPreExecOutcome;
 };
 
-export async function runCronIsolatedAgentTurn(params: {
+type RunCronAgentTurnParams = {
   cfg: KoLoConfig;
   deps: CliDeps;
   job: CronJob;
@@ -97,7 +100,20 @@ export async function runCronIsolatedAgentTurn(params: {
   sessionKey: string;
   agentId?: string;
   lane?: string;
-}): Promise<RunCronAgentTurnResult> {
+};
+
+export async function runCronIsolatedAgentTurn(
+  params: RunCronAgentTurnParams,
+): Promise<RunCronAgentTurnResult> {
+  const report: { preExec?: CronPreExecOutcome } = {};
+  const res = await runCronIsolatedAgentTurnInner(params, report);
+  return report.preExec ? { ...res, preExec: report.preExec } : res;
+}
+
+async function runCronIsolatedAgentTurnInner(
+  params: RunCronAgentTurnParams,
+  report: { preExec?: CronPreExecOutcome },
+): Promise<RunCronAgentTurnResult> {
   const defaultAgentId = resolveDefaultAgentId(params.cfg);
   const requestedAgentId =
     typeof params.agentId === "string" && params.agentId.trim()
@@ -289,8 +305,13 @@ export async function runCronIsolatedAgentTurn(params: {
 
   const existingSnapshot = cronSession.sessionEntry.skillsSnapshot;
   const skillsSnapshotVersion = getSkillsSnapshotVersion(workspaceDir);
+  // A config edit (skills.allowBundled, entries, load dirs, plugins) never bumps the in-memory
+  // version, and the version restarts at 0 with the gateway, so the stored snapshot also has to
+  // have been built under the current skills config.
   const needsSkillsSnapshot =
-    !existingSnapshot || existingSnapshot.version !== skillsSnapshotVersion;
+    !existingSnapshot ||
+    existingSnapshot.version !== skillsSnapshotVersion ||
+    existingSnapshot.configKey !== resolveSkillsConfigKey(cfgWithAgentDefaults);
   const skillsSnapshot = needsSkillsSnapshot
     ? buildWorkspaceSkillSnapshot(workspaceDir, {
         config: cfgWithAgentDefaults,
@@ -316,6 +337,33 @@ export async function runCronIsolatedAgentTurn(params: {
   await updateSessionStore(cronSession.storePath, (store) => {
     store[agentSessionKey] = cronSession.sessionEntry;
   });
+
+  // Deterministic pre-step: the runtime runs the job's command through the agent's own exec
+  // tool (same policy and approvals as a model call) and the model only reports on the output.
+  // A pre-step that could not run fails the job without a model turn.
+  const preExecSpec = agentPayload?.preExec;
+  let prompt = commandBody;
+  let pinnedHead: string | undefined;
+  if (preExecSpec && preExecSpec.command?.trim()) {
+    const pre = await runCronPreExec({
+      command: preExecSpec.command,
+      cfg: cfgWithAgentDefaults,
+      agentId,
+      sessionKey: agentSessionKey,
+      workspaceDir,
+      agentDir,
+    });
+    const { output: _output, ...preLog } = pre;
+    report.preExec = preLog;
+    if (pre.status === "error") {
+      return { status: "error", error: pre.error ?? "preExec failed" };
+    }
+    prompt = buildPreExecPrompt(commandBody, preExecSpec.command, pre);
+    if (preExecSpec.pinHead && pre.head) {
+      pinnedHead = pre.head;
+    }
+  }
+  const disableTools = Boolean(preExecSpec?.command?.trim() && !preExecSpec.keepTools);
 
   let runResult: Awaited<ReturnType<typeof runEmbeddedPiAgent>>;
   let fallbackProvider = provider;
@@ -346,7 +394,7 @@ export async function runCronIsolatedAgentTurn(params: {
             sessionFile,
             workspaceDir,
             config: cfgWithAgentDefaults,
-            prompt: commandBody,
+            prompt,
             provider: providerOverride,
             model: modelOverride,
             thinkLevel,
@@ -364,8 +412,10 @@ export async function runCronIsolatedAgentTurn(params: {
           workspaceDir,
           config: cfgWithAgentDefaults,
           skillsSnapshot,
-          prompt: commandBody,
+          prompt,
           lane: params.lane ?? "cron",
+          disableTools,
+          promptMode: agentPayload?.promptMode,
           provider: providerOverride,
           model: modelOverride,
           thinkLevel,
@@ -382,7 +432,10 @@ export async function runCronIsolatedAgentTurn(params: {
     return { status: "error", error: String(err) };
   }
 
-  const payloads = runResult.payloads ?? [];
+  const modelPayloads = runResult.payloads ?? [];
+  // pinHead: the pre-step's verdict line is the only thing the job delivers, posts and logs; the
+  // model's reply is kept as a non-authoritative diagnostic (preExec.modelSummary) for measurement.
+  const payloads = pinnedHead ? pinHeadPayloads(pinnedHead) : modelPayloads;
 
   // Update token+model fields in the session store.
   {
@@ -415,9 +468,31 @@ export async function runCronIsolatedAgentTurn(params: {
       store[agentSessionKey] = cronSession.sessionEntry;
     });
   }
-  const firstText = payloads[0]?.text ?? "";
-  const summary = pickSummaryFromPayloads(payloads) ?? pickSummaryFromOutput(firstText);
-  const outputText = pickLastNonEmptyTextFromPayloads(payloads);
+  const firstText = modelPayloads[0]?.text ?? "";
+  const modelSummary = pickSummaryFromPayloads(modelPayloads) ?? pickSummaryFromOutput(firstText);
+  const modelOutputText = pickLastNonEmptyTextFromPayloads(modelPayloads);
+  let summary = modelSummary;
+  let outputText = modelOutputText;
+  if (pinnedHead) {
+    summary = pinnedHead;
+    outputText = pinnedHead;
+    if (report.preExec) {
+      report.preExec = {
+        ...report.preExec,
+        pinned: true,
+        ...(modelSummary ? { modelSummary: modelSummary.slice(0, 300) } : {}),
+      };
+    }
+  }
+
+  // A turn cut off by its timeout (or an external abort) did not finish; never report it as ok
+  // and never deliver its partial output.
+  if (runResult.meta.aborted) {
+    const error = runResult.meta.timedOut
+      ? `agent turn timed out after ${Math.round(timeoutMs / 1000)}s`
+      : "agent turn aborted before completion";
+    return { status: "error", summary, outputText, error };
+  }
 
   // Skip delivery for heartbeat-only responses (HEARTBEAT_OK with no real content).
   const ackMaxChars = resolveHeartbeatAckMaxChars(agentCfg);

@@ -16,6 +16,7 @@ import { type CanvasHostHandler, createCanvasHostHandler } from "../canvas-host/
 import { onFactoryEvent } from "../factory/store.js";
 import { summarizeCard } from "../factory/types.js";
 import { getPolicyEngine } from "../policy/engine.js";
+import { setVoiceEventSink } from "../voice/runtime.js";
 import { resolveGatewayListenHosts } from "./net.js";
 import { createGatewayBroadcaster } from "./server-broadcast.js";
 import { type ChatRunEntry, createChatRunState } from "./server-chat.js";
@@ -161,7 +162,9 @@ export async function createGatewayRuntimeState(params: {
   }
 
   const clients = new Set<GatewayWsClient>();
-  const { broadcast } = createGatewayBroadcaster({ clients });
+  const { broadcast, sendToConn } = createGatewayBroadcaster({ clients });
+  // Work Console push-to-talk: transcripts and audio go only to the owning connection.
+  setVoiceEventSink(sendToConn);
   // M5 jobs: completion notices to TUI/attach clients (succeeded/failed/cancelled/…).
   onJobCompleted((job) => {
     broadcast("job.completed", job, { dropIfSlow: true });

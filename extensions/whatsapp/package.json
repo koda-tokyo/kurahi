@@ -1,8 +1,11 @@
 {
   "name": "@KoLo/whatsapp",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Kurahi WhatsApp channel plugin",
   "type": "module",
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc12"
+  },
   "devDependencies": {
     "kolo": "workspace:kurahi@*"
   },

@@ -29,6 +29,7 @@ import { enqueueSystemEvent } from "../infra/system-events.js";
 import { logInfo, logWarn } from "../logger.js";
 import { formatSpawnError, spawnWithFallback } from "../process/spawn-utils.js";
 import { parseAgentSessionKey, resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+import { enforceExecGuard } from "../security/exec-guard.js";
 import {
   type ProcessSession,
   type SessionStdin,
@@ -165,6 +166,29 @@ type ExecProcessHandle = {
 
 export type ExecToolDefaults = {
   host?: ExecHost;
+  /**
+   * The exec host was set explicitly (tools.exec.host, agents.list[].tools.exec.host or a session
+   * /exec override). The model cannot choose another host anyway, so the tool schema then omits
+   * the host/security/ask (and, off host=node, node) parameters: small models stop guessing them.
+   */
+  hostPinned?: boolean;
+  /**
+   * Who started the command, exported to the child as KOLO_EXEC_ORIGIN (always set by the
+   * runtime, never taken from the model's env): "agent" (default, a model tool call) or "cron"
+   * (a cron job's deterministic pre-step).
+   */
+  origin?: "agent" | "cron";
+  /**
+   * host=sandbox without an active sandbox container: "host" (legacy fallback, runs on the host
+   * with no approvals), "approve" (gateway host through exec approvals) or "deny".
+   */
+  unsandboxed?: ExecUnsandboxedMode;
+  /**
+   * Set when this session must be sandboxed but the container could not be started (no container
+   * runtime, missing image). Exec is then refused with this explanation; it never falls back to
+   * the host.
+   */
+  sandboxUnavailable?: string;
   security?: ExecSecurity;
   ask?: ExecAsk;
   node?: string;
@@ -185,6 +209,15 @@ export type ExecToolDefaults = {
 };
 
 export type { BashSandboxConfig } from "./bash-tools.shared.js";
+
+export type ExecUnsandboxedMode = "host" | "approve" | "deny";
+
+let warnedLegacyUnsandboxed = false;
+
+/** Test seam: reset the once-per-process legacy fallback warning. */
+export function resetLegacyUnsandboxedWarningForTest() {
+  warnedLegacyUnsandboxed = false;
+}
 
 export type ExecElevatedDefaults = {
   enabled: boolean;
@@ -239,6 +272,17 @@ const execSchema = Type.Object({
     }),
   ),
 });
+
+/** The schema exposed when the host is pinned: no parameter that could only be refused or ignored. */
+function resolveExecSchema(defaults?: ExecToolDefaults) {
+  if (!defaults?.hostPinned) {
+    return execSchema;
+  }
+  const omit = ["host", "security", "ask"] as const;
+  return defaults.host === "node"
+    ? Type.Omit(execSchema, [...omit])
+    : Type.Omit(execSchema, [...omit, "node"]);
+}
 
 export type ExecToolDetails =
   | {
@@ -828,7 +872,7 @@ export function createExecTool(
     label: "exec",
     description:
       "Execute shell commands with background continuation. Use yieldMs/background to continue later via process tool. Use pty=true for TTY-required commands (terminal UIs, coding agents).",
-    parameters: execSchema,
+    parameters: resolveExecSchema(defaults),
     execute: async (_toolCallId, args, signal, onUpdate) => {
       const params = args as {
         command: string;
@@ -848,6 +892,15 @@ export function createExecTool(
       if (!params.command) {
         throw new Error("Provide a command to start.");
       }
+
+      // Destructive-command floor (OWASP ASI05): before elevated mode, host selection,
+      // allowlists and approvals, so no flag or approval can run a hardline command.
+      enforceExecGuard(params.command, {
+        source: "exec",
+        agentId,
+        sessionKey: notifySessionKey,
+        host: defaults?.host ?? "sandbox",
+      });
 
       const maxOutput = DEFAULT_MAX_OUTPUT;
       const pendingMaxOutput = DEFAULT_PENDING_MAX_OUTPUT;
@@ -921,20 +974,60 @@ export function createExecTool(
       if (elevatedRequested) {
         logInfo(`exec: elevated command ${truncateMiddle(params.command, 120)}`);
       }
+      // The host is configuration, never the model's choice: a model-supplied host other than the
+      // configured one is ignored (the command runs exactly where it would without the
+      // parameter, under the same security, approvals and allowlist), instead of failing the
+      // call. Small local models often add host="node" or similar to an otherwise valid call.
       const configuredHost = defaults?.host ?? "sandbox";
       const requestedHost = normalizeExecHost(params.host) ?? null;
-      let host: ExecHost = requestedHost ?? configuredHost;
-      if (!elevatedRequested && requestedHost && requestedHost !== configuredHost) {
-        throw new Error(
-          `exec host not allowed (requested ${renderExecHostLabel(requestedHost)}; ` +
-            `configure tools.exec.host=${renderExecHostLabel(configuredHost)} to allow).`,
+      let host: ExecHost = configuredHost;
+      if (!elevatedRequested && params.host !== undefined && requestedHost !== configuredHost) {
+        logInfo(
+          `exec: ignoring model-supplied host=${truncateMiddle(String(params.host), 40)}; ` +
+            `this session's exec host is ${renderExecHostLabel(configuredHost)} (tools.exec.host)`,
         );
       }
       if (elevatedRequested) {
         host = "gateway";
       }
 
-      const configuredSecurity = defaults?.security ?? (host === "sandbox" ? "deny" : "allowlist");
+      // host=sandbox but no container for this session. A session that had to be sandboxed and
+      // could not be never falls back to the host. Otherwise `tools.exec.unsandboxed` decides:
+      // "approve" (new installs) routes the command through gateway approvals, "deny" refuses,
+      // "host" (the legacy fallback when unset) runs it directly, with a warning.
+      let unsandboxedApproval = false;
+      if (host === "sandbox" && !defaults?.sandbox) {
+        if (defaults?.sandboxUnavailable) {
+          throw new Error(
+            `exec refused: this session must run commands in the sandbox, but the sandbox is not available (${defaults.sandboxUnavailable}). ` +
+              "Install and start a container runtime (Docker) and build the sandbox image (scripts/sandbox-setup.sh), " +
+              "or turn the sandbox off for this agent (agents.defaults.sandbox.mode=off) to run commands on the host through approvals.",
+          );
+        }
+        const unsandboxed = defaults?.unsandboxed ?? "host";
+        if (unsandboxed === "deny") {
+          throw new Error(
+            "exec refused: no sandbox is active for this session and tools.exec.unsandboxed is deny. " +
+              'Enable the sandbox (agents.defaults.sandbox.mode) or set tools.exec.unsandboxed to "approve".',
+          );
+        }
+        if (unsandboxed === "approve") {
+          host = "gateway";
+          unsandboxedApproval = true;
+        } else if (!warnedLegacyUnsandboxed) {
+          warnedLegacyUnsandboxed = true;
+          logWarn(
+            "exec: no sandbox is active and tools.exec.unsandboxed is not set, so commands run directly on the host without approvals (legacy default). " +
+              'Set tools.exec.unsandboxed to "approve" (or "deny"), or enable the sandbox. See `kurahi doctor`.',
+          );
+        }
+      }
+
+      const configuredSecurity = unsandboxedApproval
+        ? defaults?.security === "deny"
+          ? "deny"
+          : "allowlist"
+        : (defaults?.security ?? (host === "sandbox" ? "deny" : "allowlist"));
       const requestedSecurity = normalizeExecSecurity(params.security);
       let security = minSecurity(configuredSecurity, requestedSecurity ?? configuredSecurity);
       if (elevatedRequested && elevatedMode === "full") {
@@ -993,6 +1086,8 @@ export function createExecTool(
       if (agentId && !env.KOLO_AGENT_ID) {
         env.KOLO_AGENT_ID = agentId;
       }
+      // Who started this command; set by the runtime, never by the model's env.
+      env.KOLO_EXEC_ORIGIN = defaults?.origin ?? "agent";
 
       if (!sandbox && host === "gateway" && !params.env?.PATH) {
         const shellPath = getShellPathFromLoginShell({

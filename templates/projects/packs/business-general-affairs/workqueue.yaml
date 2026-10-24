@@ -1,0 +1,35 @@
+# 総務 / General affairs work queue policy (example; adjust per company).
+version: 1
+timezone: Asia/Tokyo
+queues:
+  - id: ga-requests
+    name: { ja: 総務依頼, en: General affairs requests }
+    types: [request]
+    slaHours: 48
+  - id: ga-facilities
+    name: { ja: 施設・設備, en: Facilities }
+    types: [request, case]
+    slaHours: 72
+rules:
+  - id: ga.required
+    kind: required
+    fields: [requester, department, category, description]
+    label: { ja: 必須項目（依頼者・部署・区分・内容）, en: "Required fields: requester, department, category, description" }
+  - id: ga.cost
+    kind: threshold
+    field: estimatedCost
+    warnAbove: 50000
+    secondApproverAbove: 100000
+    max: 500000
+    label: { ja: 費用（10万円超は二名承認、50万円超は不可）, en: "Cost: second approver above 100,000 JPY; over 500,000 JPY not allowed here" }
+  - id: ga.date
+    kind: date
+    field: neededBy
+    notInPast: true
+    minLeadDays: 2
+    label: { ja: 希望日は2営業日以上先, en: Needed-by date at least 2 days ahead }
+  - id: ga.phrases
+    kind: forbiddenPhrases
+    target: draft
+    phrases: [手配済み, 予約済み, 発注済み, already booked, already ordered]
+    label: { ja: 承認前に「手配済み」と書かない, en: "Do not claim anything is booked or ordered before approval" }

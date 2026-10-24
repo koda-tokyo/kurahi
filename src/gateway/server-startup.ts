@@ -38,7 +38,10 @@ export async function startGatewaySidecars(params: {
   };
   logChannels: { info: (msg: string) => void; error: (msg: string) => void };
   logBrowser: { error: (msg: string) => void };
+  /** Ends a startup phase (structured startup timings); optional. */
+  markPhase?: (name: string) => void;
 }) {
+  const mark = params.markPhase ?? (() => {});
   // OAuth refresher: only when OAuth-kind auth profiles exist under KOLO_HOME (or the
   // oauth-sources overlay provides sources). With nothing configured it neither starts nor logs.
   // KOLO_OAUTH_REFRESH=off: the operator manages these logins elsewhere (or must never refresh
@@ -53,6 +56,7 @@ export async function startGatewaySidecars(params: {
   } catch (err) {
     params.log.warn(`OAuth refresher failed to start (non-fatal): ${String(err)}`);
   }
+  mark("oauth-refresher");
 
   // Start Kurahi browser control server (unless disabled via config).
   let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
@@ -61,6 +65,7 @@ export async function startGatewaySidecars(params: {
   } catch (err) {
     params.logBrowser.error(`server failed to start: ${String(err)}`);
   }
+  mark("browser-control");
 
   // Start Gmail watcher if configured (hooks.gmail.account).
   if (!isTruthyEnvValue(process.env.KOLO_SKIP_GMAIL_WATCHER)) {
@@ -79,6 +84,7 @@ export async function startGatewaySidecars(params: {
       params.logHooks.error(`gmail watcher failed to start: ${String(err)}`);
     }
   }
+  mark("gmail-watcher");
 
   // Validate hooks.gmail.model if configured.
   if (params.cfg.hooks?.gmail?.model) {
@@ -126,6 +132,7 @@ export async function startGatewaySidecars(params: {
   } catch (err) {
     params.logHooks.error(`failed to load hooks: ${String(err)}`);
   }
+  mark("hooks");
 
   // Launch configured channels so gateway replies via the surface the message came from.
   // Tests can opt out via KOLO_SKIP_CHANNELS (or legacy KOLO_SKIP_PROVIDERS).
@@ -143,6 +150,7 @@ export async function startGatewaySidecars(params: {
       "skipping channel start (KOLO_SKIP_CHANNELS=1 or KOLO_SKIP_PROVIDERS=1)",
     );
   }
+  mark("channels");
 
   if (params.cfg.hooks?.internal?.enabled) {
     setTimeout(() => {
@@ -165,6 +173,7 @@ export async function startGatewaySidecars(params: {
   } catch (err) {
     params.log.warn(`plugin services failed to start: ${String(err)}`);
   }
+  mark("plugin-services");
 
   if (shouldWakeFromRestartSentinel()) {
     setTimeout(() => {

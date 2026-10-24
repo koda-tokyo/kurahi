@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import type { PolicyDocument } from "./schema.js";
 import { resolveToolPermissions } from "../agents/permissions.js";
+import { type EvidenceSignal, subscribeEvidenceSignals } from "../evidence/bus.js";
+import { digestOf } from "../evidence/redact.js";
 import { PolicyEngine } from "./engine.js";
 import { PolicyDeniedError, wrapToolWithPolicyGuard } from "./guard.js";
 import { resolvePolicyLocations } from "./paths.js";
@@ -111,6 +113,38 @@ describe("wrapToolWithPolicyGuard", () => {
     expect(asked).toEqual([
       "approvals.require[0]@slack:#ops:5000",
       "approvals.require[0]@slack:#ops:5000",
+    ]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("records every human decision as an approval evidence signal, with the approver", async () => {
+    const calls: string[] = [];
+    const signals: EvidenceSignal[] = [];
+    const off = subscribeEvidenceSignals("agent:alice:main", (s) => signals.push(s));
+    let answer: "allow" | "deny" = "allow";
+    const tool = wrapToolWithPolicyGuard(fakeTool("exec", calls), {
+      agentId: "alice",
+      workspaceDir: "/ws",
+      sessionKey: "agent:alice:main",
+      engine: engineWith({ version: 1, approvals: { require: [{ class: "exec" }] } }),
+      askHuman: async () => ({ decision: answer, approver: "device:owner-1", approvalId: "ap-9" }),
+    });
+    try {
+      await run(tool, { command: "deploy" });
+      answer = "deny";
+      await run(tool, { command: "deploy" }).catch(() => undefined);
+    } finally {
+      off();
+    }
+    expect(signals).toEqual([
+      expect.objectContaining({
+        kind: "approval",
+        decision: "allow",
+        approver: "device:owner-1",
+        approvalId: "ap-9",
+        argsDigest: digestOf({ command: "deploy" }),
+      }),
+      expect.objectContaining({ kind: "approval", decision: "deny" }),
     ]);
     expect(calls).toHaveLength(1);
   });

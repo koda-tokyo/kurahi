@@ -7,7 +7,7 @@
 // 2. Computes the next version from package.json (explicit "2026.10.16", "2026.10.16-beta.1",
 //    "patch"/"minor"/"major", or "calver" = today's YYYY.M.D).
 // 3. CHANGELOG.md top "## <version>" entry must equal the new version and have content.
-// 4. Writes the version into package.json, packages/client/package.json and every
+// 4. Writes the version into package.json, every packages/*/package.json and every
 //    extensions/*/package.json (scripts/release-check.ts requires them to match).
 // 5. Commits "release: v<version>" and creates the annotated tag v<version>. Never pushes.
 //    Pushing the tag triggers .github/workflows/release.yml.
@@ -116,9 +116,18 @@ function writeVersion(file, version) {
 /** Files whose `version` must equal the release version. */
 export function versionFiles(root) {
   const files = [path.join(root, "package.json")];
-  const client = path.join(root, "packages", "client", "package.json");
-  if (fs.existsSync(client)) {
-    files.push(client);
+  // Every workspace package under packages/ (the client and the legacy analyser ship with the
+  // release; a stale version there misreports what a tarball contains).
+  const packagesDir = path.join(root, "packages");
+  if (fs.existsSync(packagesDir)) {
+    for (const entry of fs
+      .readdirSync(packagesDir, { withFileTypes: true })
+      .toSorted((a, b) => a.name.localeCompare(b.name))) {
+      const pkg = path.join(packagesDir, entry.name, "package.json");
+      if (entry.isDirectory() && fs.existsSync(pkg) && readJson(pkg).version) {
+        files.push(pkg);
+      }
+    }
   }
   const extensionsDir = path.join(root, "extensions");
   if (fs.existsSync(extensionsDir)) {

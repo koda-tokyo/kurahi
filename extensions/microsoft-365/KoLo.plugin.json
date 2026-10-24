@@ -1,0 +1,67 @@
+{
+  "id": "microsoft-365",
+  "name": "Microsoft 365",
+  "description": "Business connector for Outlook mail, calendar and OneDrive/SharePoint files through Microsoft Graph. Read-only by default; writes are separate opt-ins and always need a person's approval.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tenantId": {
+        "type": "string",
+        "description": "Directory (tenant) ID GUID or verified domain of the customer's Microsoft Entra tenant."
+      },
+      "clientId": {
+        "type": "string",
+        "description": "Application (client) ID of the app registration the administrator created."
+      },
+      "mail": { "type": "boolean", "default": true, "description": "Read mail (Mail.Read)." },
+      "calendar": {
+        "type": "boolean",
+        "default": true,
+        "description": "Read calendars (Calendars.Read)."
+      },
+      "files": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Search and read OneDrive and shared files (Files.Read.All)."
+          },
+          "sharePoint": {
+            "type": "boolean",
+            "default": false,
+            "description": "Search SharePoint sites and their libraries (Sites.Read.All)."
+          },
+          "maxFileBytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 20971520,
+            "default": 10485760
+          }
+        }
+      },
+      "write": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mailSend": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow sending mail (Mail.Send). Every send needs a person's approval."
+          },
+          "calendarWrite": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow creating events (Calendars.ReadWrite). Every change needs a person's approval."
+          }
+        }
+      },
+      "redirectPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 15 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 50, "default": 8 },
+      "approvalTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 600, "default": 120 }
+    }
+  }
+}

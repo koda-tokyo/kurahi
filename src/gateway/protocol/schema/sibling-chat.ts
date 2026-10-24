@@ -21,6 +21,8 @@ export const SiblingSendParamsSchema = Type.Object(
       ),
     ),
     idempotencyKey: NonEmptyString,
+    /** Signed sender envelope (src/agents/messaging/sibling.ts verifies it). */
+    agentEnvelope: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   },
   { additionalProperties: false },
 );
@@ -112,6 +114,7 @@ export type SiblingSendParams = {
   text: string;
   attachments?: Array<{ type?: string; mimeType?: string; fileName?: string; content?: string }>;
   idempotencyKey: string;
+  agentEnvelope?: Record<string, unknown>;
 };
 
 export type SiblingSendResult = {

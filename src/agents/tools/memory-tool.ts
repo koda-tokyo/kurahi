@@ -2,6 +2,11 @@ import { Type } from "@sinclair/typebox";
 import type { KoLoConfig } from "../../config/config.js";
 import type { AnyAgentTool } from "./common.js";
 import { getMemorySearchManager } from "../../memory/index.js";
+import {
+  markReadResult,
+  markSearchResults,
+  resolveTrustMarkContext,
+} from "../../memory/retrieval-trust.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { resolveMemorySearchConfig } from "../memory-search.js";
 import { jsonResult, readNumberParam, readStringParam } from "./common.js";
@@ -57,8 +62,13 @@ export function createMemorySearchTool(options: {
           sessionKey: options.agentSessionKey,
         });
         const status = manager.status();
+        const marks = resolveTrustMarkContext({
+          config: cfg,
+          agentId,
+          workspaceDir: status.workspaceDir,
+        });
         return jsonResult({
-          results,
+          results: markSearchResults(results, marks),
           provider: status.provider,
           model: status.model,
           fallback: status.fallback,
@@ -109,7 +119,12 @@ export function createMemoryGetTool(options: {
           from: from ?? undefined,
           lines: lines ?? undefined,
         });
-        return jsonResult(result);
+        const marks = resolveTrustMarkContext({
+          config: cfg,
+          agentId,
+          workspaceDir: manager.status().workspaceDir,
+        });
+        return jsonResult(markReadResult(result, marks));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return jsonResult({ path: relPath, text: "", disabled: true, error: message });

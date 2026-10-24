@@ -66,20 +66,21 @@ for example for an R&D department. It is not available yet.
 
 ## Available today and planned
 
-As of 23 October 2026. Everything below is in the development line after release 2.0.3 and is not
-in a published release yet.
+As of 24 October 2026, release 2.1.0. The status column says what is available and what is
+planned.
 
-| Item                                        | Status                                                                                                |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Edition and workspace manifests (all four)  | Built: the shared shell selects an Edition's navigation, vocabulary and layout                        |
-| Industrial Edition workbench                | Built: the first reference Edition, with the five packs above                                         |
-| Legacy analyser and design documents        | Built: see [Industrial modernisation](/industrial-modernisation)                                      |
-| Work Console terminal and push-to-talk      | Gateway side built; the desktop console screens are in development, see [Work Console](/work-console) |
-| Business Edition                            | Planned: navigation is defined; the case, document and queue screens are not built                    |
-| Scholars Edition (Research, then Education) | Planned: navigation is defined; the Research and Education screens are not built                      |
-| Core Edition                                | Planned: assembled last from the shared parts already proven in the other Editions                    |
-| Research pack                               | Planned                                                                                               |
-| Edition licences                            | Planned: licence identifiers are defined; terms and pricing are not published                         |
+| Item                                        | Status                                                                                                                                                                                           |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Edition and workspace manifests (all four)  | Built: the shared shell selects an Edition's navigation, vocabulary and layout                                                                                                                   |
+| Industrial Edition workbench                | Built: the first reference Edition, with the five packs above                                                                                                                                    |
+| Legacy analyser and design documents        | Built: see [Industrial modernisation](/industrial-modernisation)                                                                                                                                 |
+| Work Console terminal and push-to-talk      | Built: the Industrial Project terminal runs through the gateway broker; voice capture and transcript review are a preview; the run timeline is in development, see [Work Console](/work-console) |
+| Business Edition                            | Preview: read-only work queue review; the case and document screens are not built, see [Work queue](/business/work-queue)                                                                        |
+| Business connectors                         | Built, off by default: [Microsoft 365](/connectors/microsoft-365), [Gmail](/connectors/gmail), [Entra ID](/connectors/entra); tested against recorded responses, not yet on a live tenant        |
+| Scholars Edition (Research, then Education) | Planned: navigation is defined; the Research and Education screens are not built                                                                                                                 |
+| Core Edition                                | Planned: assembled last from the shared parts already proven in the other Editions                                                                                                               |
+| Research pack                               | Planned                                                                                                                                                                                          |
+| Edition licences                            | Planned: licence identifiers are defined; terms and pricing are not published                                                                                                                    |
 
 The order of delivery is Industrial, then Business, then Scholars (Research first, then
 Education), then Core. An Edition is considered ready when representative users can complete its

@@ -1,3 +1,3 @@
 // Stub: gateway-v3 authority types
 
-export type EventDomain = "gateway" | "agent" | "biology" | "memory" | "config";
+export type EventDomain = "gateway" | "agent" | "memory" | "config";

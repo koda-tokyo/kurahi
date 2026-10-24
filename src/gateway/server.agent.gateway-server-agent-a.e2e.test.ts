@@ -450,7 +450,8 @@ describe("gateway server agent", () => {
     const call = spy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
     expect(call.sessionKey).toBe("main");
     expectChannels(call, "webchat");
-    expect(call.message).toBe("what is in the image?");
+    // The agent method prefixes the current time (server-methods/agent-timestamp.ts).
+    expect(call.message).toMatch(/^\[[^\]]+\] what is in the image\?$/);
 
     const images = call.images as Array<Record<string, unknown>>;
     expect(Array.isArray(images)).toBe(true);

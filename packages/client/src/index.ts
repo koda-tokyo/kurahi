@@ -65,3 +65,21 @@ export {
   type WsMethodMap,
 } from "./generated/websocket.js";
 export type * from "./generated/types.js";
+export {
+  WORK_ITEM_DECISION_REFUSALS,
+  type WorkItem,
+  type WorkItemCheck,
+  type WorkItemDecision,
+  type WorkItemDecisionRefusal,
+  type WorkItemDraft,
+  type WorkItemEvidenceBundle,
+  type WorkItemFilter,
+  type WorkItemHistoryEntry,
+  type WorkItemPriority,
+  type WorkItemSourceDocument,
+  type WorkItemStatus,
+  type WorkItemSummary,
+  type WorkItemType,
+  type WorkQueueDef,
+  type WorkQueueRule,
+} from "./workitems.js";

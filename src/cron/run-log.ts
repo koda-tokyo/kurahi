@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { CronPreExecOutcome } from "./types.js";
 
 export type CronRunLogEntry = {
   ts: number;
@@ -11,6 +12,8 @@ export type CronRunLogEntry = {
   runAtMs?: number;
   durationMs?: number;
   nextRunAtMs?: number;
+  /** The job's deterministic pre-step outcome (payload.preExec). */
+  preExec?: CronPreExecOutcome;
 };
 
 export function resolveCronRunLogPath(params: { storePath: string; jobId: string }) {

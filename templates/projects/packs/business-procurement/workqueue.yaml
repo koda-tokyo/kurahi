@@ -1,0 +1,37 @@
+# 購買 / Purchase request policy (example; adjust to your approval authority table).
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+queues:
+  - id: proc-requests
+    name: { ja: 購買申請, en: Purchase requests }
+    types: [purchase]
+    slaHours: 72
+rules:
+  - id: proc.required
+    kind: required
+    fields: [requester, item, quantity, amount, vendor, budgetCode, neededBy]
+    label: { ja: 必須項目（品目・数量・金額・取引先・予算コード・納期）, en: "Required: item, quantity, amount, vendor, budget code, needed-by" }
+  - id: proc.amount
+    kind: threshold
+    field: amount
+    warnAbove: 100000
+    secondApproverAbove: 300000
+    max: 5000000
+    label: { ja: 金額（30万円超は二名承認、500万円超は稟議）, en: "Amount: second approver above 300,000 JPY; above 5,000,000 JPY needs a board approval (稟議)" }
+  - id: proc.quotes
+    kind: attachment
+    min: 2
+    severity: warn
+    label: { ja: 相見積（2社以上）, en: At least two quotes attached }
+  - id: proc.date
+    kind: date
+    field: neededBy
+    notInPast: true
+    minLeadDays: 5
+    label: { ja: 納期は5日以上先, en: Needed-by date at least 5 days ahead }
+  - id: proc.phrases
+    kind: forbiddenPhrases
+    target: draft
+    phrases: [発注しました, 発注済み, order placed, 契約しました]
+    label: { ja: 承認前に発注済みと書かない, en: Do not state the order is placed before approval }

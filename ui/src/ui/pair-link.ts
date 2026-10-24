@@ -12,8 +12,9 @@ import {
   signDevicePayload,
   type DeviceIdentity,
 } from "./device-identity";
+import { SECRET_STORAGE_KEYS, secretStorage } from "./secret-storage";
 
-const STORAGE_KEY = "kolo-pair-credential-v1";
+const STORAGE_KEY = SECRET_STORAGE_KEYS.pairCredential;
 /** Refresh this long before the access token expires. */
 const REFRESH_MARGIN_MS = 5 * 60_000;
 
@@ -153,7 +154,9 @@ export async function refreshPairCredential(opts: {
 
 export function loadPairCredential(): PairCredential | null {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as PairCredential | null;
+    const parsed = JSON.parse(
+      secretStorage().getItem(STORAGE_KEY) ?? "null",
+    ) as PairCredential | null;
     return parsed?.version === 1 && typeof parsed.accessToken === "string" ? parsed : null;
   } catch {
     return null;
@@ -163,9 +166,9 @@ export function loadPairCredential(): PairCredential | null {
 export function savePairCredential(credential: PairCredential | null): void {
   try {
     if (credential) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(credential));
+      secretStorage().setItem(STORAGE_KEY, JSON.stringify(credential));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      secretStorage().removeItem(STORAGE_KEY);
     }
   } catch {
     // Private mode: the credential lives for this page only.

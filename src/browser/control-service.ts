@@ -2,6 +2,7 @@ import { loadConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveBrowserConfig, resolveProfile } from "./config.js";
 import { ensureChromeExtensionRelayServer } from "./extension-relay.js";
+import { isPlaywrightSessionLoaded } from "./pw-loaded.js";
 import { type BrowserServerState, createBrowserRouteContext } from "./server-context.js";
 
 let state: BrowserServerState | null = null;
@@ -78,11 +79,14 @@ export async function stopBrowserControlService(): Promise<void> {
 
   state = null;
 
-  // Optional: Playwright is not always available (e.g. embedded gateway builds).
-  try {
-    const mod = await import("./pw-ai.js");
-    await mod.closePlaywrightBrowserConnection();
-  } catch {
-    // ignore
+  // Optional: Playwright is not always available (e.g. embedded gateway builds). When the session
+  // module never loaded there is no connection to close, so do not load Playwright just for that.
+  if (isPlaywrightSessionLoaded()) {
+    try {
+      const mod = await import("./pw-ai.js");
+      await mod.closePlaywrightBrowserConnection();
+    } catch {
+      // ignore
+    }
   }
 }

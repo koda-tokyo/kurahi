@@ -1,0 +1,56 @@
+{
+  "id": "business-finance-expense-invoice",
+  "name": {
+    "ja": "経理 / 経費精算・請求書確認",
+    "en": "Expense and invoice review"
+  },
+  "description": {
+    "ja": "経費精算と受領請求書をキューで受け付け、エージェントが領収書・請求書と申請内容を照合して確認結果を下書きし、経理担当が承認します。",
+    "en": "Take expense claims and received invoices in a queue; the agent matches receipts and invoices against the claim and drafts the review, and accounting approves."
+  },
+  "folders": ["receipts", "invoices", "output"],
+  "rules": {
+    "readOnly": ["receipts", "invoices"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "エージェントは下書きのみを作成します。承認・差戻し・取消は必ず人が行います。",
+        "en": "Agents only draft. Approve, send back and cancel are always done by a person."
+      },
+      {
+        "ja": "申請内容と添付資料にない事実は書かず、不足は【要確認】と明記してください。",
+        "en": "Use only facts from the request and its attachments; mark anything missing as 【要確認 / to confirm】."
+      },
+      {
+        "ja": "承認されるまで、送信・発注・支払・予約・共有は一切しないでください。",
+        "en": "Never send, order, pay, book or share anything until the item is approved."
+      },
+      {
+        "ja": "領収書・請求書（receipts/, invoices/）は読み取り専用です。",
+        "en": "Receipts and invoices (receipts/, invoices/) are read-only."
+      },
+      {
+        "ja": "金額・日付・登録番号は証憑の記載どおりに転記し、計算は明示してください。",
+        "en": "Copy amounts, dates and registration numbers exactly from the documents, and show every calculation."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "この経費精算を領収書と照合し、確認結果を作成してください。",
+      "en": "Match this expense claim against its receipts and draft the review."
+    },
+    {
+      "ja": "この請求書を発注内容と照合し、支払可否の確認メモを作成してください（支払はしない）。",
+      "en": "Match this invoice against the purchase order and draft a payment review note (do not pay)."
+    },
+    {
+      "ja": "適格請求書の記載事項が揃っているか確認してください。",
+      "en": "Check that the invoice carries every item required for a qualified invoice."
+    }
+  ],
+  "terminalProfile": "data"
+}

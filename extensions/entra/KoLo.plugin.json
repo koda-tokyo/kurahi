@@ -1,0 +1,34 @@
+{
+  "id": "entra",
+  "name": "Microsoft Entra ID",
+  "description": "Business connector for Microsoft Entra ID: OpenID Connect sign-in validation for the gateway and desktop, and optional read-only directory lookup of users and groups.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tenantId": {
+        "type": "string",
+        "description": "Directory (tenant) ID GUID or verified domain, or \"organizations\" for a multi-tenant app (then allowedTenants is required)."
+      },
+      "clientId": {
+        "type": "string",
+        "description": "Application (client) ID of the app registration; the expected audience of ID tokens."
+      },
+      "allowedTenants": {
+        "type": "array",
+        "items": { "type": "string" },
+        "maxItems": 50,
+        "description": "Tenant GUIDs whose users may sign in. Default: the configured tenant only."
+      },
+      "directory": {
+        "type": "string",
+        "enum": ["off", "basic", "full"],
+        "default": "off",
+        "description": "Directory read: off; basic = user names and addresses (User.ReadBasic.All); full = users and groups (Directory.Read.All, admin consent)."
+      },
+      "redirectPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 15 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 50, "default": 8 }
+    }
+  }
+}

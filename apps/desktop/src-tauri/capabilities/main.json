@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Kurahi Desktop main window: the app's own commands only. No shell, fs, http, opener or updater plugin permissions.",
+  "windows": ["main"],
+  "local": true,
+  "permissions": [
+    "allow-desktop-status",
+    "allow-set-gateway-url",
+    "allow-service-control",
+    "allow-import-local-token",
+    "allow-set-language",
+    "allow-secret-get-all",
+    "allow-secret-set",
+    "allow-secret-delete",
+    "allow-audit-fetch"
+  ]
+}

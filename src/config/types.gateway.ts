@@ -70,6 +70,11 @@ export type GatewayControlUiConfig = {
   allowInsecureAuth?: boolean;
   /** DANGEROUS: Disable device identity checks for the Control UI (default: false). */
   dangerouslyDisableDeviceAuth?: boolean;
+  /**
+   * Organisation default language for the Control UI (BCP 47, e.g. "ja"). A user's own choice
+   * wins; an unsupported value falls back to the OS language.
+   */
+  defaultLocale?: string;
 };
 
 export type GatewayAuthMode = "token" | "password";
@@ -276,8 +281,6 @@ export type GatewayConfig = {
     enabled?: boolean;
     /** Enable LeaseManager boot (single-node lease authority). */
     lease?: boolean;
-    /** Enable BiologyBootSupervisor (organ health tracking). */
-    biology?: boolean;
     /** Enable v3 candidate scoring in runWithModelFallback. */
     scoring?: boolean;
     /** Include v3 health snapshot in /health response. */

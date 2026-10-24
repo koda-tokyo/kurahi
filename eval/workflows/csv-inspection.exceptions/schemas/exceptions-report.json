@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Inspection exceptions report",
+  "type": "object",
+  "required": ["fixture", "rowsChecked", "exceptions"],
+  "properties": {
+    "fixture": { "type": "string" },
+    "rowsChecked": { "type": "integer", "minimum": 0 },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rowId", "characteristic", "measured", "lowerLimit", "upperLimit", "source"],
+        "properties": {
+          "rowId": { "type": "string" },
+          "characteristic": { "type": "string" },
+          "measured": { "type": "number" },
+          "lowerLimit": { "type": "number" },
+          "upperLimit": { "type": "number" },
+          "unit": { "type": "string" },
+          "source": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

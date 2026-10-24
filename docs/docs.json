@@ -844,6 +844,7 @@
               "editions",
               "industrial-modernisation",
               "work-console",
+              "business/work-queue",
               "scholars",
               "start/phone",
               "start/getting-started",
@@ -916,6 +917,7 @@
               "cli/memory",
               "cli/models",
               "cli/logs",
+              "cli/debug",
               "cli/system",
               "cli/nodes",
               "cli/approvals",
@@ -986,7 +988,6 @@
               "plugins/circadian",
               "plugins/proactive-triggers",
               "plugins/memory-boot-inject",
-              "plugins/MIGRATING_FROM_SHELL_WATCHDOGS",
               "gateway/index",
               "gateway/service",
               "gateway/protocol",
@@ -1029,6 +1030,7 @@
               "security/agent-message-signing",
               "security/terminal-broker",
               "security/owasp-agentic",
+              "security/threat-model-industrial",
               "security/privacy",
               "security/formal-verification",
               "gateway/sandbox-vs-tool-policy-vs-elevated",
@@ -1069,6 +1071,10 @@
               "channels/troubleshooting",
               "channels/location"
             ]
+          },
+          {
+            "group": "Business connectors",
+            "pages": ["connectors/microsoft-365", "connectors/gmail", "connectors/entra"]
           },
           {
             "group": "Providers",
@@ -1227,8 +1233,13 @@
               "ja/editions",
               "ja/industrial-modernisation",
               "ja/work-console",
+              "ja/business/work-queue",
               "ja/scholars"
             ]
+          },
+          {
+            "group": "業務コネクター",
+            "pages": ["ja/connectors/microsoft-365", "ja/connectors/gmail", "ja/connectors/entra"]
           },
           {
             "group": "プロバイダー",

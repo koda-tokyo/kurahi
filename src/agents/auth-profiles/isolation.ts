@@ -65,13 +65,26 @@ export function agentIdForDir(
  * The view of an agent's credentials under explicit isolation: only granted profile ids, taken
  * from the agent's own store first and the main store second. Nothing else is visible.
  */
+/** Grant entry meaning "every profile of the main store and of the agent's own store". */
+export const GRANT_ALL = "*";
+
+/** Whether `granted` (one agent's `auth.grants` list) covers `profileId`. */
+export function isProfileGranted(granted: string[] | undefined, profileId: string): boolean {
+  return Boolean(granted && (granted.includes(GRANT_ALL) || granted.includes(profileId)));
+}
+
 export function grantedAuthStore(params: {
   own: AuthProfileStore;
   main: AuthProfileStore;
   granted: string[];
 }): AuthProfileStore {
   const profiles: AuthProfileStore["profiles"] = {};
-  for (const id of params.granted) {
+  // "*" grants everything (used by `kurahi init` for the identity agent it creates): the owner's
+  // agent keeps all credentials, every other agent still gets only what it is granted.
+  const ids = params.granted.includes(GRANT_ALL)
+    ? [...new Set([...Object.keys(params.main.profiles), ...Object.keys(params.own.profiles)])]
+    : params.granted;
+  for (const id of ids) {
     const cred = params.own.profiles[id] ?? params.main.profiles[id];
     if (cred) {
       profiles[id] = cred;

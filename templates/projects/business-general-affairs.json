@@ -1,0 +1,52 @@
+{
+  "id": "business-general-affairs",
+  "name": {
+    "ja": "総務 / 総務依頼",
+    "en": "General affairs requests"
+  },
+  "description": {
+    "ja": "備品・施設・名刺・社用車などの総務依頼をキューで受け付け、エージェントが回答・手配案を下書きし、担当者が承認します。",
+    "en": "Take facilities, supplies, business cards and company-car requests in a queue; the agent drafts the reply or arrangement and a person approves it."
+  },
+  "folders": ["requests", "output"],
+  "rules": {
+    "readOnly": ["requests"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "エージェントは下書きのみを作成します。承認・差戻し・取消は必ず人が行います。",
+        "en": "Agents only draft. Approve, send back and cancel are always done by a person."
+      },
+      {
+        "ja": "申請内容と添付資料にない事実は書かず、不足は【要確認】と明記してください。",
+        "en": "Use only facts from the request and its attachments; mark anything missing as 【要確認 / to confirm】."
+      },
+      {
+        "ja": "承認されるまで、送信・発注・支払・予約・共有は一切しないでください。",
+        "en": "Never send, order, pay, book or share anything until the item is approved."
+      },
+      {
+        "ja": "requests/ の申請書は読み取り専用です。",
+        "en": "Request forms in requests/ are read-only."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "この総務依頼への回答案を作成してください（承認待ちとして保存）。",
+      "en": "Draft a reply to this general affairs request (saved for approval)."
+    },
+    {
+      "ja": "会議室・備品の手配案を、日時と費用の見積もり付きで作成してください。",
+      "en": "Draft the room or supplies arrangement with dates and a cost estimate."
+    },
+    {
+      "ja": "未完了の依頼を期限順に一覧にしてください。",
+      "en": "List open requests by due date."
+    }
+  ],
+  "terminalProfile": "data"
+}

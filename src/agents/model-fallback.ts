@@ -1,6 +1,5 @@
 import type { KoLoConfig } from "../config/config.js";
 import type { FailoverReason } from "./pi-embedded-helpers.js";
-import { reorderByV3Score } from "../gateway-v3/routing/candidate-scorer.js";
 import {
   ensureAuthProfileStore,
   isProfileInCooldown,
@@ -242,17 +241,12 @@ export async function runWithModelFallback<T>(params: {
   model: string;
   attempts: FallbackAttempt[];
 }> {
-  const rawCandidates = resolveFallbackCandidates({
+  const candidates = resolveFallbackCandidates({
     cfg: params.cfg,
     provider: params.provider,
     model: params.model,
     fallbacksOverride: params.fallbacksOverride,
   });
-
-  // v3 scoring: reorder candidates by scored provider preference when flag is on.
-  // Existing cooldown checks, circuit breaker logic, and error handling run
-  // unchanged on the reordered list — this is purely an ordering pass.
-  const candidates = reorderByV3Score(rawCandidates, { cfg: params.cfg });
 
   const authStore = params.cfg
     ? ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false })

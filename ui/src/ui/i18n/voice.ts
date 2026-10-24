@@ -1,0 +1,36 @@
+export const voiceEn = {
+  "voice.title": "Voice draft",
+  "voice.start": "Start dictation",
+  "voice.stop": "Finish dictation",
+  "voice.cancel": "Discard",
+  "voice.unavailable": "Voice input is not available in this app yet.",
+  "voice.disconnected": "Connect to the service to dictate.",
+  "voice.idle": "Ready to start dictation. The service must have voice enabled.",
+  "voice.starting": "Starting voice input…",
+  "voice.recording": "Listening. Finish dictation when you are done.",
+  "voice.stopping": "Preparing transcript…",
+  "voice.ready": "Review your transcript.",
+  "voice.error": "Voice input stopped. Check microphone and service availability, then try again.",
+  "voice.transcript": "Transcript",
+  "voice.use": "Open as chat draft",
+  "voice.review":
+    "Voice only drafts text. Review and send it yourself; voice cannot approve actions.",
+} as const;
+export const voiceJa: Record<keyof typeof voiceEn, string> = {
+  "voice.title": "音声下書き",
+  "voice.start": "音声入力を開始",
+  "voice.stop": "音声入力を終了",
+  "voice.cancel": "破棄",
+  "voice.unavailable": "このアプリでは音声入力をまだ利用できません。",
+  "voice.disconnected": "音声入力にはサービスへの接続が必要です。",
+  "voice.idle": "音声入力を開始できます。サービスで音声機能を有効にする必要があります。",
+  "voice.starting": "音声入力を開始しています…",
+  "voice.recording": "録音中です。話し終わったら音声入力を終了してください。",
+  "voice.stopping": "文字起こしを準備しています…",
+  "voice.ready": "文字起こしを確認してください。",
+  "voice.error": "音声入力が停止しました。マイクとサービスの状態を確認して、再試行してください。",
+  "voice.transcript": "文字起こし",
+  "voice.use": "チャットの下書きとして開く",
+  "voice.review":
+    "音声は下書きの作成のみです。内容を確認して自分で送信してください。音声で操作を承認することはできません。",
+};

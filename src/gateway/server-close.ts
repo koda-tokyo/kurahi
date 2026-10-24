@@ -8,6 +8,7 @@ import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js
 import { closeFactoryRunner } from "../factory/runtime.js";
 import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import { stopMcp } from "../mcp/client/manager.js";
+import { stopVoice } from "../voice/runtime.js";
 import { setGatewayPluginHost } from "./plugins-http.js";
 
 export function createGatewayCloseHandler(params: {
@@ -86,6 +87,7 @@ export function createGatewayCloseHandler(params: {
     await stopGmailWatcher();
     params.cron.stop();
     await stopMcp().catch(() => {});
+    await stopVoice().catch(() => {});
     params.heartbeatRunner.stop();
     for (const timer of params.nodePresenceTimers.values()) {
       clearInterval(timer);
@@ -113,8 +115,8 @@ export function createGatewayCloseHandler(params: {
       }
     }
 
-    // Graceful drain: wait up to 30s for active LLM requests to complete
-    const DRAIN_TIMEOUT_MS = 30_000;
+    // Graceful drain: wait up to 30s (KOLO_GATEWAY_DRAIN_TIMEOUT_MS) for active LLM requests
+    const DRAIN_TIMEOUT_MS = resolveDrainTimeoutMs(process.env);
     const DRAIN_POLL_MS = 500;
     const drainStart = Date.now();
 
@@ -159,4 +161,15 @@ export function createGatewayCloseHandler(params: {
       );
     }
   };
+}
+
+const DEFAULT_DRAIN_TIMEOUT_MS = 30_000;
+
+/** The shutdown drain budget: 30 s, or KOLO_GATEWAY_DRAIN_TIMEOUT_MS (a non-negative integer). */
+export function resolveDrainTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.KOLO_GATEWAY_DRAIN_TIMEOUT_MS?.trim();
+  if (!raw || !/^\d+$/.test(raw)) {
+    return DEFAULT_DRAIN_TIMEOUT_MS;
+  }
+  return Number.parseInt(raw, 10);
 }

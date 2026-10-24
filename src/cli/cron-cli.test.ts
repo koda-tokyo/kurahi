@@ -96,6 +96,67 @@ describe("cron cli", () => {
     expect(params?.agentId).toBe("ops");
   });
 
+  it("sends post-mode none on cron add", async () => {
+    callGatewayFromCli.mockClear();
+
+    const { registerCronCli } = await import("./cron-cli.js");
+    const program = new Command();
+    program.exitOverride();
+    registerCronCli(program);
+
+    await program.parseAsync(
+      [
+        "cron",
+        "add",
+        "--name",
+        "Quiet",
+        "--cron",
+        "* * * * *",
+        "--session",
+        "isolated",
+        "--message",
+        "hi",
+        "--post-mode",
+        " None ",
+      ],
+      { from: "user" },
+    );
+
+    const addCall = callGatewayFromCli.mock.calls.find((call) => call[0] === "cron.add");
+    const params = addCall?.[2] as { isolation?: { postToMainMode?: string } };
+    expect(params?.isolation?.postToMainMode).toBe("none");
+  });
+
+  it("rejects an unknown post-mode on cron add", async () => {
+    callGatewayFromCli.mockClear();
+
+    const { registerCronCli } = await import("./cron-cli.js");
+    const program = new Command();
+    program.exitOverride();
+    registerCronCli(program);
+
+    await expect(
+      program.parseAsync(
+        [
+          "cron",
+          "add",
+          "--name",
+          "Bad",
+          "--cron",
+          "* * * * *",
+          "--session",
+          "isolated",
+          "--message",
+          "hi",
+          "--post-mode",
+          "quiet",
+        ],
+        { from: "user" },
+      ),
+    ).rejects.toThrow("__exit__:1");
+    expect(callGatewayFromCli.mock.calls.some((call) => call[0] === "cron.add")).toBe(false);
+  });
+
   it("omits empty model and thinking on cron edit", async () => {
     callGatewayFromCli.mockClear();
 

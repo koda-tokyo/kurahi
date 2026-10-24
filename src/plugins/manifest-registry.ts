@@ -23,6 +23,8 @@ export type PluginManifestRecord = {
   schemaCacheKey?: string;
   configSchema?: Record<string, unknown>;
   configUiHints?: Record<string, PluginConfigUiHint>;
+  /** Manifest `projectScope: true`: may be enabled for a single project (see loader.ts). */
+  projectScope?: boolean;
 };
 
 export type PluginManifestRegistry = {
@@ -103,6 +105,7 @@ function buildRecord(params: {
     schemaCacheKey: params.schemaCacheKey,
     configSchema: params.configSchema,
     configUiHints: params.manifest.uiHints,
+    ...(params.manifest.projectScope ? { projectScope: true } : {}),
   };
 }
 

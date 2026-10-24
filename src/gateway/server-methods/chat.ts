@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
-import { resolveSessionAgentId } from "../../agents/agent-scope.js";
+import { resolveDefaultAgentId, resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveEffectiveMessagesConfig, resolveIdentityName } from "../../agents/identity.js";
 import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
@@ -14,6 +14,9 @@ import {
   extractShortModelName,
   type ResponsePrefixContext,
 } from "../../auto-reply/reply/response-prefix-template.js";
+import { loadProjectPack } from "../../projects/pack.js";
+import { parseProjectSessionKey, projectContextForAgent } from "../../projects/scope.js";
+import { getProject, isAgentAllowed } from "../../projects/store.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import {
@@ -380,6 +383,33 @@ export const chatHandlers: GatewayRequestHandlers = {
       }
     }
     const { cfg, entry } = loadSessionEntry(p.sessionKey);
+    // Kurahi v0.3 projects: only the project's allowed agents may run in a project session, and
+    // the agent receives the project's folder and rules with every message.
+    let projectContext = "";
+    const projectRef = parseProjectSessionKey(p.sessionKey);
+    if (projectRef) {
+      const project = getProject(projectRef.projectId);
+      if (!project || project.archived) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "project not found or archived"),
+        );
+        return;
+      }
+      if (!isAgentAllowed(project, projectRef.agentId, resolveDefaultAgentId(cfg))) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `agent ${projectRef.agentId} is not allowed in this project`,
+          ),
+        );
+        return;
+      }
+      projectContext = `${projectContextForAgent(project, loadProjectPack(project).text)}\n\n`;
+    }
     const timeoutMs = resolveAgentTimeoutMs({
       cfg,
       overrideMs: p.timeoutMs,
@@ -467,7 +497,7 @@ export const chatHandlers: GatewayRequestHandlers = {
 
       const ctx: MsgContext = {
         Body: parsedMessage,
-        BodyForAgent: stampedMessage,
+        BodyForAgent: projectContext + stampedMessage,
         BodyForCommands: commandBody,
         RawBody: parsedMessage,
         CommandBody: commandBody,

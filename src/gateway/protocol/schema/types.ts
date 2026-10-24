@@ -39,6 +39,11 @@ import type {
   UpdateRunParamsSchema,
 } from "./config.js";
 import type {
+  ConnectorStatusEntrySchema,
+  ConnectorsStatusParamsSchema,
+  ConnectorsStatusResultSchema,
+} from "./connectors.js";
+import type {
   CronAddParamsSchema,
   CronJobSchema,
   CronListParamsSchema,
@@ -124,6 +129,22 @@ import type {
 } from "./sessions.js";
 import type { PresenceEntrySchema, SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 import type {
+  VoiceAudioOutEventSchema,
+  VoiceAudioParamsSchema,
+  VoiceAudioResultSchema,
+  VoiceCancelParamsSchema,
+  VoiceCancelResultSchema,
+  VoiceSessionEndedEventSchema,
+  VoiceSpeakParamsSchema,
+  VoiceSpeakResultSchema,
+  VoiceStartParamsSchema,
+  VoiceStartResultSchema,
+  VoiceStopParamsSchema,
+  VoiceStopResultSchema,
+  VoiceTranscriptFinalEventSchema,
+  VoiceTranscriptPartialEventSchema,
+} from "./voice.js";
+import type {
   WizardCancelParamsSchema,
   WizardNextParamsSchema,
   WizardNextResultSchema,
@@ -133,6 +154,23 @@ import type {
   WizardStatusResultSchema,
   WizardStepSchema,
 } from "./wizard.js";
+import {
+  TerminalAckResultSchema,
+  TerminalCancelParamsSchema,
+  TerminalCloseParamsSchema,
+  TerminalDiffFileSchema,
+  TerminalDiffFileSummarySchema,
+  TerminalDiffParamsSchema,
+  TerminalDiffResultSchema,
+  TerminalEventSchema,
+  TerminalInputParamsSchema,
+  TerminalOpenParamsSchema,
+  TerminalOpenResultSchema,
+  TerminalReplayParamsSchema,
+  TerminalReplayResultSchema,
+  TerminalResizeParamsSchema,
+  TerminalRiskSchema,
+} from "./terminal.js";
 
 export type ConnectParams = Static<typeof ConnectParamsSchema>;
 export type HelloOk = Static<typeof HelloOkSchema>;
@@ -172,6 +210,9 @@ export type SessionsDiscoverParams = Static<typeof SessionsDiscoverParamsSchema>
 export type SessionsDiscoverResult = Static<typeof SessionsDiscoverResultSchema>;
 export type CodeModeRunParams = Static<typeof CodeModeRunParamsSchema>;
 export type CodeModeRunResult = Static<typeof CodeModeRunResultSchema>;
+export type ConnectorsStatusParams = Static<typeof ConnectorsStatusParamsSchema>;
+export type ConnectorsStatusResult = Static<typeof ConnectorsStatusResultSchema>;
+export type ConnectorStatusEntry = Static<typeof ConnectorStatusEntrySchema>;
 export type SessionAttachParams = Static<typeof SessionAttachParamsSchema>;
 export type SessionAttachResult = Static<typeof SessionAttachResultSchema>;
 export type SessionDetachParams = Static<typeof SessionDetachParamsSchema>;
@@ -245,3 +286,33 @@ export type ChatEvent = Static<typeof ChatEventSchema>;
 export type UpdateRunParams = Static<typeof UpdateRunParamsSchema>;
 export type TickEvent = Static<typeof TickEventSchema>;
 export type ShutdownEvent = Static<typeof ShutdownEventSchema>;
+export type VoiceStartParams = Static<typeof VoiceStartParamsSchema>;
+export type VoiceStartResult = Static<typeof VoiceStartResultSchema>;
+export type VoiceAudioParams = Static<typeof VoiceAudioParamsSchema>;
+export type VoiceAudioResult = Static<typeof VoiceAudioResultSchema>;
+export type VoiceStopParams = Static<typeof VoiceStopParamsSchema>;
+export type VoiceStopResult = Static<typeof VoiceStopResultSchema>;
+export type VoiceSpeakParams = Static<typeof VoiceSpeakParamsSchema>;
+export type VoiceSpeakResult = Static<typeof VoiceSpeakResultSchema>;
+export type VoiceCancelParams = Static<typeof VoiceCancelParamsSchema>;
+export type VoiceCancelResult = Static<typeof VoiceCancelResultSchema>;
+export type VoiceTranscriptPartialEvent = Static<typeof VoiceTranscriptPartialEventSchema>;
+export type VoiceTranscriptFinalEvent = Static<typeof VoiceTranscriptFinalEventSchema>;
+export type VoiceAudioOutEvent = Static<typeof VoiceAudioOutEventSchema>;
+export type VoiceSessionEndedEvent = Static<typeof VoiceSessionEndedEventSchema>;
+
+export type TerminalOpenParams = Static<typeof TerminalOpenParamsSchema>;
+export type TerminalOpenResult = Static<typeof TerminalOpenResultSchema>;
+export type TerminalInputParams = Static<typeof TerminalInputParamsSchema>;
+export type TerminalResizeParams = Static<typeof TerminalResizeParamsSchema>;
+export type TerminalCancelParams = Static<typeof TerminalCancelParamsSchema>;
+export type TerminalCloseParams = Static<typeof TerminalCloseParamsSchema>;
+export type TerminalAckResult = Static<typeof TerminalAckResultSchema>;
+export type TerminalReplayParams = Static<typeof TerminalReplayParamsSchema>;
+export type TerminalReplayResult = Static<typeof TerminalReplayResultSchema>;
+export type TerminalDiffParams = Static<typeof TerminalDiffParamsSchema>;
+export type TerminalDiffResult = Static<typeof TerminalDiffResultSchema>;
+export type TerminalDiffFile = Static<typeof TerminalDiffFileSchema>;
+export type TerminalDiffFileSummary = Static<typeof TerminalDiffFileSummarySchema>;
+export type TerminalEvent = Static<typeof TerminalEventSchema>;
+export type TerminalRiskPreview = Static<typeof TerminalRiskSchema>;

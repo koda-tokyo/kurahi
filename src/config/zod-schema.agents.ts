@@ -32,11 +32,26 @@ const ConsciousnessSchema = z
   .strict()
   .optional();
 
+const AgentMessagingSchema = z
+  .object({
+    signing: z
+      .object({
+        mode: z.enum(["off", "warn", "enforce"]).optional(),
+        maxAgeSeconds: z.number().int().min(1).max(86_400).optional(),
+        maxPayloadBytes: z.number().int().min(1024).max(16_777_216).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .optional();
+
 export const AgentsSchema = z
   .object({
     defaults: z.lazy(() => AgentDefaultsSchema).optional(),
     list: z.array(AgentEntrySchema).optional(),
     consciousness: ConsciousnessSchema,
+    messaging: AgentMessagingSchema,
   })
   .strict()
   .optional();

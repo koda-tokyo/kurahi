@@ -15,14 +15,14 @@ The Work Console is where an operator works hands-on inside one Project: a termi
 inside the Project folder and asks before anything consequential runs, and push-to-talk voice for
 giving instructions in Japanese or English.
 
-Status as of 23 October 2026, in the development line after release 2.0.3:
+Status as of 24 October 2026, release 2.1.0:
 
-| Part                                                     | Status                                                                                            |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Terminal broker in the gateway (`terminal.*` methods)    | Built                                                                                             |
-| Voice in the gateway (`voice.*` methods, local adapters) | Built                                                                                             |
-| Approval guard that refuses voice-originated approvals   | Built                                                                                             |
-| Desktop console screens (terminal, run timeline, voice)  | In development; in the current desktop app the Project's terminal profile shows "arrives in v0.4" |
+| Part                                                     | Status                                                                                                                                                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terminal broker in the gateway (`terminal.*` methods)    | Built                                                                                                                                                                           |
+| Voice in the gateway (`voice.*` methods, local adapters) | Built                                                                                                                                                                           |
+| Approval guard that refuses voice-originated approvals   | Built                                                                                                                                                                           |
+| Desktop console screens (terminal, run timeline, voice)  | Terminal: connected to the broker (once-only approvals, replay on reconnect, lost-session recovery). Voice capture and transcript review: preview. Run timeline: in development |
 
 ## Governed terminal
 
@@ -35,13 +35,20 @@ methods.
 - **Line gating.** Nothing reaches a shell until Enter. Each line is checked against the Project's
   mode, the destructive-command guard, a classifier (privilege elevation, detaching, command
   substitution and unapproved interactive programs are refused) and the path guard.
+- **Read-only folders.** Folders the Project marks read-only (`rules.readOnly`, for example
+  `source/`, `data/` and `docs/` in the industrial modernisation template) cannot be written,
+  created in, deleted, moved or chmod-ed from the terminal in any mode: the line is refused with
+  `read-only-path` and no approval is offered. Reading them works as usual. To unlock a folder,
+  change the Project's read-only list. A write the line does not show (a script, a build tool) is
+  flagged as a policy violation in the diff and the audit log.
 - **Approvals.** In plan mode (計画), and in act mode (実行) with the new-installation setting, every
   line that is not read-only waits for an explicit approval. An unanswered approval counts as
   denied. After approval the line is checked again before it runs.
 - **Clean environment.** Each approved line runs in a fresh shell without rc files or aliases, with
   an allowlisted environment: the gateway's tokens and keys are not inherited.
 - **Diffs.** Before and after each command that is not read-only, the Project's files are compared;
-  the change arrives as a diff the operator can review.
+  the change arrives as a diff the operator can review. Changes inside read-only folders are
+  marked as violations and listed first.
 - **Audit.** Every open, command (with its decision and risk), approval, exit, cancel and close is
   written to the hash-chained audit log; output and command lines are redacted for secrets.
 - **Optional container.** `console.terminal.sandbox: "required"` runs every session in the

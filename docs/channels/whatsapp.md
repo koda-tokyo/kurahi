@@ -9,12 +9,32 @@ title: "WhatsApp"
 
 Status: WhatsApp Web via Baileys only. Gateway owns the session(s).
 
+## Install separately (optional plugin)
+
+Since Kurahi 2.1.0 WhatsApp is **not part of the default package, prebuilt bundles or
+installers**. The WhatsApp Web library it uses depends on `libsignal`, which is licensed under
+the **GPL-3.0**; the plugin is distributed on its own so the default runtime contains no GPL-3.0
+code. Install it only if you accept that licence for the plugin and its dependencies.
+
+1. Download `kurahi-whatsapp-<version>.tgz` (and check it against `SHA256SUMS.txt`) from the
+   release, using the same version as your Kurahi.
+2. `kurahi plugins install ./kurahi-whatsapp-<version>.tgz`: copies the plugin to
+   `<KOLO_HOME>/extensions/whatsapp/` and runs `npm install --omit=dev` there, which downloads the
+   WhatsApp library and `libsignal` from the npm registry.
+3. With the supply-chain lock enforced (new installations): `kurahi plugins pin whatsapp`.
+4. `kurahi config set plugins.entries.whatsapp.enabled true`, then restart the gateway.
+
+Without the plugin, WhatsApp commands stop with "WhatsApp is not installed" and every other
+channel works as usual. Configurations that still contain a `channels.whatsapp` block load
+unchanged.
+
 ## Quick setup (beginner)
 
-1. Use a **separate phone number** if possible (recommended).
-2. Configure WhatsApp in `~/.kolo/kolo.json`.
-3. Run `Kurahi channels login` to scan the QR code (Linked Devices).
-4. Start the gateway.
+1. Install the plugin (above).
+2. Use a **separate phone number** if possible (recommended).
+3. Configure WhatsApp in `~/.kolo/kolo.json`.
+4. Run `kurahi channels login` to scan the QR code (Linked Devices).
+5. Start the gateway.
 
 Minimal config:
 

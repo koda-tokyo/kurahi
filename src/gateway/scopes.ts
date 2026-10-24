@@ -101,6 +101,41 @@ export function routeMinScope(route: { operationId: string; minScope?: PairScope
 }
 
 // ── WebSocket: minimum scope per method ────────────────────────────────────────────────────
+// Kurahi v0.3 (projects, uploads, artifacts, chat history): reads are observe, chat-side writes
+// attach; projects.create / update / archive stay admin (the default).
+const PROJECT_OBSERVE = [
+  "projects.templates",
+  "projects.pack",
+  "projects.list",
+  "projects.get",
+  "projects.files",
+  "artifacts.list",
+  "artifacts.get",
+  "chats.archived",
+  "chats.search",
+  // Business work queue reads.
+  "workitems.list",
+  "workitems.get",
+  "workitems.config",
+  "workitems.evidence",
+];
+const PROJECT_ATTACH = [
+  "projects.chatKey",
+  "files.upload.begin",
+  "files.upload.chunk",
+  "files.upload.abort",
+  "files.upload.commit",
+  "artifacts.save",
+  "artifacts.version",
+  "artifacts.setStatus",
+  "chats.archive",
+  // Business work queue: agents draft, people decide (decide refuses non-person origins).
+  "workitems.create",
+  "workitems.update",
+  "workitems.assignAgent",
+  "workitems.decide",
+];
+
 const WS_OBSERVE = new Set([
   "health",
   "health.deep",
@@ -133,9 +168,12 @@ const WS_OBSERVE = new Set([
   "pair.refresh",
   "pair.me",
   "mcp.status",
+  // Business connectors: sanitized configuration/sign-in/probe state, read-only.
+  "connectors.status",
   "plugins.list",
   // M13: the kill switch state is observable; policy.kill / policy.release stay admin.
   "policy.status",
+  ...PROJECT_OBSERVE,
 ]);
 
 const WS_ATTACH = new Set([
@@ -164,6 +202,13 @@ const WS_ATTACH = new Set([
   "session.detach",
   // M6: Code Mode drives tools, like node.invoke; attach scope.
   "codeMode.run",
+  // Work Console push-to-talk: drives a chat-side capture, like chat.send; attach scope.
+  "voice.start",
+  "voice.audio",
+  "voice.stop",
+  "voice.speak",
+  "voice.cancel",
+  ...PROJECT_ATTACH,
 ]);
 
 /** Minimum scope for one WS method. `connect` is the handshake and is never dispatched here. */

@@ -7,6 +7,7 @@ import type { GatewayWsClient } from "./ws-types.js";
 import { resolveCanvasHostUrl } from "../../infra/canvas-host-url.js";
 import { listSystemPresence, upsertPresence } from "../../infra/system-presence.js";
 import { isWebchatClient } from "../../utils/message-channel.js";
+import { closeVoiceConnection } from "../../voice/runtime.js";
 import { isLoopbackAddress } from "../net.js";
 import { getHandshakeTimeoutMs } from "../server-constants.js";
 import { detachSessions } from "../server-methods/sessions.js";
@@ -198,6 +199,8 @@ export function attachGatewayWsConnectionHandler(params: {
       if (client) {
         // M3b: a closing socket leaves every session it was attached to (audited).
         detachSessions({ connId, reason: "disconnect" });
+        // Voice: a closing socket cancels its push-to-talk sessions (temp audio removed).
+        closeVoiceConnection(connId);
       }
       if (client?.connect?.role === "node") {
         const context = buildRequestContext();

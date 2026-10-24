@@ -186,6 +186,8 @@ export function describeEvent(e: EvidenceEvent): string {
       return `snapshot ${one(d.snapshotId)} before ${one(d.tool)}: ${((d.files as Array<{ path: string }>) ?? []).map((f) => f.path).join(", ")}`;
     case "permission":
       return `permission ${one(d.decision)}: ${one(d.tool)}${d.target ? ` on ${one(d.target, 80)}` : ""}${d.rule ? ` (${one(d.rule)})` : ""}`;
+    case "approval":
+      return `approval ${one(d.decision)}: ${one(d.tool)} by ${one(d.approver ?? "unknown")}${d.ruleId ? ` (${one(d.ruleId)})` : ""}`;
     case "redaction": {
       const counts = (d.counts ?? {}) as Record<string, number>;
       const masked = Object.entries(counts)

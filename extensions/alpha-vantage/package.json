@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/alpha-vantage",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Alpha Vantage financial data plugin — stocks, forex, crypto",
   "type": "module",
   "devDependencies": {

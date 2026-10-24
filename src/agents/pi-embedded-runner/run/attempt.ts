@@ -53,7 +53,7 @@ import {
 } from "../../pi-settings.js";
 import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
 import { createKoLoCodingTools } from "../../pi-tools.js";
-import { resolveSandboxContext } from "../../sandbox.js";
+import { resolveSandboxContextOrUnavailable } from "../../sandbox.js";
 import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
 import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js";
 import { acquireSessionWriteLock } from "../../session-write-lock.js";
@@ -158,7 +158,7 @@ export async function runEmbeddedAttempt(
   await fs.mkdir(resolvedWorkspace, { recursive: true });
 
   const sandboxSessionKey = params.sessionKey?.trim() || params.sessionId;
-  const sandbox = await resolveSandboxContext({
+  const { sandbox, unavailable: sandboxUnavailable } = await resolveSandboxContextOrUnavailable({
     config: params.config,
     sessionKey: sandboxSessionKey,
     workspaceDir: resolvedWorkspace,
@@ -221,6 +221,7 @@ export async function runEmbeddedAttempt(
             elevated: params.bashElevated,
           },
           sandbox,
+          sandboxUnavailable,
           messageProvider: params.messageChannel ?? params.messageProvider,
           agentAccountId: params.agentAccountId,
           messageTo: params.messageTo,
@@ -246,6 +247,7 @@ export async function runEmbeddedAttempt(
           replyToMode: params.replyToMode,
           hasRepliedRef: params.hasRepliedRef,
           modelHasVision,
+          turnPrompt: params.prompt,
         });
     const tools = sanitizeToolsForGoogle({ tools: toolsRaw, provider: params.provider });
     logToolSchemasForGoogle({ tools, provider: params.provider });
@@ -353,7 +355,8 @@ export async function runEmbeddedAttempt(
       },
     });
     const isDefaultAgent = sessionAgentId === defaultAgentId;
-    const promptMode = isSubagentSessionKey(params.sessionKey) ? "minimal" : "full";
+    const promptMode =
+      params.promptMode ?? (isSubagentSessionKey(params.sessionKey) ? "minimal" : "full");
     const docsPath = await resolveKoLoDocsPath({
       workspaceDir: effectiveWorkspace,
       argv1: process.argv[1],
@@ -469,10 +472,16 @@ export async function runEmbeddedAttempt(
       });
 
       const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);
-      ensurePiCompactionReserveTokens({
+      const reserve = ensurePiCompactionReserveTokens({
         settingsManager,
         minReserveTokens: resolveCompactionReserveTokensFloor(params.config),
+        contextWindowTokens: params.model.contextWindow,
       });
+      if (reserve.clampedToWindow) {
+        log.warn(
+          `compaction reserve clamped to ${reserve.reserveTokens} tokens (half of the ${params.model.contextWindow}-token context window)`,
+        );
+      }
 
       // Call for side effects (sets compaction/pruning runtime state)
       buildEmbeddedExtensionPaths({

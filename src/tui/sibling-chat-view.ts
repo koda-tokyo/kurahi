@@ -16,7 +16,11 @@ export class SiblingChatView {
   private state: SiblingChatState;
   private eventHandler: ((event: unknown) => void) | undefined = undefined;
 
-  constructor(client: GatewayChatClient) {
+  /** `selfAgentId`: this terminal's agent; when set, sends are signed with its key. */
+  constructor(
+    client: GatewayChatClient,
+    private readonly selfAgentId?: string,
+  ) {
     this.client = client;
     this.state = {
       currentSibling: null,
@@ -81,6 +85,7 @@ export class SiblingChatView {
       const result = await this.client.sendSiblingMessage({
         to: this.state.currentSibling,
         text,
+        ...(this.selfAgentId ? { fromAgentId: this.selfAgentId } : {}),
       });
 
       if (result.ok) {

@@ -53,6 +53,15 @@ const METHOD_SCHEMA_ALIASES: Record<string, { params?: string; result?: string }
   "exec.approvals.get": { result: "ExecApprovalsSnapshot" },
   "exec.approvals.node.get": { result: "ExecApprovalsSnapshot" },
   "cron.runs": { result: "CronRunLogEntry" },
+  "terminal.input": { result: "TerminalAckResult" },
+  "terminal.resize": { result: "TerminalAckResult" },
+  "terminal.cancel": { result: "TerminalAckResult" },
+  "terminal.close": { result: "TerminalAckResult" },
+};
+
+// Events whose payload schema name does not follow `<Pascal(event)>Event`.
+const EVENT_SCHEMA_ALIASES: Record<string, string> = {
+  "terminal.event": "TerminalEvent",
 };
 
 export type WsMethodSchemaNames = { params?: string; result?: string };
@@ -71,7 +80,7 @@ export function resolveMethodSchemaNames(method: string): WsMethodSchemaNames {
 
 /** Schema name for one WS event payload, when it exists. */
 export function resolveEventSchemaName(event: string): string | undefined {
-  const name = `${pascal(event)}Event`;
+  const name = EVENT_SCHEMA_ALIASES[event] ?? `${pascal(event)}Event`;
   return name in ProtocolSchemas ? name : undefined;
 }
 

@@ -266,6 +266,7 @@ export const AgentToolsSchema = z
     exec: z
       .object({
         host: z.enum(["sandbox", "gateway", "node"]).optional(),
+        unsandboxed: z.enum(["host", "approve", "deny"]).optional(),
         security: z.enum(["deny", "allowlist", "full"]).optional(),
         ask: z.enum(["off", "on-miss", "always"]).optional(),
         node: z.string().optional(),
@@ -310,6 +311,15 @@ export const MemorySchema = z
     stmWriteAck: z
       .object({
         enabled: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+    provenance: z
+      .object({
+        mode: z.union([z.literal("off"), z.literal("warn"), z.literal("enforce")]).optional(),
+        quarantineTrust: z
+          .array(z.union([z.literal("channel"), z.literal("cron"), z.literal("external")]))
+          .optional(),
       })
       .strict()
       .optional(),
@@ -562,6 +572,7 @@ export const ToolsSchema = z
     exec: z
       .object({
         host: z.enum(["sandbox", "gateway", "node"]).optional(),
+        unsandboxed: z.enum(["host", "approve", "deny"]).optional(),
         security: z.enum(["deny", "allowlist", "full"]).optional(),
         ask: z.enum(["off", "on-miss", "always"]).optional(),
         node: z.string().optional(),

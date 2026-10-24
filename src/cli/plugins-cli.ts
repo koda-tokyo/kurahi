@@ -17,6 +17,7 @@ import { formatDocsLink } from "../terminal/links.js";
 import { renderTable } from "../terminal/table.js";
 import { theme } from "../terminal/theme.js";
 import { resolveUserPath, shortenHomeInString, shortenHomePath } from "../utils.js";
+import { registerSupplyChainCommands } from "./supply-chain-cli.js";
 
 export type PluginsListOptions = {
   json?: boolean;
@@ -157,11 +158,16 @@ function logSlotWarnings(warnings: string[]) {
   }
 }
 
+// ASI04: an installed package is not approved until it is pinned (docs/security/skill-integrity.md).
+const PIN_HINT = (id: string) =>
+  `Review it, then approve it with \`kurahi plugins pin ${id}\` (refused in supply-chain enforce mode until pinned).`;
+
 export function registerPluginsCli(program: Command) {
   const plugins = program
     .command("plugins")
     .description("Manage Kurahi plugins/extensions")
     .addHelpText("after", () => `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/plugins")}\n`);
+  registerSupplyChainCommands(plugins, "plugin");
 
   plugins
     .command("list")
@@ -539,6 +545,7 @@ export function registerPluginsCli(program: Command) {
         await writeConfigFile(next);
         logSlotWarnings(slotResult.warnings);
         defaultRuntime.log(`Installed plugin: ${result.pluginId}`);
+        defaultRuntime.log(PIN_HINT(result.pluginId));
         defaultRuntime.log(`Restart the gateway to load plugins.`);
         return;
       }
@@ -602,6 +609,7 @@ export function registerPluginsCli(program: Command) {
       await writeConfigFile(next);
       logSlotWarnings(slotResult.warnings);
       defaultRuntime.log(`Installed plugin: ${result.pluginId}`);
+      defaultRuntime.log(PIN_HINT(result.pluginId));
       defaultRuntime.log(`Restart the gateway to load plugins.`);
     });
 

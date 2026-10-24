@@ -15,7 +15,7 @@ This page maps the OWASP Top 10 for Agentic Applications (risks ASI01 to ASI10) 
 Kurahi ships. It is a self-assessment by the KODA SōKEN team, written from the mechanism pages
 linked below. It is not a certification and not a third-party audit.
 
-**Status as of 23 October 2026: 4 addressed, 6 partly addressed, 0 not addressed.**
+**Status as of 24 October 2026: 4 addressed, 6 partly addressed, 0 not addressed.**
 
 What the ratings mean:
 
@@ -69,41 +69,57 @@ Details: [Secure defaults](/security/secure-defaults), [Console terminal broker]
 
 Every memory write is tagged with who wrote it and the trust of what the agent had read. In
 `enforce` mode, writes made after untrusted input, or that look like injected instructions, are
-held for operator review; recalled memory is marked by trust. Limits: marking tells the model what
+held for operator review; recalled memory is marked by trust. Any tool result that carries the
+untrusted-content markers counts as untrusted input, which includes the business connectors
+(Microsoft 365, Gmail, Entra ID). Limits: marking tells the model what
 is untrusted but cannot make it obey; writes outside agent tools are recalled as `unverified`.
 Details: [Memory provenance](/security/memory-provenance).
 
 ### ASI07 Insecure inter-agent communication
 
 Messages between agents carry an envelope signed with a per-agent Ed25519 key, checked against an
-owner-signed key registry, with recipient, timestamp, nonce and payload schema verified. In
-`enforce` mode unsigned, forged, replayed or malformed messages are rejected. Limits: code running
-as the gateway user can read the keys; a pinned owner is needed for a fixed trust anchor.
+owner-signed key registry, with recipient, timestamp, nonce and payload schema verified. Seen
+nonces are kept on disk, so a captured message is still a replay after a restart, and the gateway
+re-checks the agent-to-agent allowlist on receipt. In `enforce` mode unsigned, forged, replayed,
+malformed or not-allowed messages are rejected. Limits: code running as the gateway user can read
+the keys; a pinned owner is needed for a fixed trust anchor; peer chat (`sibling.send`) is signed
+and replay-checked but only checks that both agents are configured, not the agent-to-agent
+allowlist, and has no payload schema check.
 Details: [Agent message signing](/security/agent-message-signing).
 
 ## Partly addressed
 
 ### ASI01 Agent goal hijack
 
-Content from outside (web pages, remote agents, channel messages) reaches the model inside
+Content from outside (web pages and search results, remote agents, external hooks, and business
+connector results: mail, calendar events, file text and directory names) reaches the model inside
 untrusted-content markers, memory writes after such input are quarantined, and consequential
-actions need a policy decision or a person's approval. The markers reduce prompt injection; they
-do not prevent it. What remains depends on keeping tools narrow for agents that read untrusted
-input. See the [security guide](/gateway/security).
+actions need a policy decision or a person's approval. Messages from channel users and results
+from MCP servers are not wrapped in the markers (MCP results still count as untrusted for memory).
+The markers reduce prompt injection; they do not prevent it. What remains depends on keeping tools
+narrow for agents that read untrusted input. See the [security guide](/gateway/security).
 
 ### ASI02 Tool misuse and exploitation
 
 The signed policy sets per-agent tool allow and deny lists, tool classes that need approval,
 egress and MCP allow lists, and budgets, enforced at every tool call (see [Policy](/policy)).
-What remains: a tool that is allowed can still be used badly within its scope, and the risk
-preview for an approval is a hint, not a guarantee.
+Business connector writes (sending mail, creating calendar events) are separate opt-ins that need
+the granted scope and a person's approval; an unanswered approval is a denial. Since 2.1.0 the
+starter policy keeps the file tools away from the state directory's secrets, policy, config and
+audit log, `~/` in path rules means the user's home, and calls that use the `file_path` alias are
+checked like `path`; installations created earlier keep their old policy until it is edited and
+re-signed.
+What remains: a tool that is allowed can still be used badly within its scope, the risk preview
+for an approval is a hint, not a guarantee, and a send approval shows only the start of the
+message body.
 
 ### ASI03 Identity and privilege abuse
 
 New installations isolate credentials per agent (`auth.isolation: explicit`); paired devices
 have scopes and short-lived, rotating tokens; session allowlists narrow a credential. What
 remains: everything running as the gateway's operating-system user shares one trust domain on the
-host, and an agent granted `*` keeps every credential.
+host, and an agent granted `*` keeps every credential (a fresh `kurahi init` grants the default
+agent `*`; narrow the grants when you add agents).
 
 ### ASI08 Cascading failures
 
@@ -128,10 +144,11 @@ detection that stops an agent on its own.
 
 ## Not addressed
 
-None as of 23 October 2026.
+None as of 24 October 2026.
 
 ## Related
 
 - [Security overview](/security/SECURITY_OVERVIEW)
 - [Secure defaults](/security/secure-defaults)
 - [Privacy](/security/privacy)
+- [Industrial Edition threat model](/security/threat-model-industrial)

@@ -1,0 +1,53 @@
+# 経理 / Expense and invoice review policy (example; adjust to your expense rules).
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+queues:
+  - id: fin-expense
+    name: { ja: 経費精算, en: Expense claims }
+    types: [expense]
+    slaHours: 72
+  - id: fin-invoice
+    name: { ja: 受領請求書, en: Received invoices }
+    types: [invoice]
+    slaHours: 120
+rules:
+  - id: fin.expense.required
+    kind: required
+    types: [expense]
+    fields: [employeeId, amount, expenseDate, category, purpose]
+    label: { ja: 必須項目（社員番号・金額・日付・科目・目的）, en: "Required: employee id, amount, date, category, purpose" }
+  - id: fin.expense.amount
+    kind: threshold
+    types: [expense]
+    field: amount
+    warnAbove: 30000
+    secondApproverAbove: 50000
+    max: 300000
+    label: { ja: 金額（5万円超は二名承認、30万円超は不可）, en: "Amount: second approver above 50,000 JPY; over 300,000 JPY not allowed here" }
+  - id: fin.expense.date
+    kind: date
+    types: [expense]
+    field: expenseDate
+    maxLeadDays: 0
+    label: { ja: 支出日は未来日不可, en: Expense date not in the future }
+  - id: fin.receipt
+    kind: attachment
+    types: [expense, invoice]
+    label: { ja: 領収書・請求書の添付, en: Receipt or invoice attached }
+  - id: fin.invoice.required
+    kind: required
+    types: [invoice]
+    fields: [vendor, invoiceNumber, registrationNumber, amount, taxAmount, dueDate]
+    label: { ja: 適格請求書の必須項目（登録番号・税額等）, en: "Qualified invoice items: registration number, tax amount, …" }
+  - id: fin.invoice.amount
+    kind: threshold
+    types: [invoice]
+    field: amount
+    secondApproverAbove: 1000000
+    label: { ja: 100万円超の請求書は二名承認, en: Invoices above 1,000,000 JPY need a second approver }
+  - id: fin.phrases
+    kind: forbiddenPhrases
+    target: both
+    phrases: [支払済み, 振込済み, has been paid, payment completed]
+    label: { ja: 承認前に支払済みと書かない, en: Do not state payment before approval }

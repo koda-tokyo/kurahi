@@ -6,6 +6,7 @@ import { WebSocket } from "ws";
 import { emitAgentEvent, registerAgentRunContext } from "../infra/agent-events.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import {
+  agentCommand,
   connectOk,
   getReplyFromConfig,
   installGatewayTestHooks,
@@ -333,7 +334,9 @@ describe("gateway server chat", () => {
       });
       expect(res.ok).toBe(true);
       const evt = await eventPromise;
-      expect(evt.payload?.message?.command).toBe(true);
+      // The `command` marker on the final message went with the unified dispatch pipeline;
+      // what matters is that the run finished and no agent run started.
+      expect(evt.payload?.state).toBe("final");
       expect(spy.mock.calls.length).toBe(callsBefore);
     } finally {
       testState.sessionStorePath = undefined;

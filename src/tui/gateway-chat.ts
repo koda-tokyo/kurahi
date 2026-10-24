@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { signSiblingSendParams } from "../agents/messaging/sibling.js";
 import { loadConfig, resolveGatewayPort } from "../config/config.js";
 import { GatewayClient } from "../gateway/client.js";
 import {
@@ -125,6 +126,13 @@ export type SiblingSendOptions = {
     fileName?: string;
     content?: string;
   }>;
+  /**
+   * This terminal's agent id. When set and this process can read the agent's signing key
+   * (`<KOLO_HOME>/secrets/agent-keys`), the send is signed; the gateway then uses the verified
+   * id as the sender instead of the client id (agents.messaging.signing.mode=enforce refuses
+   * unsigned sends).
+   */
+  fromAgentId?: string;
 };
 
 export type SiblingHistoryOptions = {
@@ -326,13 +334,30 @@ export class GatewayChatClient {
     opts: SiblingSendOptions,
   ): Promise<{ ok: boolean; runId: string; seq?: number }> {
     const runId = randomUUID();
+    const text = opts.text.trim();
+    let cfg: ReturnType<typeof loadConfig> | undefined;
+    try {
+      cfg = loadConfig();
+    } catch {
+      cfg = undefined;
+    }
+    const signed = opts.fromAgentId
+      ? signSiblingSendParams({
+          cfg,
+          fromAgentId: opts.fromAgentId,
+          to: opts.to,
+          text,
+          attachments: opts.attachments,
+        })
+      : {};
     const res = await this.client.request<{ ok: boolean; runId: string; seq?: number }>(
       "sibling.send",
       {
         to: opts.to,
-        text: opts.text,
+        text,
         attachments: opts.attachments,
         idempotencyKey: runId,
+        ...signed,
       },
     );
     return res;

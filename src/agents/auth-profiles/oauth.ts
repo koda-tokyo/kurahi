@@ -11,7 +11,7 @@ import { refreshQwenPortalCredentials } from "../../providers/qwen-portal-oauth.
 import { refreshChutesTokens } from "../chutes-oauth.js";
 import { AUTH_STORE_LOCK_OPTIONS, log } from "./constants.js";
 import { formatAuthDoctorHint } from "./doctor.js";
-import { agentIdForDir, resolveAuthIsolation } from "./isolation.js";
+import { agentIdForDir, isProfileGranted, resolveAuthIsolation } from "./isolation.js";
 import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
 import { suggestOAuthProfileIdForLegacyDefault } from "./repair.js";
 import { ensureAuthProfileStore, saveAuthProfileStore } from "./store.js";
@@ -22,7 +22,7 @@ function mainFallbackAllowed(agentDir: string, profileId: string): boolean {
     return true;
   }
   const agentId = agentIdForDir(isolation.cfg, agentDir, Object.keys(isolation.grants));
-  return Boolean(agentId && isolation.grants[agentId]?.includes(profileId));
+  return Boolean(agentId && isProfileGranted(isolation.grants[agentId], profileId));
 }
 
 const OAUTH_PROVIDER_IDS = new Set<string>(getOAuthProviders().map((provider) => provider.id));

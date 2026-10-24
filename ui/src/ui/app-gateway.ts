@@ -6,13 +6,24 @@ import type { Tab } from "./navigation";
 import type { UiSettings } from "./storage";
 import type { AgentsListResult, PresenceEntry, HealthSnapshot, StatusSummary } from "./types";
 import { CHAT_SESSIONS_ACTIVE_MINUTES, flushChatQueueForEvent } from "./app-chat";
-import { applySettings, loadCron, refreshActiveTab, setLastActiveSessionKey } from "./app-settings";
+import {
+  applySettings,
+  guardTab,
+  loadCron,
+  refreshActiveTab,
+  setLastActiveSessionKey,
+  setTabFromRoute,
+  syncUrlWithTab,
+} from "./app-settings";
 import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app-tool-stream";
 import { loadAgents } from "./controllers/agents";
 import { loadAssistantIdentity } from "./controllers/assistant-identity";
+import { businessEvent, loadBusiness, resetBusiness } from "./controllers/business";
 import { loadChatHistory } from "./controllers/chat";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat";
+import { loadChatHistoryPanel } from "./controllers/chat-history";
 import { loadDevices } from "./controllers/devices";
+import { recordApprovalDecision, type EnterpriseState } from "./controllers/enterprise";
 import {
   addExecApproval,
   parseExecApprovalRequested,
@@ -21,9 +32,20 @@ import {
 } from "./controllers/exec-approval";
 import { loadNodes } from "./controllers/nodes";
 import { loadSessions } from "./controllers/sessions";
+import {
+  disconnectTerminal,
+  replayTerminal,
+  terminalEvent,
+  type TerminalState,
+} from "./controllers/terminal";
+import { cancelVoice, voiceEvent, type VoiceHost } from "./controllers/voice";
 import { GatewayBrowserClient } from "./gateway";
+import { matchLocale } from "./i18n";
 
 type GatewayHost = {
+  voice: VoiceHost["voice"];
+  voiceCapture: VoiceHost["voiceCapture"];
+  terminal: TerminalState;
   settings: UiSettings;
   password: string;
   client: GatewayBrowserClient | null;
@@ -110,24 +132,53 @@ function applySessionDefaults(host: GatewayHost, defaults?: SessionDefaultsSnaps
   }
 }
 
+// Preserve sessions only when explicitly reconnecting to the same endpoint and identity.
+const terminalConnections = new WeakMap<
+  GatewayHost,
+  { url: string; token: string; password: string }
+>();
 export function connectGateway(host: GatewayHost) {
+  resetBusiness(host as unknown as KoLoApp);
+  cancelVoice(host);
+  const previous = terminalConnections.get(host);
+  const next = {
+    url: host.settings.gatewayUrl,
+    token: host.settings.token,
+    password: host.password,
+  };
+  const same =
+    previous?.url === next.url &&
+    previous.token === next.token &&
+    previous.password === next.password;
+  disconnectTerminal(host, !same);
+  terminalConnections.set(host, next);
   host.lastError = null;
   host.hello = null;
   host.connected = false;
-  host.execApprovalQueue = [];
+  host.execApprovalQueue = same
+    ? host.execApprovalQueue.filter(
+        (entry) =>
+          entry.request.sessionKey === `terminal:${host.terminal.session?.sessionId}` &&
+          entry.expiresAtMs > Date.now(),
+      )
+    : [];
   host.execApprovalError = null;
 
   host.client?.stop();
-  host.client = new GatewayBrowserClient({
+  const client = new GatewayBrowserClient({
     url: host.settings.gatewayUrl,
     token: host.settings.token.trim() ? host.settings.token : undefined,
     password: host.password.trim() ? host.password : undefined,
     clientName: "kolo-control-ui",
     mode: "webchat",
     onHello: (hello) => {
+      if (host.client !== client) {
+        return;
+      }
       host.connected = true;
       host.lastError = null;
       host.hello = hello;
+      void replayTerminal(host);
       applySnapshot(host, hello);
       // Reset orphaned chat run state from before disconnect.
       // Any in-flight run's final event was lost during the disconnect window.
@@ -140,21 +191,46 @@ export function connectGateway(host: GatewayHost) {
       void loadAgents(host as unknown as KoLoApp);
       void loadNodes(host as unknown as KoLoApp, { quiet: true });
       void loadDevices(host as unknown as KoLoApp, { quiet: true });
+      void loadOrgLocale(host);
+      // The role is known now: a business user on a page outside the role filter goes Home.
+      const settingsHost = host as unknown as Parameters<typeof guardTab>[0];
+      const allowed = guardTab(settingsHost, settingsHost.tab);
+      if (allowed !== settingsHost.tab) {
+        setTabFromRoute(settingsHost, allowed);
+        syncUrlWithTab(settingsHost, allowed, true);
+        return;
+      }
       void refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0]);
     },
     onClose: ({ code, reason }) => {
+      if (host.client !== client) {
+        return;
+      }
       host.connected = false;
+      resetBusiness(host as unknown as KoLoApp);
+      cancelVoice(host);
+      disconnectTerminal(host);
       // Code 1012 = Service Restart (expected during config saves, don't show as error)
       if (code !== 1012) {
         host.lastError = `disconnected (${code}): ${reason || "no reason"}`;
       }
     },
-    onEvent: (evt) => handleGatewayEvent(host, evt),
+    onEvent: (evt) => {
+      if (host.client === client) {
+        handleGatewayEvent(host, evt);
+      }
+    },
     onGap: ({ expected, received }) => {
+      if (host.client !== client) {
+        return;
+      }
+      void replayTerminal(host);
+      void loadBusiness(host as unknown as KoLoApp);
       host.lastError = `event gap detected (expected seq ${expected}, got ${received}); refresh recommended`;
     },
   });
-  host.client.start();
+  host.client = client;
+  client.start();
 }
 
 export function handleGatewayEvent(host: GatewayHost, evt: GatewayEventFrame) {
@@ -166,6 +242,19 @@ export function handleGatewayEvent(host: GatewayHost, evt: GatewayEventFrame) {
 }
 
 function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
+  if (evt.event === "workitems.changed") {
+    businessEvent(host as unknown as KoLoApp, evt.payload);
+    return;
+  }
+  // Audio and transcripts are ephemeral and must never enter the debug event history.
+  if (evt.event.startsWith("voice.")) {
+    voiceEvent(host, evt.event, evt.payload);
+    return;
+  }
+  if (evt.event === "terminal.event") {
+    terminalEvent(host, evt.payload);
+    return;
+  }
   host.eventLogBuffer = [
     { ts: Date.now(), event: evt.event, payload: evt.payload },
     ...host.eventLogBuffer,
@@ -209,6 +298,8 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     }
     if (state === "final") {
       void loadChatHistory(host as unknown as KoLoApp);
+      // v0.3: a first message creates the conversation; show it in the history panel.
+      void loadChatHistoryPanel(host as unknown as KoLoApp);
     }
     return;
   }
@@ -247,6 +338,17 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   if (evt.event === "exec.approval.resolved") {
     const resolved = parseExecApprovalResolved(evt.payload);
     if (resolved) {
+      const ent = host as unknown as { enterprise?: EnterpriseState };
+      if (ent.enterprise) {
+        ent.enterprise = {
+          ...ent.enterprise,
+          approvalHistory: recordApprovalDecision(
+            ent.enterprise.approvalHistory,
+            host.execApprovalQueue,
+            resolved,
+          ),
+        };
+      }
       host.execApprovalQueue = removeExecApproval(host.execApprovalQueue, resolved.id);
     }
   }
@@ -268,5 +370,28 @@ export function applySnapshot(host: GatewayHost, hello: GatewayHelloOk) {
   }
   if (snapshot?.sessionDefaults) {
     applySessionDefaults(host, snapshot.sessionDefaults);
+  }
+}
+
+/**
+ * Organisation default locale: `gateway.controlUi.defaultLocale` in the config. Read quietly; a
+ * credential that may not read the config simply keeps the OS locale.
+ */
+async function loadOrgLocale(host: GatewayHost) {
+  const client = (
+    host as unknown as { client?: { request: (m: string, p: unknown) => Promise<unknown> } | null }
+  ).client;
+  if (!client) {
+    return;
+  }
+  try {
+    const res = (await client.request("config.get", {})) as {
+      config?: { gateway?: { controlUi?: { defaultLocale?: unknown } } };
+    };
+    const locale = res?.config?.gateway?.controlUi?.defaultLocale;
+    (host as unknown as { orgLocale: string | null }).orgLocale =
+      typeof locale === "string" ? matchLocale([locale]) : null;
+  } catch {
+    (host as unknown as { orgLocale: string | null }).orgLocale = null;
   }
 }

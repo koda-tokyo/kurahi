@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/legacy-analyzer",
+  "version": "2.1.0",
+  "description": "Legacy analyser tools (COBOL, copybooks, JCL) for Kurahi agents",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -50,6 +50,29 @@ operator runs `kurahi policy release --agent <id>` (or `--all`). Change the numb
 the policy and running `kurahi policy sign`; the gateway reloads it on save. Day windows reset at
 `budgets.resetHourUtc` (00:00 UTC by default).
 
+### Starter data, network and integrity rules
+
+The same starter policy also sets (checked on a fresh `kurahi init`, 24 October 2026):
+
+| Rule                   | Value                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.neverRead`       | `~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa*` and, since 2.1.0, `<KOLO_HOME>/secrets/**` (gateway token, owner key, secret store)        |
+| `data.neverWrite`      | `~/.ssh/**`, `/etc/**` and, since 2.1.0, `<KOLO_HOME>/secrets/**`, `<KOLO_HOME>/policy/**`, `<KOLO_HOME>/kolo.json`, `<KOLO_HOME>/audit/**` |
+| `data.secretPatterns`  | private-key headers and AWS access key ids refuse a call that carries them                                                                  |
+| `network.egress.deny`  | cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`); no allow list                                                     |
+| `shield.mode`          | `stop`: decoy files and mass-encryption detection stop every agent                                                                          |
+| `attestation.required` | `true`: an unsigned policy is refused in `enforce` mode                                                                                     |
+| `approvals.timeoutMs`  | 120,000; an unanswered approval is a denial                                                                                                 |
+
+`~/` is the operating-system user's home. The data lists apply to the file tools (`read`,
+`write`, `edit`, `apply_patch`, including the `file_path` alias) and the legacy analyser; commands
+are covered by exec approvals and the sandbox. A fresh `kurahi init` also writes the gateway token
+and the owner key with mode 0600 in 0700 folders, binds the gateway to loopback with token
+authentication, and grants the identity agent every credential (`auth.grants.<id>: ["*"]`).
+
+Installations created before 2.1.0 keep their policy file. Add the `<KOLO_HOME>` entries above to
+`data.neverRead` and `data.neverWrite`, then run `kurahi policy sign`.
+
 ## When a protection needs something that is not installed
 
 The sandbox needs a container runtime (Docker) and the sandbox image (`scripts/sandbox-setup.sh`).

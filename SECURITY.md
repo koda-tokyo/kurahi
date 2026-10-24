@@ -28,9 +28,16 @@ Credit is given in the release notes unless you ask not to be named. There is no
 
 Security fixes are released for the latest stable release and the latest beta. Older releases are not patched; upgrade with `kurahi update`.
 
+| Version                                         | Security fixes |
+| ----------------------------------------------- | -------------- |
+| 2.1.x (includes the Industrial Edition)         | Yes            |
+| Kurahi Desktop 0.3.x (ships with 2.1.x)         | Yes            |
+| Latest beta of the next release                 | Yes            |
+| 2.0.x and earlier, Kurahi Desktop 0.2 and older | No: upgrade    |
+
 ## Scope
 
-In scope: the gateway, the CLI, the service supervisor, pairing, the secrets store, the audit log and integrity gate, the web UI, channel extensions in this repository, the install scripts.
+In scope: the gateway, the CLI, the service supervisor, pairing, the secrets store, the audit log and integrity gate, the policy engine, the web UI, Kurahi Desktop, the Work Console terminal broker, the business connectors (Microsoft 365, Gmail, Entra ID), the legacy analyser MCP server, channel extensions in this repository, the install scripts.
 
 Out of scope: exposing the gateway to the public internet without the documented remote bind and token setup; prompt injection against a model you chose to connect; vulnerabilities in third-party services you connect through channels; issues that require an attacker to already hold the owner token or local shell access as the service user.
 
@@ -49,6 +56,14 @@ The security guide for operators is at https://kodasoken.com/kolo/security.
 ## Runtime requirements
 
 Kurahi requires Node.js 22.12.0 or later, which carries the current security patches for the runtime. Check with `node --version`.
+
+## Software bill of materials
+
+Each release can be described with CycloneDX SBOMs for the runtime (production npm dependencies) and for Kurahi Desktop (Rust crates and the bundled frontend), with licences:
+
+```bash
+pnpm sbom    # writes release-out/sbom/kurahi-runtime.cdx.json, kurahi-desktop.cdx.json, licence-flags.md
+```
 
 ## Secret scanning
 

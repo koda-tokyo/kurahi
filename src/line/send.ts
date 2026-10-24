@@ -4,6 +4,9 @@ import { loadConfig } from "../config/config.js";
 import { logVerbose } from "../globals.js";
 import { recordChannelActivity } from "../infra/channel-activity.js";
 import { resolveLineAccount } from "./accounts.js";
+import { createQuickReplyItems } from "./quick-reply.js";
+
+export { createQuickReplyItems };
 
 // Use the messaging API types directly
 type Message = messagingApi.Message;
@@ -14,7 +17,6 @@ type FlexMessage = messagingApi.FlexMessage;
 type FlexContainer = messagingApi.FlexContainer;
 type TemplateMessage = messagingApi.TemplateMessage;
 type QuickReply = messagingApi.QuickReply;
-type QuickReplyItem = messagingApi.QuickReplyItem;
 
 // Cache for user profiles
 const userProfileCache = new Map<
@@ -516,21 +518,6 @@ export async function pushTextMessageWithQuickReplies(
     messageId: "push",
     chatId,
   };
-}
-
-/**
- * Create quick reply buttons to attach to a message
- */
-export function createQuickReplyItems(labels: string[]): QuickReply {
-  const items: QuickReplyItem[] = labels.slice(0, 13).map((label) => ({
-    type: "action",
-    action: {
-      type: "message",
-      label: label.slice(0, 20), // LINE limit: 20 chars
-      text: label,
-    },
-  }));
-  return { items };
 }
 
 /**

@@ -2,8 +2,78 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
+## 2.1.0 — 2026-10-24
+
+The Industrial Edition release. Kurahi Desktop 0.4.0 ships with it.
+
+### Breaking: WhatsApp is a separately installed plugin
+
+- The WhatsApp channel is no longer in the default npm package, prebuilt bundles or installers: its WhatsApp Web library depends on `libsignal`, which is GPL-3.0. Install it with `kurahi plugins install kurahi-whatsapp-2.1.0.tgz` (attached to the release; the install fetches its dependencies with npm), pin it, enable it and restart the gateway; see the WhatsApp channel page. Without it the runtime starts normally, WhatsApp commands say the plugin is not installed, and existing `channels.whatsapp` settings load unchanged. The release SBOM shows the default runtime without `libsignal`.
+
+### Industrial Edition
+
+- Legacy analyser (deterministic, no model in the loop): COBOL with copybooks and JCL, Java (classes, methods, inheritance, resolvable calls, Spring and JPA annotations, table access), SQL DDL (tables, views, indexes, columns, keys; ANSI, DB2, Oracle and PostgreSQL basics), FORTRAN (fixed and free form, COMMON, INCLUDE, calls, file I/O) and PL/I (procedures, structures, files, EXEC SQL, ON-units). Every fact carries `path:line`; what the analyser cannot read is reported as a gap, never dropped silently.
+- Cross-program knowledge graph across languages: CRUD facts per table, call and data impact, graph queries.
+- Design documents (設計書) generated from code, with Java and SQL sections, and a modernisation wave plan proposed for human review.
+- `kurahi legacy mcp --root <project>`: the analyser as an MCP server for the engineer's own editor (VS Code, Eclipse-based tools), read-only and scoped to one folder.
+- Modernisation tools in the legacy-analyzer plugin, enabled per Project rather than for the whole gateway; the Industrial Project template routes each language to its engine.
+- Industrial workbench in Kurahi Desktop: Projects with permission modes (参照 read / 計画 plan / 実行 act), engineering and industrial capability packs, an outputs (成果物) panel with verifiable export hashes, and a connector catalogue that shows only what is really connected.
+- Project-scoped plugins: a plugin can be enabled for one Project only.
+- Document requests: in an Industrial Project, the Assets view prepares a design document (設計書) or wave plan request as a chat draft for that Project, in Japanese or English, for the operator to review and send; workspace manifests point at the shipped Industrial, Business, Research, Education and Professional templates.
+
+### Work Console
+
+- Governed terminal: a gateway-owned terminal per Project, off by default. Each line is checked before it runs (Project mode, destructive-command guard, path guard, risky-construct classifier); plan mode and act mode with the new-installation setting wait for an explicit approval; approved lines run in a clean shell without inherited tokens; every command produces a diff and an audit entry. Folders a Project marks read-only cannot be changed from the terminal in any mode. Optional container sandbox (`console.terminal.sandbox: "required"`).
+- The desktop terminal connects to the broker with once-only approvals, bounded output, replay on reconnect and recovery of lost sessions.
+- Push-to-talk voice (Japanese and English), off by default and local-first: the transcript lands in the composer for the operator to edit and send. Consequential actions are never approved by voice. Gateway methods `voice.start|audio|stop|speak|cancel`.
+
+### Business Edition (preview)
+
+- Governed work queue: work items with policy checks, approval records, history and evidence (`workitems.*` gateway methods and the `workitems.changed` event), and a read-only review view in the Control UI (Japanese and English).
+- Business connectors for Microsoft 365, Gmail and Microsoft Entra ID, off by default (OAuth with PKCE or device code, sanitized read-only status in `connectors.status`). The catalogue shows a connector as Active only after a live probe succeeds.
+- Business Project templates: 総務, 人事, 経理, 購買.
+
+### Security
+
+- Supply-chain lock for skills and plugins: signed lock file, digests and a pin-time scan, verified at load. `kurahi skills pin|verify` and `kurahi plugins pin|verify`; agents cannot pin. Enforced on new installations.
+- Memory provenance: memory written by agents is tagged with its origin, untrusted writes are quarantined, and recalled memory is marked by trust. `memory.provenance` (`off|warn|enforce`) and `kurahi memory quarantine list|show|approve|reject`.
+- Signed agent messages: per-agent Ed25519 keys and an owner-signed key registry; inter-agent messages, `sibling.send` and queued sub-agent announces are signed and verified, with persistent replay protection and an access re-check on receipt. `agents.messaging.signing` (`off|warn|enforce`).
+- Secure defaults for new installations (credential isolation, exec sandbox, exec approvals, supply-chain lock, memory quarantine, message signing); existing installations keep their settings and get a warning from `kurahi doctor` and at startup.
+- Exec: the destructive-command guard covers every exec path; exec never runs unprotected when a sandbox is required, and a sandbox failure refuses the command; the exec host comes from configuration, never from the model.
+- Release check: the build fails if identifiers of a private deployment would ship in the package.
+- Policy path rules: `~/` in `data.neverRead` / `data.neverWrite` now means the operating-system user's home (it was matched against the state directory, so the starter's `~/.ssh/**` did not protect `~/.ssh`); calls that use the `file_path` alias of `read`, `write` and `edit` are checked like `path`; the starter policy written by `kurahi init` / `kurahi policy init` keeps file tools out of `<KOLO_HOME>/secrets` and away from writing `policy/`, `kolo.json` and `audit/`. Existing policies keep their lists: add the entries and run `kurahi policy sign` (see Secure defaults).
+- `sibling.send` keeps file-inbox writes inside `sibling-chat/`; the idempotency key can no longer steer the file name or add front-matter fields, and the inbox file records whether the sender's signature was verified.
+- Dependency updates for advisories in production dependencies (`pnpm audit --prod`: 258 findings to 15, none critical in the gateway's own request paths): tar 7.5.22, ws 8.22, undici 7.30, hono 4.13, @hono/node-server 1.19.15, axios 1.20, protobufjs 7.6, @modelcontextprotocol/sdk 1.32, sharp 0.35.5 (libvips, libheif and librsvg fixes), markdown-it 14.3.3, yaml 2.9, dompurify 3.4, fast-xml-parser 5.7, proxy-addr 2.0.8, qs 6.16 and others; tokio 1.54.1 in Kurahi Desktop.
+- Release artefacts carry a CycloneDX SBOM for the runtime and the desktop app (`pnpm sbom`).
+- Docs: OWASP Agentic Top 10 status page and agent-specific controls in the security overview.
+
+### Interop
+
+- Agent2Agent (A2A) protocol plugin: a server (off by default) and client tools; content received over A2A is labelled as external.
+
+### Fixes and other changes
+
+- CLI: options given after a `kurahi gateway` subcommand reach that subcommand. `kurahi gateway run --port 18995` was ignored when the config set `gateway.port` (the parent `gateway` command consumed `--port`); the same applied to `--bind`, `--force`, `--token` and `--password` on `run`, `install`, `status`, `probe` and `call`.
+- Startup: a fresh gateway starts in about 5 seconds (channel SDK modules and protocol validators load on first use, plugins share the plugin SDK natively); the gateway logs startup phase timings, and `kurahi debug profile` captures a CPU or heap profile of a running gateway (admin only, audited).
+- Gateway: a WebSocket connection over the per-address limit is closed with 1013 and a reason ("retry in Ns") instead of a bare disconnect.
+- Gateway health: an installation that uses only local models is no longer reported as missing a credential.
+- Cron: deterministic pre-step for isolated agent turns (`payload.preExec`, with `pinHead`), per-job system prompt mode (`payload.promptMode`), `postToMainMode: "none"`, and timed-out or aborted turns are reported as errors.
+- Evidence: logs left running by a stopped process are sealed as interrupted, under a per-job lock with an owner-checked release.
+- Voice: a cancelled or timed-out stop always ends the session; engine writes are serialized and lost audio is never acknowledged.
+- Terminal: a replay cursor newer than the session's last event is refused.
+- Skills: `allowBundled: []` now allows no bundled skill (it allowed all); a snapshot built under another skills configuration is rebuilt.
+- Compaction: the reserve is clamped to half of the context window, and `kurahi doctor` warns about larger settings.
+- Legacy analyser: never reads Kurahi's own `.kurahi` state folder; a commented `END` no longer closes a routine; `ALTER TABLE` edge cases (guards, duplicates, rejected actions) are handled without partial effects.
+- Gateway: the experimental `gateway.v3.biology` flag is removed. Configs that still set it load unchanged and the key has no effect; `/metrics` no longer has `biology_*` gauges, `kurahi health --json` no longer has a `body` field, and the Control UI overview no longer shows the "Human Prompts" card. With `gateway.v3.health`, `/health` reports `readiness: "consciousness_ready"` only when v3 dispatchers are registered, and the `v3` block carries `dispatchers.count`.
+- Control UI: the unmeasured 99.99% availability headline now reads "Not yet measured".
+- Eval: scorecard version 3 records the subject and judge models.
+- Docs: Editions, Industrial modernisation, Work Console, voice, A2A, connectors and the Business work queue (English and Japanese).
+
 ## 2.0.3 — 2026-10-19
 
+- Evidence: `approval` events (every human approval decision, with the approver), policy and inventory digests in `job.start`, declared outputs and a cost snapshot in `job.end`.
+- Workflow Evaluator (preview): signed acceptance specs, deterministic checks with security gates kept out of the quality score, offline replay with simulated tools, signed scorecards (`kurahi eval spec|run|report`), reliability across repeated runs (`--repeat k`: pass^k headline, pass@k, gates in all attempts) and failure taxonomy tags. Bundled example with fictional data.
+- Workflow Evaluator: correction effort. `kurahi eval review <run> --task <id> --minutes-review N --minutes-fix M --accepted <as-is|edited|rejected> [--diff-from <file> --diff-to <file>]` records reviewer, review and fix minutes, a line-level diff size and the verdict, and re-signs the scorecard (superseded version kept under `revisions/`). Scorecards report correction effort per task and per run (median and p90 minutes, share accepted unchanged) next to pass^k; specs can set `humanReview.targets`. Scorecard version 2; version 1 scorecards still verify.
 - Docs: vendor-specific model and authentication recommendations removed (security guide, FAQ, getting started, wizard, authentication, models concept, provider list, Venice and local-model pages). Guidance is now neutral: prefer current, instruction-hardened models for agents with tools, check the provider's published safety evaluations, and see KODA-tested results.
 - Docs: "Ransomware shield" is now named "Ransomware detection" in the documentation (the `/shield` page, policy key `shield` and CLI commands are unchanged).
 - Docs: claims made precise — state persists across restarts but an interrupted job is not resumed; the ransomware shield is detection, not complete protection; evidence replay reconstructs a recorded job and does not re-run it; builds are unsigned (verify `SHA256SUMS.txt`); capabilities list external agent CLIs and credential isolation.

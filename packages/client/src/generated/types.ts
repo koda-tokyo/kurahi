@@ -48,6 +48,7 @@ export type AgentParams = {
   idempotencyKey: string;
   label?: string;
   spawnedBy?: string;
+  agentEnvelope?: Record<string, unknown>;
 };
 
 export type AgentWaitParams = {
@@ -273,6 +274,20 @@ export type ConnectParams = {
   userAgent?: string;
 };
 
+export type ConnectorsStatusParams = Record<string, never>;
+
+export type ConnectorsStatusResult = {
+  connectors: {
+    id: string;
+    configured: boolean;
+    authenticated: boolean;
+    lastProbeOk: boolean | null;
+    lastProbeAt: string | null;
+    scopes: string[];
+    error: ("not_configured" | "not_authenticated" | "reauth_required" | "scope_missing" | "consent_required" | "forbidden" | "not_found" | "bad_request" | "rate_limited" | "provider_unavailable" | "network" | "timeout" | "too_large" | "invalid_response" | "approval_denied" | "unsupported" | "unknown") | null;
+  }[];
+};
+
 export type CronAddParams = {
   name: string;
   agentId?: string | null;
@@ -306,10 +321,16 @@ export type CronAddParams = {
     channel?: "last" | string;
     to?: string;
     bestEffortDeliver?: boolean;
+    preExec?: {
+      command: string;
+      keepTools?: boolean;
+      pinHead?: boolean;
+    };
+    promptMode?: "full" | "minimal";
   };
   isolation?: {
     postToMainPrefix?: string;
-    postToMainMode?: "summary" | "full";
+    postToMainMode?: "none" | "summary" | "full";
     postToMainMaxChars?: number;
   };
 };
@@ -334,6 +355,15 @@ export type CronRunLogEntry = {
   runAtMs?: number;
   durationMs?: number;
   nextRunAtMs?: number;
+  preExec?: {
+    status: "ok" | "failed" | "error";
+    exitCode?: number | null;
+    head?: string;
+    error?: string;
+    durationMs?: number;
+    pinned?: boolean;
+    modelSummary?: string;
+  };
 };
 
 export type CronRunParams = {
@@ -389,10 +419,16 @@ export type CronUpdateParams = {
       channel?: "last" | string;
       to?: string;
       bestEffortDeliver?: boolean;
+      preExec?: {
+        command: string;
+        keepTools?: boolean;
+        pinHead?: boolean;
+      } | null;
+      promptMode?: ("full" | "minimal") | null;
     };
     isolation?: {
       postToMainPrefix?: string;
-      postToMainMode?: "summary" | "full";
+      postToMainMode?: "none" | "summary" | "full";
       postToMainMaxChars?: number;
     };
     state?: {
@@ -439,10 +475,16 @@ export type CronUpdateParams = {
       channel?: "last" | string;
       to?: string;
       bestEffortDeliver?: boolean;
+      preExec?: {
+        command: string;
+        keepTools?: boolean;
+        pinHead?: boolean;
+      } | null;
+      promptMode?: ("full" | "minimal") | null;
     };
     isolation?: {
       postToMainPrefix?: string;
-      postToMainMode?: "summary" | "full";
+      postToMainMode?: "none" | "summary" | "full";
       postToMainMaxChars?: number;
     };
     state?: {
@@ -1054,6 +1096,255 @@ export type TalkModeParams = {
   phase?: string;
 };
 
+export type TerminalAckResult = {
+  ok: boolean;
+};
+
+export type TerminalCancelParams = {
+  sessionId: string;
+};
+
+export type TerminalCloseParams = {
+  sessionId: string;
+};
+
+export type TerminalDiffParams = {
+  diffId: string;
+  cursor?: string;
+};
+
+export type TerminalDiffResult = {
+  diffId: string;
+  sessionId: string;
+  runId: string;
+  projectId: string;
+  files: {
+    path: string;
+    status: "added" | "modified" | "deleted";
+    added: number;
+    removed: number;
+    skipped?: "binary" | "too-large" | "secret";
+    lines: string[] | null;
+    linesTruncated: boolean;
+    violation?: "read-only-path";
+  }[];
+  totals: {
+    files: number;
+    added: number;
+    removed: number;
+  };
+  nextCursor: string | null;
+};
+
+export type TerminalEvent = {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "stdout";
+  runId?: string;
+  data: string;
+} | {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "stderr";
+  runId?: string;
+  data: string;
+} | {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "exit";
+  runId: string;
+  exitCode: number | null;
+  signal: string | null;
+  durationMs: number;
+  reason: "exited" | "cancelled" | "closed";
+} | {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "approval.requested";
+  runId: string;
+  approvalId: string;
+  command: string;
+  cwd: string;
+  risk: {
+    code: "deletes-files" | "moves-files" | "overwrites-files" | "writes-files" | "changes-permissions" | "rewrites-git-history" | "modifies-git-repository" | "network" | "installs-packages" | "process-control" | "runs-program" | "runs-nested-command" | "background-job" | "prints-environment" | "outside-allowlist" | "read-only-path";
+    params?: Record<string, string | number | boolean>;
+  };
+  risks: {
+    code: "deletes-files" | "moves-files" | "overwrites-files" | "writes-files" | "changes-permissions" | "rewrites-git-history" | "modifies-git-repository" | "network" | "installs-packages" | "process-control" | "runs-program" | "runs-nested-command" | "background-job" | "prints-environment" | "outside-allowlist" | "read-only-path";
+    params?: Record<string, string | number | boolean>;
+  }[];
+  expiresAtMs: number;
+} | {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "approval.resolved";
+  runId: string;
+  approvalId: string;
+  decision: "allow-once" | "allow-always" | "deny" | "timeout" | "cancelled";
+  resolvedBy: string | null;
+} | {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "file.diff";
+  runId: string;
+  diffId: string;
+  files: {
+    path: string;
+    status: "added" | "modified" | "deleted";
+    added: number;
+    removed: number;
+    skipped?: "binary" | "too-large" | "secret";
+    violation?: "read-only-path";
+  }[];
+  totals: {
+    files: number;
+    added: number;
+    removed: number;
+  };
+  truncated: boolean;
+  violations?: number;
+} | {
+  sessionId: string;
+  seq: number;
+  ts: number;
+  type: "notice";
+  runId?: string;
+  code: "ready" | "cwd-changed" | "read-mode" | "hardline-blocked" | "path-escape" | "unverifiable-path" | "interactive-refused" | "privilege-refused" | "substitution-refused" | "eval-refused" | "detach-refused" | "unsupported-builtin" | "unparsed" | "line-too-long" | "paste-truncated" | "busy" | "approval-denied" | "approval-timeout" | "approval-cancelled" | "security-deny" | "allowlist-miss" | "mode-changed" | "output-rate-limited" | "snapshot-truncated" | "spawn-failed" | "idle-timeout" | "closed" | "shutdown" | "read-only-path" | "read-only-violation";
+  params?: Record<string, string | number | boolean>;
+};
+
+export type TerminalInputParams = {
+  sessionId: string;
+  data: string;
+};
+
+export type TerminalOpenParams = {
+  projectId: string;
+  name: string;
+};
+
+export type TerminalOpenResult = {
+  sessionId: string;
+  projectId: string;
+  name: string;
+  mode: "plan" | "act";
+  sandboxed: boolean;
+  cwd: string;
+  seq: number;
+  limits: {
+    maxLineLength: number;
+    idleTimeoutMs: number;
+    outputBytesPerSecond: number;
+    approvalTimeoutMs: number;
+  };
+};
+
+export type TerminalReplayParams = {
+  sessionId: string;
+  afterSeq: number;
+  limit?: number;
+};
+
+export type TerminalReplayResult = {
+  events: ({
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "stdout";
+    runId?: string;
+    data: string;
+  } | {
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "stderr";
+    runId?: string;
+    data: string;
+  } | {
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "exit";
+    runId: string;
+    exitCode: number | null;
+    signal: string | null;
+    durationMs: number;
+    reason: "exited" | "cancelled" | "closed";
+  } | {
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "approval.requested";
+    runId: string;
+    approvalId: string;
+    command: string;
+    cwd: string;
+    risk: {
+      code: "deletes-files" | "moves-files" | "overwrites-files" | "writes-files" | "changes-permissions" | "rewrites-git-history" | "modifies-git-repository" | "network" | "installs-packages" | "process-control" | "runs-program" | "runs-nested-command" | "background-job" | "prints-environment" | "outside-allowlist" | "read-only-path";
+      params?: Record<string, string | number | boolean>;
+    };
+    risks: {
+      code: "deletes-files" | "moves-files" | "overwrites-files" | "writes-files" | "changes-permissions" | "rewrites-git-history" | "modifies-git-repository" | "network" | "installs-packages" | "process-control" | "runs-program" | "runs-nested-command" | "background-job" | "prints-environment" | "outside-allowlist" | "read-only-path";
+      params?: Record<string, string | number | boolean>;
+    }[];
+    expiresAtMs: number;
+  } | {
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "approval.resolved";
+    runId: string;
+    approvalId: string;
+    decision: "allow-once" | "allow-always" | "deny" | "timeout" | "cancelled";
+    resolvedBy: string | null;
+  } | {
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "file.diff";
+    runId: string;
+    diffId: string;
+    files: {
+      path: string;
+      status: "added" | "modified" | "deleted";
+      added: number;
+      removed: number;
+      skipped?: "binary" | "too-large" | "secret";
+      violation?: "read-only-path";
+    }[];
+    totals: {
+      files: number;
+      added: number;
+      removed: number;
+    };
+    truncated: boolean;
+    violations?: number;
+  } | {
+    sessionId: string;
+    seq: number;
+    ts: number;
+    type: "notice";
+    runId?: string;
+    code: "ready" | "cwd-changed" | "read-mode" | "hardline-blocked" | "path-escape" | "unverifiable-path" | "interactive-refused" | "privilege-refused" | "substitution-refused" | "eval-refused" | "detach-refused" | "unsupported-builtin" | "unparsed" | "line-too-long" | "paste-truncated" | "busy" | "approval-denied" | "approval-timeout" | "approval-cancelled" | "security-deny" | "allowlist-miss" | "mode-changed" | "output-rate-limited" | "snapshot-truncated" | "spawn-failed" | "idle-timeout" | "closed" | "shutdown" | "read-only-path" | "read-only-violation";
+    params?: Record<string, string | number | boolean>;
+  })[];
+  truncated: boolean;
+  hasMore: boolean;
+  lastSeq: number;
+};
+
+export type TerminalResizeParams = {
+  sessionId: string;
+  cols: number;
+  rows: number;
+};
+
 export type TickEvent = {
   ts: number;
 };
@@ -1063,6 +1354,86 @@ export type UpdateRunParams = {
   note?: string;
   restartDelayMs?: number;
   timeoutMs?: number;
+};
+
+export type VoiceAudioOutEvent = {
+  seq: number;
+  chunk: string;
+  done: boolean;
+  speakId?: string;
+  error?: string;
+};
+
+export type VoiceAudioParams = {
+  sessionId: string;
+  chunk: string;
+  seq: number;
+};
+
+export type VoiceAudioResult = {
+  sessionId: string;
+  seq: number;
+  duplicate?: boolean;
+};
+
+export type VoiceCancelParams = {
+  sessionId?: string;
+  speakId?: string;
+};
+
+export type VoiceCancelResult = {
+  cancelled: string[];
+};
+
+export type VoiceSessionEndedEvent = {
+  sessionId: string;
+  reason: "limit" | "idle" | "error";
+};
+
+export type VoiceSpeakParams = {
+  text: string;
+  lang: "ja" | "en";
+  voice?: string;
+  rate?: number;
+};
+
+export type VoiceSpeakResult = {
+  speakId: string;
+  format: string;
+};
+
+export type VoiceStartParams = {
+  projectId?: string;
+  lang?: "ja" | "en" | "auto";
+  deviceHint?: string;
+};
+
+export type VoiceStartResult = {
+  sessionId: string;
+};
+
+export type VoiceStopParams = {
+  sessionId: string;
+};
+
+export type VoiceStopResult = {
+  sessionId: string;
+  text: string;
+  lang: "ja" | "en";
+  confidence?: number;
+};
+
+export type VoiceTranscriptFinalEvent = {
+  sessionId: string;
+  text: string;
+  lang: "ja" | "en";
+  confidence?: number;
+};
+
+export type VoiceTranscriptPartialEvent = {
+  sessionId: string;
+  text: string;
+  lang?: "ja" | "en";
 };
 
 export type WakeParams = {
@@ -1137,6 +1508,628 @@ export type WizardStatusParams = {
 export type WizardStatusResult = {
   status: "running" | "done" | "cancelled" | "error";
   error?: string;
+};
+
+export type WorkitemsAssignAgentParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  agentId?: string;
+  instructions?: string;
+};
+
+export type WorkitemsAssignAgentResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+  runId: string;
+};
+
+export type WorkitemsChangedEvent = {
+  projectId: string;
+  id: string;
+  queue: string;
+  action: string;
+  status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+  revision: number;
+  updatedAt: string;
+};
+
+export type WorkitemsConfigParams = {
+  projectId: string;
+};
+
+export type WorkitemsConfigResult = {
+  queues: {
+    id: string;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
+    slaHours: number | null;
+    defaultAgent: string | null;
+  }[];
+  rules: {
+    id: string;
+    kind: string;
+    label: {
+      ja?: string;
+      en?: string;
+    };
+    severity: "fail" | "warn";
+    blocking: boolean;
+    types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
+    queues: string[];
+  }[];
+  timezone: string;
+  separationOfDuties: boolean;
+  source: {
+    kind: string;
+    path: string | null;
+  };
+  digest: string;
+  error: string | null;
+};
+
+export type WorkitemsCreateParams = {
+  projectId: string;
+  queue: string;
+  type?: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+  title: string;
+  source?: {
+    documents?: {
+      kind: "attachment" | "file" | "artifact";
+      ref: string;
+      name?: string;
+      sha256?: string;
+    }[];
+    fields?: Record<string, string | number | boolean | null>;
+  };
+  priority?: "low" | "normal" | "high" | "urgent";
+  dueAt?: string | null;
+  slaHours?: number;
+  assignee?: {
+    kind: "person";
+    id: string;
+  } | null;
+};
+
+export type WorkitemsCreateResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+};
+
+export type WorkitemsDecideParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  decision: "approve" | "send_back" | "cancel";
+  comment?: string;
+  override?: {
+    reason: string;
+  };
+};
+
+export type WorkitemsDecideResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+};
+
+export type WorkitemsEvidenceParams = {
+  projectId: string;
+  id: string;
+};
+
+export type WorkitemsEvidenceResult = {
+  bundles: {
+    bundle: string;
+    ok: boolean;
+    status: string | null;
+    root: string | null;
+    signer: string | null;
+    problems: string[];
+  }[];
+  chainOk: boolean;
+};
+
+export type WorkitemsGetParams = {
+  projectId: string;
+  id: string;
+};
+
+export type WorkitemsGetResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+};
+
+export type WorkitemsListParams = {
+  projectId: string;
+  queue?: string;
+  status?: ("new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled") | ("new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled")[];
+  type?: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom") | ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
+  priority?: ("low" | "normal" | "high" | "urgent") | ("low" | "normal" | "high" | "urgent")[];
+  assigneeKind?: "agent" | "person" | "none";
+  assigneeId?: string;
+  overdue?: boolean;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+};
+
+export type WorkitemsListResult = {
+  items: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: number;
+      fields: string[];
+    };
+    overdue: boolean;
+  }[];
+  nextCursor: string | null;
+  total: number;
+  counts: Record<string, number>;
+};
+
+export type WorkitemsUpdateParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  patch: {
+    title?: string;
+    queue?: string;
+    type?: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    priority?: "low" | "normal" | "high" | "urgent";
+    dueAt?: string | null;
+    assignee?: {
+      kind: "person";
+      id: string;
+    } | null;
+    source?: {
+      documents?: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name?: string;
+        sha256?: string;
+      }[];
+      fields?: Record<string, string | number | boolean | null>;
+    };
+    draft?: {
+      artifactId: string;
+      version?: number;
+    };
+    status?: "awaiting_review" | "done";
+  };
+};
+
+export type WorkitemsUpdateResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
 };
 
 // ---- operations ----
@@ -3091,7 +4084,7 @@ export type GetHealthResponse = {
   v3?: Record<string, unknown>;
   [key: string]: unknown;
 };
-export type GetHealthErrorBody = string | RateLimitError | {
+export type GetHealthErrorBody = string | RateLimitError | ({
   status: "healthy" | "degraded" | "unhealthy";
   version: string;
   uptime: number;
@@ -3139,7 +4132,7 @@ export type GetHealthErrorBody = string | RateLimitError | {
   /** Present only when gateway.v3.health=true. */
   v3?: Record<string, unknown>;
   [key: string]: unknown;
-};
+});
 
 // hookAgent: POST /hooks/agent
 export type HookAgentParams = Record<string, never>;

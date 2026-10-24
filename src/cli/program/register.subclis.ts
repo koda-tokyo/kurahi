@@ -65,6 +65,14 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "legacy",
+    description: "Legacy analyser MCP server for engineers' own tools",
+    register: async (program) => {
+      const mod = await import("../legacy-cli.js");
+      mod.registerLegacyCli(program);
+    },
+  },
+  {
     name: "attach",
     description: "Attach this terminal to a live session",
     register: async (program) => {
@@ -129,6 +137,14 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "eval",
+    description: "Workflow Evaluator: acceptance specs, offline replay and signed scorecards",
+    register: async (program) => {
+      const mod = await import("../eval-cli.js");
+      mod.registerEvalCli(program);
+    },
+  },
+  {
     name: "inventory",
     description: "AI inventory: agents, models, tools, policy, MCP servers, channels",
     register: async (program) => {
@@ -166,6 +182,14 @@ const entries: SubCliEntry[] = [
     register: async (program) => {
       const mod = await import("../logs-cli.js");
       mod.registerLogsCli(program);
+    },
+  },
+  {
+    name: "debug",
+    description: "Diagnostics for a running gateway (CPU / heap profiles)",
+    register: async (program) => {
+      const mod = await import("../debug-cli.js");
+      mod.registerDebugCli(program);
     },
   },
   {

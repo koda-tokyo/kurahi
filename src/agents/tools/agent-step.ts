@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { callGateway } from "../../gateway/call.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
+import { signAgentMessageParams } from "../messaging/signing.js";
 import { extractAssistantText, stripToolMessages } from "./sessions-helpers.js";
 
 export async function readLatestAssistantReply(params: {
@@ -24,6 +25,8 @@ export async function runAgentStep(params: {
   timeoutMs: number;
   channel?: string;
   lane?: string;
+  /** Session the message comes from; when set, the step is signed as that session's agent. */
+  senderSessionKey?: string;
 }): Promise<string | undefined> {
   const stepIdem = crypto.randomUUID();
   const response = await callGateway<{ runId?: string }>({
@@ -36,6 +39,14 @@ export async function runAgentStep(params: {
       channel: params.channel ?? INTERNAL_MESSAGE_CHANNEL,
       lane: params.lane ?? AGENT_LANE_NESTED,
       extraSystemPrompt: params.extraSystemPrompt,
+      ...(params.senderSessionKey !== undefined
+        ? signAgentMessageParams({
+            senderSessionKey: params.senderSessionKey,
+            recipientSessionKey: params.sessionKey,
+            message: params.message,
+            extraSystemPrompt: params.extraSystemPrompt,
+          })
+        : {}),
     },
     timeoutMs: 10_000,
   });

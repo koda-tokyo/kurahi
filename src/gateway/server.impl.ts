@@ -42,7 +42,7 @@ import { scheduleGatewayUpdateCheck } from "../infra/update-startup.js";
 import { startDiagnosticHeartbeat, stopDiagnosticHeartbeat } from "../logging/diagnostic.js";
 import { createSubsystemLogger, runtimeForLogger } from "../logging/subsystem.js";
 import { startMcpFromConfig } from "../mcp/client/manager.js";
-import { getPluginHost } from "../plugins/loader.js";
+import { getPluginHost, preparePluginSdk } from "../plugins/loader.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
@@ -59,6 +59,7 @@ import { GATEWAY_EVENTS, listGatewayMethods } from "./server-methods-list.js";
 import { coreGatewayHandlers } from "./server-methods.js";
 import { createExecApprovalHandlers } from "./server-methods/exec-approval.js";
 import { safeParseJson } from "./server-methods/nodes.helpers.js";
+import { createTerminalHandlers } from "./server-methods/terminal.js";
 import { hasConnectedMobileNode } from "./server-mobile-nodes.js";
 import { loadGatewayModelCatalog } from "./server-model-catalog.js";
 import { createNodeSubscriptionManager } from "./server-node-subscriptions.js";
@@ -80,6 +81,8 @@ import {
   refreshGatewayHealthSnapshot,
 } from "./server/health-state.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
+import { createStartupPhaseTimer } from "./startup-phases.js";
+import { createGatewayTerminalBroker } from "./terminal-broker.js";
 
 export { __resetModelCatalogCacheForTest } from "./server-model-catalog.js";
 
@@ -159,6 +162,7 @@ export async function startGatewayServer(
   opts: GatewayServerOptions = {},
 ): Promise<GatewayServer> {
   // Health reports when this gateway instance started, so a restart is visible even in-place.
+  const startupTimer = createStartupPhaseTimer();
   const { markGatewayStarted } = await import("./health.js");
   markGatewayStarted();
   // Ensure all default port derivations (browser/canvas) see the actual runtime port.
@@ -207,6 +211,7 @@ export async function startGatewayServer(
       `Invalid config at ${configSnapshot.path}.\n${issues}\nRun "${formatCliCommand("Kurahi doctor")}" to repair, then retry.`,
     );
   }
+  startupTimer.mark("config");
 
   // ── Boot integrity gate (M2b) ─────────────────────────────────────────────
   // Before plugins and channels: verify every registered constitution file. Throws
@@ -230,14 +235,20 @@ export async function startGatewayServer(
         `policy gate: ${policyStatus.name ?? "policy"} loaded (${policyStatus.attestation}, mode ${policyStatus.mode})`,
       );
     } else {
-      log.info(
-        `policy gate: no policy (mode ${policyStatus.mode}); run \`kurahi policy init\` to add one`,
+      log.warn(
+        `policy gate: no policy (mode ${policyStatus.mode}): no budgets or job limits apply; run \`kurahi policy init\` to add the signed starter policy`,
       );
     }
     for (const warning of policyStatus.warnings) {
       log.warn(`policy gate: ${warning}`);
     }
+    // Settings that still use an old permissive fallback: warn, never change them silently.
+    const { formatLegacyDefaultWarnings } = await import("../config/secure-defaults.js");
+    for (const warning of formatLegacyDefaultWarnings(configSnapshot.config)) {
+      log.warn(`secure defaults: ${warning}`);
+    }
   }
+  startupTimer.mark("gates");
 
   const autoEnable = applyPluginAutoEnable({ config: configSnapshot.config, env: process.env });
   if (autoEnable.changes.length > 0) {
@@ -260,6 +271,7 @@ export async function startGatewayServer(
   }
   setGatewaySigusr1RestartPolicy({ allowExternal: cfgAtStart.commands?.restart === true });
   initSubagentRegistry();
+  startupTimer.mark("config-resolve");
 
   // Gateway lease — one gateway per state root (<KOLO_HOME>/run/gateway.lock).
   // On by default; `gateway.v3.lease: false` disables it.
@@ -303,12 +315,11 @@ export async function startGatewayServer(
       log.info(`Gateway lease acquired: ${v3Lease.lockPath} leaseId=${v3Lease.leaseId}`);
     }
   }
+  startupTimer.mark("lease");
 
   // ── Gateway v3 consciousness dispatchers ──────────────────────────────────
   // Feature-flagged under gateway.v3.enabled. Creates one LlmDispatcher per
   // registered agent so that circuit failures are isolated per-agent (per-agent isolation).
-  // Dispatchers are created BEFORE biology so the biology boot can receive the
-  // onBiologyUpdate callback that pushes fresh hormone signals to all dispatchers.
   let v3AgentIds: string[] = [];
   if ((cfgAtStart as any)?.gateway?.v3?.enabled) {
     try {
@@ -344,97 +355,23 @@ export async function startGatewayServer(
     }
   }
 
-  // ── Gateway v3 biology ─────────────────────────────────────────────────────
-  // Feature-flagged: only active when gateway.v3.biology is not explicitly false.
-  // Booted AFTER dispatchers so the onBiologyUpdate callback can push fresh
-  // hormone signals to all per-agent dispatchers on every 2-min tick.
-  let v3BiologyHandle: import("../gateway-v3/biology/boot.js").BiologyBootSupervisor | null = null;
-  if ((cfgAtStart as any)?.gateway?.v3?.biology !== false) {
-    try {
-      const {
-        BiologyBootSupervisor,
-        runEndocrine,
-        runPain,
-        runImmune,
-        runCardiovascular,
-        runSensory,
-        runProprioception,
-      } = await import("../gateway-v3/biology/index.js");
-      const { getAllV3AgentDispatchers } =
-        await import("../gateway-v3/routing/consciousness-adapter.js");
-      const { resolveStateDir } = await import("../config/paths.js");
-      const koloDir = resolveStateDir(process.env);
-
-      // Push model: biology owns state, dispatchers never pull.
-      // Called after hormones.json is written so getSignals() returns fresh values.
-      const onBiologyUpdate = (
-        signals: import("../gateway-v3/routing/types.js").BiologySignals,
-      ) => {
-        for (const dispatcher of getAllV3AgentDispatchers()) {
-          dispatcher.updateBiology(signals);
-        }
-      };
-
-      const supervisor = new BiologyBootSupervisor({}, undefined, onBiologyUpdate);
-      // Core organs (original)
-      supervisor.register({ organId: "pain", tick: runPain, timeoutMs: 3_000, intervalMs: 0 });
-      supervisor.register({
-        organId: "endocrine",
-        tick: runEndocrine,
-        timeoutMs: 2_000,
-        intervalMs: 0,
-      });
-      // The four sensory organs
-      supervisor.register({ organId: "immune", tick: runImmune, timeoutMs: 3_000, intervalMs: 0 });
-      supervisor.register({
-        organId: "cardiovascular",
-        tick: runCardiovascular,
-        timeoutMs: 3_000,
-        intervalMs: 0,
-      });
-      supervisor.register({
-        organId: "sensory",
-        tick: runSensory,
-        timeoutMs: 3_000,
-        intervalMs: 0,
-      });
-      supervisor.register({
-        organId: "proprioception",
-        tick: runProprioception,
-        timeoutMs: 3_000,
-        intervalMs: 0,
-      });
-      await supervisor.boot({ koloDir, agents: v3AgentIds });
-      v3BiologyHandle = supervisor;
-
-      // Seed all dispatchers with initial biology signals from the first tick
-      const initialSignals = supervisor.getSignals();
-      for (const dispatcher of getAllV3AgentDispatchers()) {
-        dispatcher.updateBiology(initialSignals);
-      }
-
-      log.info("Gateway v3 biology booted");
-    } catch (err) {
-      log.warn(`Gateway v3 biology boot failed (non-fatal): ${String(err)}`);
-    }
-  }
-
-  if (v3BiologyHandle) {
-    const { setBiologySingleton } = await import("../gateway-v3/routing/candidate-scorer.js");
-    setBiologySingleton(v3BiologyHandle);
-  }
-
   // Wire v3 health singletons (the health endpoint is a production requirement)
-  if (v3Lease || v3BiologyHandle) {
-    const { setV3LeaseSingleton, setV3BiologyHealthSingleton } =
+  if (v3Lease || v3AgentIds.length > 0) {
+    const { setV3LeaseSingleton, setV3DispatcherCountSource } =
       await import("../gateway-v3/health.js");
     if (v3Lease) setV3LeaseSingleton(v3Lease);
-    if (v3BiologyHandle) setV3BiologyHealthSingleton(v3BiologyHandle);
+    if (v3AgentIds.length > 0) {
+      const { getAllV3AgentDispatchers } =
+        await import("../gateway-v3/routing/consciousness-adapter.js");
+      setV3DispatcherCountSource(() => getAllV3AgentDispatchers().length);
+    }
   }
+  startupTimer.mark("v3-dispatchers");
 
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
   const baseMethods = listGatewayMethods();
+  await preparePluginSdk();
   const { pluginRegistry, gatewayMethods: baseGatewayMethods } = loadGatewayPlugins({
     cfg: cfgAtStart,
     workspaceDir: defaultWorkspaceDir,
@@ -454,6 +391,7 @@ export async function startGatewayServer(
   // M7: the host owns the plugin instances; reload/disable/config changes go through it.
   const pluginHost = getPluginHost(pluginRegistry);
   setGatewayPluginHost(pluginHost);
+  startupTimer.mark("plugins");
   const runtimeConfig = await resolveGatewayRuntimeConfig({
     cfg: cfgAtStart,
     port,
@@ -488,6 +426,7 @@ export async function startGatewayServer(
   if (cfgAtStart.gateway?.tls?.enabled && !gatewayTls.enabled) {
     throw new Error(gatewayTls.error ?? "gateway tls: failed to enable");
   }
+  startupTimer.mark("runtime-config");
   const {
     canvasHost,
     httpServer,
@@ -526,6 +465,7 @@ export async function startGatewayServer(
     logHooks,
     logPlugins,
   });
+  startupTimer.mark("http-listen");
   let bonjourStop: (() => Promise<void>) | null = null;
   const nodeRegistry = new NodeRegistry();
   const nodePresenceTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -576,6 +516,7 @@ export async function startGatewayServer(
     logDiscovery,
   });
   bonjourStop = discovery.bonjourStop;
+  startupTimer.mark("discovery");
 
   setSkillsRemoteRegistry(nodeRegistry);
   void primeRemoteSkillsCache();
@@ -651,6 +592,7 @@ export async function startGatewayServer(
       error: (msg) => log.error(msg),
     },
   });
+  startupTimer.mark("heartbeat+consciousness");
 
   void cron.start().catch((err) => logCron.error(`failed to start: ${String(err)}`));
 
@@ -673,6 +615,15 @@ export async function startGatewayServer(
   const execApprovalHandlers = createExecApprovalHandlers(execApprovalManager, {
     forwarder: execApprovalForwarder,
   });
+  // Kurahi Work Console terminal broker: off unless console.terminal.enabled; its approvals are
+  // ExecApprovalManager records, answered with exec.approval.resolve like any other.
+  const terminalBroker = createGatewayTerminalBroker({
+    clients,
+    approvals: execApprovalManager,
+    broadcast,
+    loadConfig,
+  });
+  const terminalHandlers = createTerminalHandlers(terminalBroker);
   setChannelApprovalResolver((id, decision, resolvedBy) => {
     const ok = execApprovalManager.resolve(id, decision, resolvedBy);
     if (!ok) {
@@ -716,6 +667,7 @@ export async function startGatewayServer(
     extraHandlers: Object.assign(
       Object.create(pluginRegistry.gatewayHandlers) as typeof pluginRegistry.gatewayHandlers,
       execApprovalHandlers,
+      terminalHandlers,
     ),
     broadcast,
     context: {
@@ -766,6 +718,7 @@ export async function startGatewayServer(
     isNixMode,
   });
   scheduleGatewayUpdateCheck({ cfg: cfgAtStart, log, isNixMode });
+  startupTimer.mark("ws-handlers");
   const tailscaleCleanup = await startGatewayTailscaleExposure({
     tailscaleMode,
     resetOnExit: tailscaleConfig.resetOnExit,
@@ -773,6 +726,7 @@ export async function startGatewayServer(
     controlUiBasePath,
     logTailscale,
   });
+  startupTimer.mark("tailscale");
 
   let browserControl: Awaited<ReturnType<typeof startBrowserControlServerIfEnabled>> = null;
   ({ browserControl, pluginServices } = await startGatewaySidecars({
@@ -785,6 +739,7 @@ export async function startGatewayServer(
     logHooks,
     logChannels,
     logBrowser,
+    markPhase: (name) => startupTimer.mark(name),
   }));
   if (pluginHost && pluginServices) {
     pluginHost.attachServices(pluginServices);
@@ -864,6 +819,22 @@ export async function startGatewayServer(
       await configReloaderInner.stop();
     },
   };
+  startupTimer.mark("watchers");
+  log.info(startupTimer.format(), { startupPhases: startupTimer.summary() });
+  {
+    const { finishStartupProfile, hasStartupProfile } =
+      await import("../infra/profiler/startup-profile.js");
+    if (hasStartupProfile()) {
+      try {
+        const files = await finishStartupProfile();
+        if (files) {
+          log.info(`startup profile written: ${files.join(", ")}`);
+        }
+      } catch (err) {
+        log.warn(`startup profile: ${String(err)}`);
+      }
+    }
+  }
 
   const close = createGatewayCloseHandler({
     bonjourStop,
@@ -902,18 +873,10 @@ export async function startGatewayServer(
         skillsRefreshTimer = null;
       }
       skillsChangeUnsub();
+      // Running terminal commands are killed (process group) before the sockets close.
+      terminalBroker.shutdown();
       await close(opts);
       v3Lease?.stop();
-      // Biology shutdown with timeout — in-flight tick writes could hang under SIGKILL
-      // (wrap in try/catch + 5s timeout, then force clear)
-      try {
-        await Promise.race([
-          v3BiologyHandle?.shutdown() ?? Promise.resolve(),
-          new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
-        ]);
-      } catch {
-        // Non-fatal — clear dispatchers regardless
-      }
       // Clear all per-agent dispatchers — in-flight ticks fall back to v2 path on retry
       const { clearAllV3AgentDispatchers } =
         await import("../gateway-v3/routing/consciousness-adapter.js");

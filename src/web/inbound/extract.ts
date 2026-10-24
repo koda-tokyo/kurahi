@@ -1,16 +1,12 @@
 import type { proto } from "@whiskeysockets/baileys";
-import {
-  extractMessageContent,
-  getContentType,
-  normalizeMessageContent,
-} from "@whiskeysockets/baileys";
 import { formatLocationText, type NormalizedLocation } from "../../channels/location.js";
 import { logVerbose } from "../../globals.js";
 import { jidToE164 } from "../../utils.js";
+import { baileys } from "../baileys.js";
 import { parseVcard } from "../vcard.js";
 
 function unwrapMessage(message: proto.IMessage | undefined): proto.IMessage | undefined {
-  const normalized = normalizeMessageContent(message);
+  const normalized = baileys().normalizeMessageContent(message);
   return normalized;
 }
 
@@ -18,7 +14,7 @@ function extractContextInfo(message: proto.IMessage | undefined): proto.IContext
   if (!message) {
     return undefined;
   }
-  const contentType = getContentType(message);
+  const contentType = baileys().getContentType(message);
   const candidate = contentType ? (message as Record<string, unknown>)[contentType] : undefined;
   const contextInfo =
     candidate && typeof candidate === "object" && "contextInfo" in candidate
@@ -89,7 +85,7 @@ export function extractText(rawMessage: proto.IMessage | undefined): string | un
   if (!message) {
     return undefined;
   }
-  const extracted = extractMessageContent(message);
+  const extracted = baileys().extractMessageContent(message);
   const candidates = [message, extracted && extracted !== message ? extracted : undefined];
   for (const candidate of candidates) {
     if (!candidate) {
@@ -300,7 +296,9 @@ export function describeReplyContext(rawMessage: proto.IMessage | undefined): {
     return null;
   }
   const contextInfo = extractContextInfo(message);
-  const quoted = normalizeMessageContent(contextInfo?.quotedMessage as proto.IMessage | undefined);
+  const quoted = baileys().normalizeMessageContent(
+    contextInfo?.quotedMessage as proto.IMessage | undefined,
+  );
   if (!quoted) {
     return null;
   }
@@ -312,7 +310,7 @@ export function describeReplyContext(rawMessage: proto.IMessage | undefined): {
     body = extractMediaPlaceholder(quoted);
   }
   if (!body) {
-    const quotedType = quoted ? getContentType(quoted) : undefined;
+    const quotedType = quoted ? baileys().getContentType(quoted) : undefined;
     logVerbose(
       `Quoted message missing extractable body${quotedType ? ` (type ${quotedType})` : ""}`,
     );

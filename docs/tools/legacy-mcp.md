@@ -32,20 +32,20 @@ kurahi legacy mcp --root /path/to/project --http 7465  # loopback HTTP, http://1
 All tools are read-only (`readOnlyHint`) and take three common arguments: `path` (a sub-folder or
 file of the project, relative to the root; default the root), `offset` and `limit` (pagination).
 
-| Tool                  | What it returns                                                                                                                                |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `legacy_index_status` | Whether a fresh index exists for the scope, with counts. Never parses.                                                                         |
-| `legacy_index_build`  | Parses COBOL, copybooks and JCL and builds the fact index; programs, copybooks, jobs, diagnostics.                                             |
-| `legacy_query`        | Structure: callers, callees, call and perform graphs, file access, data items and references, job steps, data sets, unresolved references.     |
-| `legacy_rules`        | Rule candidates: conditions, arithmetic with constants, rounding, 88-level values, constants.                                                  |
-| `legacy_dictionary`   | Copybook data dictionary: level, PIC, usage, length, offset, positions, OCCURS, REDEFINES, values.                                             |
-| `legacy_impact`       | What a change to a data item reaches, with the fact that links each entry.                                                                     |
-| `legacy_design_doc`   | Design document (設計書) from the code in Japanese or English, one section per entry; every fact cites path:line.                              |
-| `legacy_wave_plan`    | Proposed migration waves for human review, ordered by dependencies and risk.                                                                   |
-| `modernise_plan`      | Detected languages, inventory of the COBOL/JCL, Java and SQL DDL engines, shared tables, coverage, planned assistants (which analyse nothing). |
-| `modernise_crud`      | CRUD of SQL tables across COBOL, Java and JCL utilities, with the evidence of each operation.                                                  |
-| `modernise_impact`    | What a change to a table, column, Java class or program reaches across languages.                                                              |
-| `modernise_inventory` | Java types or SQL tables: the list, or one entry in full.                                                                                      |
+| Tool                  | What it returns                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `legacy_index_status` | Whether a fresh index exists for the scope, with counts. Never parses.                                                                                        |
+| `legacy_index_build`  | Parses COBOL, copybooks and JCL and builds the fact index; programs, copybooks, jobs, diagnostics.                                                            |
+| `legacy_query`        | Structure: callers, callees, call and perform graphs, file access, data items and references, job steps, data sets, unresolved references.                    |
+| `legacy_rules`        | Rule candidates: conditions, arithmetic with constants, rounding, 88-level values, constants.                                                                 |
+| `legacy_dictionary`   | Copybook data dictionary: level, PIC, usage, length, offset, positions, OCCURS, REDEFINES, values.                                                            |
+| `legacy_impact`       | What a change to a data item reaches, with the fact that links each entry.                                                                                    |
+| `legacy_design_doc`   | Design document (設計書) from the code in Japanese or English, one section per entry; every fact cites path:line.                                             |
+| `legacy_wave_plan`    | Proposed migration waves for human review, ordered by dependencies and risk.                                                                                  |
+| `modernise_plan`      | Detected languages, inventory of the COBOL/JCL, Java, SQL DDL, FORTRAN and PL/I engines, shared tables, coverage, planned assistants (which analyse nothing). |
+| `modernise_crud`      | CRUD of SQL tables across COBOL, PL/I, Java and JCL utilities, and of files (COBOL, FORTRAN, PL/I), with the evidence of each operation.                      |
+| `modernise_impact`    | What a change to a table, column, file, FORTRAN COMMON block, Java class or program reaches across languages.                                                 |
+| `modernise_inventory` | Java types, SQL tables, FORTRAN units and COMMON blocks, or PL/I procedures: the list, or one entry in full.                                                  |
 
 Other tools build the index on first use; `legacy_index_build` forces a rebuild. The index is
 rebuilt automatically when any file under the scope changes.

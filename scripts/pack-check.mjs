@@ -13,6 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { packAll } from "./npm-pack.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const keep = process.argv.includes("--keep");
@@ -34,37 +35,15 @@ function run(cmd, args, opts = {}) {
   return { code: res.status ?? -1, out: res.stdout ?? "", err: res.stderr ?? "" };
 }
 
-function packInto(dir, cwd) {
-  // pnpm pack rewrites `workspace:*` to the concrete version; scripts off so prepack
-  // (a full rebuild) does not run again.
-  const res = run("pnpm", ["pack", "--pack-destination", dir], {
-    cwd,
-    env: { npm_config_ignore_scripts: "true" },
-  });
-  if (res.code !== 0) {
-    fail(`pnpm pack failed in ${cwd}:\n${res.err.slice(-2000)}`);
-  }
-  const names = fs.readdirSync(dir).filter((f) => f.endsWith(".tgz"));
-  const newest = names
-    .map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs }))
-    .toSorted((a, b) => b.t - a.t)[0];
-  if (!newest) {
-    fail(`no tarball produced in ${dir}`);
-  }
-  return path.join(dir, newest.f);
-}
-
 if (!fs.existsSync(path.join(ROOT, "dist", "entry.js"))) {
   fail("dist/entry.js missing; run `pnpm build` first");
 }
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kolo-pack-check-"));
 const tarballs = path.join(tmp, "tarballs");
-const clientTarballs = path.join(tmp, "client-tarballs");
 const app = path.join(tmp, "app");
 const home = path.join(tmp, "home");
 fs.mkdirSync(tarballs, { recursive: true });
-fs.mkdirSync(clientTarballs, { recursive: true });
 fs.mkdirSync(app, { recursive: true });
 fs.mkdirSync(home, { recursive: true });
 
@@ -78,8 +57,13 @@ const cleanup = () => {
 process.on("exit", cleanup);
 
 const t0 = Date.now();
-const cliTarball = packInto(tarballs, ROOT);
-const clientTarball = packInto(clientTarballs, path.join(ROOT, "packages", "client"));
+let clientTarball;
+let cliTarball;
+try {
+  [clientTarball, cliTarball] = packAll(tarballs);
+} catch (err) {
+  fail(`npm pack failed: ${String(err?.stderr ?? err).slice(-2000)}`);
+}
 console.log(
   `pack-check: packed ${path.basename(cliTarball)} (${(fs.statSync(cliTarball).size / 1e6).toFixed(1)} MB) and ${path.basename(clientTarball)}`,
 );

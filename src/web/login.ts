@@ -1,10 +1,10 @@
-import { DisconnectReason } from "@whiskeysockets/baileys";
 import { formatCliCommand } from "../cli/command-format.js";
 import { loadConfig } from "../config/config.js";
 import { danger, info, success } from "../globals.js";
 import { logInfo } from "../logger.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { resolveWhatsAppAccount } from "./accounts.js";
+import { baileys, loadBaileys } from "./baileys.js";
 import { createWaSocket, formatError, logoutWeb, waitForWaConnection } from "./session.js";
 
 export async function loginWeb(
@@ -13,6 +13,7 @@ export async function loginWeb(
   runtime: RuntimeEnv = defaultRuntime,
   accountId?: string,
 ) {
+  await loadBaileys();
   const wait = waitForConnection ?? waitForWaConnection;
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({ cfg, accountId });
@@ -49,7 +50,7 @@ export async function loginWeb(
         setTimeout(() => retry.ws?.close(), 500);
       }
     }
-    if (code === DisconnectReason.loggedOut) {
+    if (code === baileys().DisconnectReason.loggedOut) {
       await logoutWeb({
         authDir: account.authDir,
         isLegacyAuthDir: account.isLegacyAuthDir,

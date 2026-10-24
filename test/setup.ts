@@ -4,6 +4,9 @@ import { afterAll, afterEach, beforeEach, vi } from "vitest";
 process.env.VITEST = "true";
 // The ransomware shield plants decoy files and watches folders; gateway tests opt in explicitly.
 process.env.KOLO_SHIELD ??= "off";
+// Gateway close waits up to 30 s for in-flight chat runs; tests that emit agent events without a
+// lifecycle end leave run buffers behind, so each such suite paid the full 30 s on close.
+process.env.KOLO_GATEWAY_DRAIN_TIMEOUT_MS ??= "1000";
 
 import type {
   ChannelId,

@@ -67,7 +67,7 @@ export function warnLegacyEnvAliasesOnce(env: NodeJS.ProcessEnv = process.env): 
     return;
   }
   process.stderr.write(
-    `kolo: deprecated environment variables ${names.join(", ")}: use the KOLO_* names; the aliases are removed in KoLo 2.1.\n`,
+    `kolo: deprecated environment variables ${names.join(", ")}: use the KOLO_* names; the aliases will be removed in a later release.\n`,
   );
 }
 

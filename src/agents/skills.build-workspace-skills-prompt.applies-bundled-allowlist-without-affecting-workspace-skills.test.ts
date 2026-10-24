@@ -55,4 +55,31 @@ describe("buildWorkspaceSkillsPrompt", () => {
     expect(prompt).toContain("Workspace version");
     expect(prompt).not.toContain("peekaboo");
   });
+
+  it("an empty bundled allowlist allows no bundled skill; unset allows all", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "kolo-"));
+    const bundledDir = path.join(workspaceDir, ".bundled");
+    await writeSkill({
+      dir: path.join(bundledDir, "peekaboo"),
+      name: "peekaboo",
+      description: "Capture UI",
+    });
+    await writeSkill({
+      dir: path.join(workspaceDir, "skills", "demo-skill"),
+      name: "demo-skill",
+      description: "Workspace version",
+    });
+    const build = (config: object) =>
+      buildWorkspaceSkillsPrompt(workspaceDir, {
+        bundledSkillsDir: bundledDir,
+        managedSkillsDir: path.join(workspaceDir, ".managed"),
+        config,
+      });
+
+    const none = build({ skills: { allowBundled: [] } });
+    expect(none).toContain("Workspace version");
+    expect(none).not.toContain("peekaboo");
+    expect(build({ skills: { allowBundled: ["  "] } })).not.toContain("peekaboo");
+    expect(build({ skills: {} })).toContain("peekaboo");
+  });
 });

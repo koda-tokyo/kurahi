@@ -19,15 +19,40 @@ const DEFAULT_NODE_VERSION = "22.18.0";
 const NODE_DIST_BASE =
   process.env.KOLO_NODE_DIST_MIRROR?.replace(/\/$/, "") || "https://nodejs.org/dist";
 // Dropped from every bundle (size, optional features). Listed in bundle-manifest.json "pruned".
-const PRUNE_PACKAGES = ["node-llama-cpp", "@node-llama-cpp", "@lancedb"];
+// @whiskeysockets/baileys and libsignal belong to the optional WhatsApp plugin only (libsignal is
+// GPL-3.0); the workspace lockfile still installs them for that plugin's manifest.
+const PRUNE_PACKAGES = [
+  "node-llama-cpp",
+  "@node-llama-cpp",
+  "@lancedb",
+  "@whiskeysockets/baileys",
+  "libsignal",
+];
 // Bundled extensions left out of the evaluation bundle, with the reason shown in the manifest.
 const OMIT_EXTENSIONS = {
   "memory-lancedb":
     "needs the @lancedb native runtime (~250 MB), not shipped in the evaluation bundle",
+  whatsapp:
+    "optional plugin, installed separately (kurahi plugins install kurahi-whatsapp-<version>.tgz): its libsignal dependency is GPL-3.0",
 };
 const LIB_FILES = ["kolo.mjs", "CHANGELOG.md", "README.md"];
 const LIB_DIRS = ["dist", "skills", "assets", "docs"];
 const LICENSE_FILES = ["LICENSE", "NOTICE", "LICENSING.md"];
+// Never shipped, mirroring the npm "files" exclusions in package.json: internal documents and
+// test helpers. Paths are relative to the repository root.
+const LIB_SKIP_DIRS = new Set(["docs/internal", "dist/test-helpers", "dist/test-utils"]);
+const LIB_SKIP_FILE = /\.test\.(?:js|d\.ts|js\.map)$/;
+
+function skipLibEntry(rel, entry) {
+  const posix = rel.split(path.sep).join("/");
+  if (entry.name === "node_modules" || entry.name === ".DS_Store") {
+    return true;
+  }
+  if (entry.isDirectory()) {
+    return LIB_SKIP_DIRS.has(posix);
+  }
+  return LIB_SKIP_FILE.test(entry.name);
+}
 
 function parseArgs(argv) {
   const opts = {
@@ -503,10 +528,7 @@ async function main() {
   const skippedLinks = [];
   for (const d of LIB_DIRS) {
     if (fs.existsSync(path.join(ROOT, d))) {
-      copyTree(path.join(ROOT, d), path.join(lib, d), {
-        skippedLinks,
-        skip: (rel, e) => e.name === "node_modules" || e.name === ".DS_Store",
-      });
+      copyTree(path.join(ROOT, d), path.join(lib, d), { skippedLinks, skip: skipLibEntry });
     }
   }
   // Bundled extensions (sources, loaded through jiti at runtime).

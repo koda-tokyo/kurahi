@@ -1,5 +1,5 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
-import type { CronJob } from "../types.js";
+import type { CronJob, CronPreExecOutcome } from "../types.js";
 import type { CronEvent, CronServiceState } from "./state.js";
 import { stripHeartbeatToken } from "../../auto-reply/heartbeat.js";
 import { computeJobNextRunAtMs, nextWakeAtMs, resolveJobPayloadTextForMain } from "./jobs.js";
@@ -108,6 +108,7 @@ export async function executeJob(
     err?: string,
     summary?: string,
     outputText?: string,
+    preExec?: CronPreExecOutcome,
   ) => {
     const endedAt = state.deps.nowMs();
     job.state.runningAtMs = undefined;
@@ -140,6 +141,7 @@ export async function executeJob(
       runAtMs: startedAt,
       durationMs: job.state.lastDurationMs,
       nextRunAtMs: job.state.nextRunAtMs,
+      ...(preExec ? { preExec } : {}),
     });
 
     if (shouldDelete && state.store) {
@@ -236,11 +238,17 @@ export async function executeJob(
       message: job.payload.message,
     });
     if (res.status === "ok") {
-      await finish("ok", undefined, res.summary, res.outputText);
+      await finish("ok", undefined, res.summary, res.outputText, res.preExec);
     } else if (res.status === "skipped") {
-      await finish("skipped", undefined, res.summary, res.outputText);
+      await finish("skipped", undefined, res.summary, res.outputText, res.preExec);
     } else {
-      await finish("error", res.error ?? "cron job failed", res.summary, res.outputText);
+      await finish(
+        "error",
+        res.error ?? "cron job failed",
+        res.summary,
+        res.outputText,
+        res.preExec,
+      );
     }
   } catch (err) {
     await finish("error", String(err));

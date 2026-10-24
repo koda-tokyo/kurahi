@@ -79,6 +79,7 @@ export async function runSessionsSendA2AFlow(params: {
         });
         const replyText = await runAgentStep({
           sessionKey: currentSessionKey,
+          senderSessionKey: nextSessionKey,
           message: incomingMessage,
           extraSystemPrompt: replyPrompt,
           timeoutMs: params.announceTimeoutMs,
@@ -106,6 +107,7 @@ export async function runSessionsSendA2AFlow(params: {
     });
     const announceReply = await runAgentStep({
       sessionKey: params.targetSessionKey,
+      senderSessionKey: params.requesterSessionKey ?? params.targetSessionKey,
       message: "Agent-to-agent announce step.",
       extraSystemPrompt: announcePrompt,
       timeoutMs: params.announceTimeoutMs,

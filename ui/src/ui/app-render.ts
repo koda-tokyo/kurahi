@@ -2,7 +2,12 @@ import { html, nothing } from "lit";
 import type { AppViewState } from "./app-view-state";
 import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import { refreshChatAvatar } from "./app-chat";
-import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers";
+import {
+  renderChatControls,
+  renderNavPage,
+  renderSubTabs,
+  renderThemeToggle,
+} from "./app-render.helpers";
 import { loadChannels } from "./controllers/channels";
 import { loadChatHistory } from "./controllers/chat";
 import {
@@ -46,13 +51,41 @@ import {
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills";
+import { LOCALES, t, type MessageId } from "./i18n";
 import { icons } from "./icons";
-import { TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation";
+import {
+  NAV_GROUPS,
+  pageForTab,
+  subtitleKeyForPage,
+  titleKeyForPage,
+  visiblePages,
+} from "./navigation";
+import {
+  renderArtifactList,
+  renderArtifactPanel,
+  renderSaveArtifactDialog,
+} from "./views/artifacts";
 import { renderChannels } from "./views/channels";
 import { renderChat } from "./views/chat";
+import {
+  currentProject,
+  renderChatHistoryPanel,
+  renderComposeExtras,
+  renderInlineApprovals,
+} from "./views/chat-extras";
 import { renderConfig } from "./views/config";
+import { renderConnectors } from "./views/connectors";
 import { renderCron } from "./views/cron";
 import { renderDebug } from "./views/debug";
+import {
+  renderApprovals,
+  renderAudit,
+  renderComingSoon,
+  renderHelp,
+  renderHome,
+  renderModels,
+  renderPolicies,
+} from "./views/enterprise";
 import { renderExecApprovalPrompt } from "./views/exec-approval";
 import { renderFleet } from "./views/fleet";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation";
@@ -60,8 +93,10 @@ import { renderInstances } from "./views/instances";
 import { renderLogs } from "./views/logs";
 import { renderNodes } from "./views/nodes";
 import { renderOverview } from "./views/overview";
+import { modeBadge, renderProjects } from "./views/projects";
 import { renderSessions } from "./views/sessions";
 import { renderSkills } from "./views/skills";
+import { renderSharedFrameContext, resolveFrameSelection } from "./views/shared-frame";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
@@ -93,8 +128,22 @@ export function renderApp(state: AppViewState) {
   const assistantAvatarUrl = resolveAssistantAvatarUrl(state);
   const chatAvatarUrl = state.chatAvatarUrl ?? assistantAvatarUrl ?? null;
 
+  const page = pageForTab(state.tab);
+  const allowed = new Set(visiblePages(state.audience));
+  const pendingApprovals = state.execApprovalQueue.length;
+  const statusKey: MessageId = `header.status.${state.serviceStatus}`;
+  const navToggleLabel = state.settings.navCollapsed
+    ? t("header.nav.expand")
+    : t("header.nav.collapse");
+  const frame = resolveFrameSelection(state);
+
   return html`
-    <div class="shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}">
+    <div
+      class="shell ent-shell ${isChat ? "shell--chat" : ""} ${chatFocus ? "shell--chat-focus" : ""} ${state.settings.navCollapsed ? "shell--nav-collapsed" : ""} ${state.onboarding ? "shell--onboarding" : ""}"
+      data-edition=${frame.edition.id}
+      data-workspace=${frame.workspace.id}
+      data-density=${frame.workspace.density}
+    >
       <header class="topbar">
         <div class="topbar-left">
           <button
@@ -104,86 +153,130 @@ export function renderApp(state: AppViewState) {
                 ...state.settings,
                 navCollapsed: !state.settings.navCollapsed,
               })}
-            title="${state.settings.navCollapsed ? "Expand sidebar" : "Collapse sidebar"}"
-            aria-label="${state.settings.navCollapsed ? "Expand sidebar" : "Collapse sidebar"}"
+            title=${navToggleLabel}
+            aria-label=${navToggleLabel}
           >
             <span class="nav-collapse-toggle__icon">${icons.menu}</span>
           </button>
           <div class="brand">
-            <div class="brand-logo">
-              <img src="/favicon.svg" alt="Kurahi" />
+            <div class="brand-logo ent-mark" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="28" height="28">
+                <rect x="2" y="2" width="44" height="44" rx="10" fill="#FB2304" />
+                <path d="M14 12h6v10l9-10h8l-11 12 12 12h-8l-10-11v11h-6z" fill="#fff" />
+              </svg>
             </div>
             <div class="brand-text">
               <div class="brand-title">Kurahi</div>
-              <div class="brand-sub">Gateway Dashboard</div>
+              <div class="brand-sub ent-maker">${t("brand.maker")}</div>
             </div>
           </div>
         </div>
+        ${renderSharedFrameContext(state)}
         <div class="topbar-status">
-          <div class="pill">
-            <span class="statusDot ${state.connected ? "ok" : ""}"></span>
-            <span>Health</span>
-            <span class="mono">${state.connected ? "OK" : "Offline"}</span>
+          <div class="pill ent-service" role="status" aria-live="polite">
+            <span class="ent-dot ent-dot--${state.serviceStatus}" aria-hidden="true"></span>
+            <span>${t(statusKey)}</span>
           </div>
           ${renderThemeToggle(state)}
         </div>
       </header>
-      <aside class="nav ${state.settings.navCollapsed ? "nav--collapsed" : ""}">
-        ${TAB_GROUPS.map((group) => {
-          const isGroupCollapsed = state.settings.navGroupsCollapsed[group.label] ?? false;
-          const hasActiveTab = group.tabs.some((tab) => tab === state.tab);
+      <aside class="nav ent-nav ${state.settings.navCollapsed ? "nav--collapsed" : ""}">
+        ${NAV_GROUPS.map((group) => {
+          const pages = group.pages.filter((p) => allowed.has(p));
+          if (pages.length === 0) {
+            return nothing;
+          }
+          const groupKey = group.id;
+          const isGroupCollapsed =
+            group.label != null && (state.settings.navGroupsCollapsed[groupKey] ?? false);
+          const hasActive = pages.includes(page);
           return html`
-            <div class="nav-group ${isGroupCollapsed && !hasActiveTab ? "nav-group--collapsed" : ""}">
-              <button
-                class="nav-label"
-                @click=${() => {
-                  const next = { ...state.settings.navGroupsCollapsed };
-                  next[group.label] = !isGroupCollapsed;
-                  state.applySettings({
-                    ...state.settings,
-                    navGroupsCollapsed: next,
-                  });
-                }}
-                aria-expanded=${!isGroupCollapsed}
-              >
-                <span class="nav-label__text">${group.label}</span>
-                <span class="nav-label__chevron">${isGroupCollapsed ? "+" : "−"}</span>
-              </button>
+            <div class="nav-group ent-nav-group ent-nav-group--${group.id} ${isGroupCollapsed && !hasActive ? "nav-group--collapsed" : ""}">
+              ${
+                group.label
+                  ? html`<button
+                      class="nav-label"
+                      @click=${() => {
+                        const next = { ...state.settings.navGroupsCollapsed };
+                        next[groupKey] = !isGroupCollapsed;
+                        state.applySettings({ ...state.settings, navGroupsCollapsed: next });
+                      }}
+                      aria-expanded=${!isGroupCollapsed}
+                    >
+                      <span class="nav-label__text">${t(group.label)}</span>
+                      <span class="nav-label__chevron">${isGroupCollapsed ? "+" : "−"}</span>
+                    </button>`
+                  : nothing
+              }
               <div class="nav-group__items">
-                ${group.tabs.map((tab) => renderTab(state, tab))}
+                ${pages.map((p) => renderNavPage(state, p, p === "approvals" ? pendingApprovals : undefined))}
               </div>
             </div>
           `;
         })}
-        <div class="nav-group nav-group--links">
-          <div class="nav-label nav-label--static">
-            <span class="nav-label__text">Resources</span>
-          </div>
-          <div class="nav-group__items">
-            <a
-              class="nav-item nav-item--external"
-              href="https://docs.kodasoken.com"
-              target="_blank"
-              rel="noreferrer"
-              title="Docs (opens in new tab)"
-            >
-              <span class="nav-item__icon" aria-hidden="true">${icons.book}</span>
-              <span class="nav-item__text">Docs</span>
-            </a>
-          </div>
+        <div class="ent-lang" role="group" aria-label=${t("lang.label")}>
+          ${LOCALES.map(
+            (l, i) => html`${
+              i > 0
+                ? html`
+                    <span class="ent-lang__sep" aria-hidden="true">|</span>
+                  `
+                : nothing
+            }<button
+                type="button"
+                lang=${l.id}
+                class="ent-lang__btn ${state.locale === l.id ? "active" : ""}"
+                aria-pressed=${state.locale === l.id}
+                @click=${() => state.setLocalePreference(l.id)}
+              >
+                ${l.label}
+              </button>`,
+          )}
         </div>
       </aside>
       <main class="content ${isChat ? "content--chat" : ""}">
         <section class="content-header">
           <div>
-            <div class="page-title">${titleForTab(state.tab)}</div>
-            <div class="page-sub">${subtitleForTab(state.tab)}</div>
+            <div class="page-title">${t(titleKeyForPage(page))}</div>
+            <div class="page-sub">${t(subtitleKeyForPage(page))}</div>
           </div>
           <div class="page-meta">
             ${state.lastError ? html`<div class="pill danger">${state.lastError}</div>` : nothing}
+            ${isChat && currentProject(state) ? modeBadge(currentProject(state)!) : nothing}
             ${isChat ? renderChatControls(state) : nothing}
+            ${
+              page === "settings"
+                ? html`<label class="ent-lang-select">
+                    <span>${t("lang.label")}</span>
+                    <select
+                      .value=${state.settings.locale ?? ""}
+                      title=${t("lang.autoHint")}
+                      @change=${(ev: Event) => {
+                        const v = (ev.target as HTMLSelectElement).value;
+                        state.setLocalePreference(v || null);
+                      }}
+                    >
+                      <option value="">${t("lang.auto")}</option>
+                      ${LOCALES.map((l) => html`<option value=${l.id} lang=${l.id}>${l.label}</option>`)}
+                    </select>
+                  </label>`
+                : nothing
+            }
           </div>
         </section>
+        ${renderSubTabs(state)}
+
+        ${state.tab === "home" ? renderHome(state) : nothing}
+        ${state.tab === "approvals" ? renderApprovals(state) : nothing}
+        ${state.tab === "connectors" ? renderConnectors(state) : nothing}
+        ${state.tab === "policies" ? renderPolicies(state) : nothing}
+        ${state.tab === "audit" ? renderAudit(state) : nothing}
+        ${state.tab === "models" ? renderModels(state) : nothing}
+        ${state.tab === "artifacts" ? renderArtifactList(state) : nothing}
+        ${state.tab === "projects" ? renderProjects(state) : nothing}
+        ${state.tab !== "chat" ? renderArtifactPanel(state) : nothing}
+        ${state.tab === "evaluation" ? renderComingSoon("gauge") : nothing}
+        ${state.tab === "help" ? renderHelp() : nothing}
 
         ${
           state.tab === "overview"
@@ -436,7 +529,9 @@ export function renderApp(state: AppViewState) {
 
         ${
           state.tab === "chat"
-            ? renderChat({
+            ? html`<div class="ent-chat-layout ${state.chatHistory.open ? "" : "ent-chat-layout--collapsed"}">
+              ${renderChatHistoryPanel(state)}
+              <div class="ent-chat-main">${renderChat({
                 sessionKey: state.sessionKey,
                 onSessionKeyChange: (next) => {
                   state.sessionKey = next;
@@ -509,7 +604,21 @@ export function renderApp(state: AppViewState) {
                 onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                 assistantName: state.assistantName,
                 assistantAvatar: state.assistantAvatar,
-              })
+                inlineCards: renderInlineApprovals(state),
+                composeExtras: renderComposeExtras(state),
+                labels: {
+                  message: t("chat.label.message"),
+                  send: t("chat.label.send"),
+                  queue: t("chat.label.queue"),
+                  stop: t("chat.label.stop"),
+                  newSession: t("chat.label.newSession"),
+                  placeholder: t("chat.label.placeholder"),
+                  placeholderImages: t("chat.label.placeholderImages"),
+                  placeholderOffline: t("chat.label.placeholderOffline"),
+                },
+              })}</div>
+              ${renderArtifactPanel(state)}
+            </div>`
             : nothing
         }
 
@@ -597,7 +706,13 @@ export function renderApp(state: AppViewState) {
             : nothing
         }
       </main>
-      ${renderExecApprovalPrompt(state)}
+      ${
+        // In the chat, approvals for the open conversation appear as cards inside it instead.
+        state.tab === "chat" && state.execApprovalQueue[0]?.request.sessionKey === state.sessionKey
+          ? nothing
+          : renderExecApprovalPrompt(state)
+      }
+      ${renderSaveArtifactDialog(state)}
       ${renderGatewayUrlConfirmation(state)}
     </div>
   `;

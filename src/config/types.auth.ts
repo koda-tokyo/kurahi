@@ -20,7 +20,10 @@ export type AuthConfig = {
    *   `grants`. Recommended for enterprise deployments.
    */
   isolation?: "inherit" | "explicit";
-  /** Profile ids each agent may use when `isolation` is "explicit" (agent id → profile ids). */
+  /**
+   * Profile ids each agent may use when `isolation` is "explicit" (agent id → profile ids).
+   * `"*"` grants every profile (what `kurahi init` gives the identity agent it creates).
+   */
   grants?: Record<string, string[]>;
   order?: Record<string, string[]>;
   cooldowns?: {

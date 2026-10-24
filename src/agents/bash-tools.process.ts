@@ -1,5 +1,6 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import { enforceExecGuard } from "../security/exec-guard.js";
 import {
   deleteSession,
   drainSession,
@@ -23,7 +24,24 @@ import { encodeKeySequence, encodePaste } from "./pty-keys.js";
 export type ProcessToolDefaults = {
   cleanupMs?: number;
   scopeKey?: string;
+  /** For the destructive-command guard's audit entries. */
+  agentId?: string;
+  sessionKey?: string;
 };
+
+/** Unterminated input line per process session: a command typed over several writes. */
+const pendingInputLine = new WeakMap<object, string>();
+const PENDING_LINE_MAX = 2048;
+
+function decodeHexBytes(hex?: string[]): string {
+  if (!hex?.length) {
+    return "";
+  }
+  const bytes = hex
+    .map((h) => Number.parseInt(h.replace(/^0x/i, ""), 16))
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 255);
+  return Buffer.from(bytes).toString("utf8");
+}
 
 const processSchema = Type.Object({
   action: Type.String({ description: "Process action" }),
@@ -142,6 +160,29 @@ export function createProcessTool(
       const finished = getFinishedSession(params.sessionId);
       const scopedSession = isInScope(session) ? session : undefined;
       const scopedFinished = isInScope(finished) ? finished : undefined;
+
+      // Text sent to a running process can be a shell command (an interactive shell started by
+      // exec). Check it, joined with the unterminated line typed before it, against the same
+      // destructive-command floor as exec. Only refusals are recorded here.
+      if (
+        scopedSession &&
+        (params.action === "write" || params.action === "send-keys" || params.action === "paste")
+      ) {
+        const payload = [params.data, params.literal, params.text, decodeHexBytes(params.hex)]
+          .filter((v): v is string => typeof v === "string" && v.length > 0)
+          .join("");
+        if (payload) {
+          const line = `${pendingInputLine.get(scopedSession) ?? ""}${payload}`;
+          enforceExecGuard(line, {
+            source: `process.${params.action}`,
+            agentId: defaults?.agentId,
+            sessionKey: defaults?.sessionKey,
+            recordAllowed: false,
+          });
+          const lastBreak = Math.max(line.lastIndexOf("\n"), line.lastIndexOf("\r"));
+          pendingInputLine.set(scopedSession, line.slice(lastBreak + 1).slice(-PENDING_LINE_MAX));
+        }
+      }
 
       switch (params.action) {
         case "poll": {

@@ -104,6 +104,22 @@ describe("client-gen", () => {
     expect(() => schemaToTs({ $ref: "#/definitions/X" })).toThrow(/unsupported \$ref/);
   });
 
+  it("parenthesises a union of object literals inside arrays and intersections", () => {
+    const a = { type: "object", properties: { t: { const: "a" } }, required: ["t"] };
+    const b = { type: "object", properties: { t: { const: "b" } }, required: ["t"] };
+    const arr = schemaToTs({ type: "array", items: { oneOf: [a, b] } });
+    expect(arr.startsWith("({")).toBe(true);
+    expect(arr.endsWith("})[]")).toBe(true);
+    expect(schemaToTs({ type: "array", items: a })).toMatch(/^\{[\s\S]*\}\[\]$/);
+    expect(schemaToTs({ type: "array", items: { enum: ["x | y", "z"] } })).toBe(
+      '("x | y" | "z")[]',
+    );
+    expect(schemaToTs({ type: "array", items: { const: "x | y" } })).toBe('"x | y"[]');
+    expect(schemaToTs({ allOf: [{ oneOf: [a, b] }, { $ref: "#/components/schemas/x" }] })).toMatch(
+      /^\(\{[\s\S]*\}\) & X$/,
+    );
+  });
+
   it("rejects duplicate or missing operationIds", () => {
     const dup = {
       paths: {

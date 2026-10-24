@@ -5,6 +5,8 @@ import type { DevicePairingList } from "./controllers/devices";
 import type { ExecApprovalRequest } from "./controllers/exec-approval";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals";
 import type { FleetState } from "./controllers/fleet";
+import type { Project } from "./controllers/projects";
+import type { SkillMessage } from "./controllers/skills";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway";
 import type { Tab } from "./navigation";
 import type { ResolvedTheme, ThemeMode } from "./theme";
@@ -45,6 +47,7 @@ import {
   handleSendChat as handleSendChatInternal,
   removeQueuedMessage as removeQueuedMessageInternal,
 } from "./app-chat";
+import { refreshChatAvatar as refreshChatAvatarInternal } from "./app-chat";
 import { DEFAULT_CRON_FORM, DEFAULT_LOG_LEVEL_FILTERS } from "./app-defaults";
 import { connectGateway as connectGatewayInternal } from "./app-gateway";
 import {
@@ -67,14 +70,91 @@ import {
   setTab as setTabInternal,
   setTheme as setThemeInternal,
   onPopState as onPopStateInternal,
+  refreshActiveTab as refreshActiveTabInternal,
 } from "./app-settings";
 import {
   resetToolStream as resetToolStreamInternal,
   type ToolStreamEntry,
 } from "./app-tool-stream";
 import { resolveInjectedAssistantIdentity } from "./assistant-identity";
+import { chatMessageHooks } from "./chat/grouped-render";
+import {
+  compareWith as compareArtifactInternal,
+  DEFAULT_ARTIFACTS_STATE,
+  guessType,
+  loadArtifacts as loadArtifactsInternal,
+  openArtifact as openArtifactInternal,
+  saveNewVersion as saveArtifactVersionInternal,
+  setStatus as setArtifactStatusInternal,
+  submitSave as submitArtifactSaveInternal,
+  titleFromContent,
+  type ArtifactStatus,
+  type ArtifactsState,
+} from "./controllers/artifacts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity";
-import { DEFAULT_FLEET_STATE, loadFleet as loadFleetController } from "./controllers/fleet";
+import {
+  emptyBusiness,
+  isBusinessProject,
+  loadBusiness,
+  loadBusinessItem,
+  resetBusiness,
+  selectBusinessQueue as selectBusinessQueueInternal,
+} from "./controllers/business";
+import { loadChatHistory as loadChatHistoryInternal } from "./controllers/chat";
+import {
+  archiveChat as archiveChatInternal,
+  DEFAULT_CHAT_HISTORY_STATE,
+  loadChatHistoryPanel,
+  newChatKey,
+  renameChat as renameChatInternal,
+  searchChatText,
+  type ChatHistoryState,
+} from "./controllers/chat-history";
+import {
+  DEFAULT_ENTERPRISE_STATE,
+  recordApprovalDecision,
+  serviceStatus,
+  type AuditSource,
+  type EnterpriseState,
+  type ServiceStatus,
+} from "./controllers/enterprise";
+import { DEFAULT_FLEET_STATE } from "./controllers/fleet";
+import { sessionKeyForAgent } from "./controllers/picker";
+import {
+  changeProjectMode as changeProjectModeInternal,
+  createProjectFromForm,
+  DEFAULT_PROJECTS_STATE,
+  loadProjectFiles,
+  loadProjectPack,
+  loadProjects as loadProjectsInternal,
+  newProjectChatKey,
+  projectIdOfSession,
+  type ProjectMode,
+  type ProjectView,
+  type ProjectsState,
+} from "./controllers/projects";
+import {
+  emptyTerminal,
+  openTerminal,
+  terminalAction,
+  replayTerminal,
+} from "./controllers/terminal";
+import {
+  collapseDocumentBlocks,
+  composeWithDocuments,
+  DEFAULT_UPLOAD_STATE,
+  uploadFile,
+  type UploadState,
+} from "./controllers/uploads";
+import {
+  cancelVoice,
+  emptyVoice,
+  startVoice,
+  stopVoice,
+  type VoiceHost,
+} from "./controllers/voice";
+import { getLocale, osLocales, resolveLocale, setLocale, t } from "./i18n";
+import { audienceFromAuth, type Audience } from "./navigation";
 import { loadSettings, type UiSettings } from "./storage";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types";
 
@@ -156,6 +236,18 @@ export class KoLoApp extends LitElement {
   @state() execApprovalQueue: ExecApprovalRequest[] = [];
   @state() execApprovalBusy = false;
   @state() execApprovalError: string | null = null;
+  @state() enterprise: EnterpriseState = { ...DEFAULT_ENTERPRISE_STATE };
+  @state() voice = emptyVoice();
+  // Installed only by a native desktop capture integration; unavailable in this build.
+  @state() voiceCapture: VoiceHost["voiceCapture"] = null;
+  @state() terminal = emptyTerminal();
+  @state() business = emptyBusiness();
+  @state() projects: ProjectsState = { ...DEFAULT_PROJECTS_STATE };
+  @state() artifacts: ArtifactsState = { ...DEFAULT_ARTIFACTS_STATE };
+  @state() chatHistory: ChatHistoryState = { ...DEFAULT_CHAT_HISTORY_STATE };
+  @state() uploads: UploadState = { ...DEFAULT_UPLOAD_STATE };
+  /** Organisation default locale (`gateway.controlUi.defaultLocale`), when the config says so. */
+  @state() orgLocale: string | null = null;
   @state() pendingGatewayUrl: string | null = null;
 
   @state() configLoading = false;
@@ -286,11 +378,22 @@ export class KoLoApp extends LitElement {
   }
 
   disconnectedCallback() {
+    resetBusiness(this);
+    cancelVoice(this);
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
     super.disconnectedCallback();
   }
 
   protected updated(changed: Map<PropertyKey, unknown>) {
+    if (
+      (changed.has("tab") || changed.has("projects")) &&
+      this.voice.projectId &&
+      (this.tab !== "projects" ||
+        this.projects.selectedId !== this.voice.projectId ||
+        this.projects.view !== "modernize")
+    ) {
+      cancelVoice(this);
+    }
     handleUpdated(this as unknown as Parameters<typeof handleUpdated>[0], changed);
   }
 
@@ -333,6 +436,9 @@ export class KoLoApp extends LitElement {
   }
 
   setTab(next: Tab) {
+    if (next !== this.tab) {
+      cancelVoice(this);
+    }
     setTabInternal(this as unknown as Parameters<typeof setTabInternal>[0], next);
   }
 
@@ -363,6 +469,13 @@ export class KoLoApp extends LitElement {
     messageOverride?: string,
     opts?: Parameters<typeof handleSendChatInternal>[2],
   ) {
+    // v0.3: uploaded documents travel with the next message as document blocks.
+    const docs = this.uploads.documents;
+    if (messageOverride == null && docs.length > 0) {
+      const text = this.chatMessage.trim() || docs.map((d) => d.name).join(", ");
+      this.chatMessage = composeWithDocuments(text, docs);
+      this.uploads = { ...this.uploads, documents: [] };
+    }
     await handleSendChatInternal(
       this as unknown as Parameters<typeof handleSendChatInternal>[0],
       messageOverride,
@@ -426,6 +539,18 @@ export class KoLoApp extends LitElement {
         id: active.id,
         decision,
       });
+      this.enterprise = {
+        ...this.enterprise,
+        approvalHistory: recordApprovalDecision(
+          this.enterprise.approvalHistory,
+          this.execApprovalQueue,
+          {
+            id: active.id,
+            decision,
+            ts: Date.now(),
+          },
+        ),
+      };
       this.execApprovalQueue = this.execApprovalQueue.filter((entry) => entry.id !== active.id);
     } catch (err) {
       this.execApprovalError = `Exec approval failed: ${String(err)}`;
@@ -484,7 +609,346 @@ export class KoLoApp extends LitElement {
     this.applySettings({ ...this.settings, splitRatio: newRatio });
   }
 
+  get serviceStatus(): ServiceStatus {
+    return serviceStatus(this.connected, this.debugHealth, this.lastError);
+  }
+
+  get audience(): Audience {
+    return audienceFromAuth(this.hello?.auth);
+  }
+
+  get locale(): string {
+    return getLocale();
+  }
+
+  patchEnterprise(next: Partial<EnterpriseState>) {
+    this.enterprise = { ...this.enterprise, ...next };
+  }
+
+  setAuditSource(source: AuditSource) {
+    this.patchEnterprise({ auditSource: source });
+    void this.refreshEnterprise();
+  }
+
+  async refreshEnterprise() {
+    await refreshActiveTabInternal(
+      this as unknown as Parameters<typeof refreshActiveTabInternal>[0],
+    );
+  }
+
+  /** The user's language choice; null returns to automatic (organisation default, then OS). */
+  setLocalePreference(locale: string | null) {
+    this.applySettings({ ...this.settings, locale });
+  }
+
+  // ---- v0.3: projects, outputs, chat history, uploads, picker, inline approvals ----
+
+  /** Switch the chat to another conversation (same steps as the session selector). */
+  switchSession(next: string) {
+    this.sessionKey = next;
+    this.chatMessage = "";
+    this.chatAttachments = [];
+    this.chatStream = null;
+    this.chatStreamStartedAt = null;
+    this.chatStreamReasoning = null;
+    this.chatRunId = null;
+    this.chatQueue = [];
+    this.resetToolStream();
+    this.resetChatScroll();
+    this.applySettings({ ...this.settings, sessionKey: next, lastActiveSessionKey: next });
+    void this.loadAssistantIdentity();
+    void loadChatHistoryInternal(this as unknown as Parameters<typeof loadChatHistoryInternal>[0]);
+    void refreshChatAvatarInternal(
+      this as unknown as Parameters<typeof refreshChatAvatarInternal>[0],
+    );
+  }
+
+  openChatSession(key: string) {
+    if (!key) {
+      return;
+    }
+    if (key !== this.sessionKey) {
+      this.switchSession(key);
+    }
+    if (this.tab !== "chat") {
+      this.setTab("chat");
+    }
+  }
+
+  async startProjectVoice(project: Project) {
+    await startVoice(this, project.id, this.locale === "ja" ? "ja" : "en");
+  }
+  async stopProjectVoice() {
+    await stopVoice(this);
+  }
+  cancelProjectVoice() {
+    cancelVoice(this);
+  }
+  patchVoiceText(text: string) {
+    if (this.voice.phase === "ready") {
+      this.voice = { ...this.voice, text };
+    }
+  }
+  async useVoiceDraft(project: Project) {
+    if (
+      this.voice.phase !== "ready" ||
+      this.voice.projectId !== project.id ||
+      !this.voice.text.trim()
+    ) {
+      return;
+    }
+    const voice = this.voice;
+    const client = this.client;
+    const agentId = project.allowedAgents[0] ?? this.agentsList?.defaultId ?? "main";
+    const key = await newProjectChatKey(this, project.id, agentId);
+    // Navigation, editing or disconnect while resolving must not replace another draft.
+    if (!key || !this.connected || this.client !== client || this.voice !== voice) {
+      return;
+    }
+    this.openChatSession(key);
+    this.chatMessage = voice.text;
+  }
+
+  async openProjectTerminal(project: Project) {
+    await openTerminal(this, project);
+  }
+  async runTerminalAction(action: "input" | "cancel" | "close", project: Project) {
+    await terminalAction(this, action, project);
+  }
+  async refreshTerminal() {
+    await replayTerminal(this);
+  }
+  patchTerminalDraft(draft: string) {
+    this.terminal = { ...this.terminal, draft };
+  }
+
+  patchProjects(next: Partial<ProjectsState>) {
+    this.projects = { ...this.projects, ...next };
+  }
+
+  async refreshProjects() {
+    await loadProjectsInternal(this);
+  }
+
+  openProject(id: string | null) {
+    resetBusiness(this);
+    cancelVoice(this);
+    const project = this.projects.projects.find((entry) => entry.id === id);
+    const view = project && isBusinessProject(project) ? "business" : "chat";
+    this.patchProjects({ selectedId: id, view, files: null, filesError: null, pack: null });
+    if (this.tab !== "projects") {
+      this.setTab("projects");
+    } else if (view === "business") {
+      void loadBusiness(this);
+    }
+  }
+
+  async refreshBusiness() {
+    await loadBusiness(this);
+  }
+  async selectBusinessQueue(queue: string) {
+    await selectBusinessQueueInternal(this, queue);
+  }
+  async selectBusinessItem(id: string) {
+    await loadBusinessItem(this, id);
+  }
+  async loadMoreBusiness() {
+    await loadBusiness(this, true);
+  }
+
+  setProjectView(view: ProjectView) {
+    if (view !== this.projects.view) {
+      cancelVoice(this);
+    }
+    if (view !== this.projects.view) {
+      resetBusiness(this);
+    }
+    this.patchProjects({ view });
+    if (view === "business") {
+      void loadBusiness(this);
+    }
+    if (view === "files") {
+      void loadProjectFiles(this);
+    }
+    if (view === "pack") {
+      void loadProjectPack(this);
+    }
+    if (view === "artifacts" || view === "history") {
+      void loadArtifactsInternal(this);
+    }
+  }
+
+  async changeProjectMode(id: string, mode: ProjectMode) {
+    await changeProjectModeInternal(this, id, mode);
+  }
+
+  async submitNewProject() {
+    const project = await createProjectFromForm(this);
+    if (project) {
+      void this.refreshProjects();
+    }
+  }
+
+  async startProjectChat(projectId: string, draft?: string) {
+    const project = this.projects.projects.find((p) => p.id === projectId);
+    const agentId = project?.allowedAgents[0] ?? this.agentsList?.defaultId ?? "main";
+    const key = await newProjectChatKey(this, projectId, agentId);
+    if (!key) {
+      return;
+    }
+    this.openChatSession(key);
+    if (draft) {
+      this.chatMessage = draft;
+    }
+  }
+
+  patchArtifacts(next: Partial<ArtifactsState>) {
+    this.artifacts = { ...this.artifacts, ...next };
+  }
+
+  async refreshArtifacts() {
+    await loadArtifactsInternal(this);
+  }
+
+  async openArtifactPanel(id: string, version?: number) {
+    await openArtifactInternal(this, id, version);
+  }
+
+  async compareArtifact(version: number | null) {
+    await compareArtifactInternal(this, version);
+  }
+
+  async setArtifactStatus(status: ArtifactStatus) {
+    await setArtifactStatusInternal(this, status);
+  }
+
+  async saveArtifactVersion() {
+    await saveArtifactVersionInternal(this);
+  }
+
+  async submitArtifactSave() {
+    await submitArtifactSaveInternal(this);
+  }
+
+  /** "Save as output" on an assistant reply. */
+  beginArtifactSave(markdown: string) {
+    this.patchArtifacts({
+      error: null,
+      saveForm: {
+        title: titleFromContent(markdown),
+        type: guessType(markdown),
+        content: markdown,
+        sourceSession: this.sessionKey,
+      },
+    });
+  }
+
+  patchChatHistory(next: Partial<ChatHistoryState>) {
+    this.chatHistory = { ...this.chatHistory, ...next };
+  }
+
+  async refreshChatHistoryPanel() {
+    await loadChatHistoryPanel(this);
+  }
+
+  async searchChats() {
+    await searchChatText(this);
+  }
+
+  async archiveChat(key: string, archived: boolean) {
+    await archiveChatInternal(this, key, archived);
+  }
+
+  async renameChat(key: string, label: string) {
+    await renameChatInternal(this, key, label);
+  }
+
+  /** New conversation: inside the current project when the chat is in one. */
+  async startNewChat() {
+    const projectId = projectIdOfSession(this.sessionKey);
+    const agentId =
+      /^agent:([^:]+):/.exec(this.sessionKey)?.[1] ?? this.agentsList?.defaultId ?? "main";
+    const key = projectId ? await newProjectChatKey(this, projectId, agentId) : newChatKey(agentId);
+    if (key) {
+      this.openChatSession(key);
+      void this.refreshChatHistoryPanel();
+    }
+  }
+
+  patchUploads(next: Partial<UploadState>) {
+    this.uploads = { ...this.uploads, ...next };
+  }
+
+  async uploadFiles(files: File[]) {
+    const projectId = projectIdOfSession(this.sessionKey);
+    for (const file of files) {
+      await uploadFile(this, file, projectId);
+    }
+  }
+
+  async pickAgent(agentId: string) {
+    const projectId = projectIdOfSession(this.sessionKey);
+    const key = projectId
+      ? await newProjectChatKey(this, projectId, agentId)
+      : sessionKeyForAgent(this.sessionKey, agentId);
+    if (key) {
+      this.openChatSession(key);
+    }
+  }
+
+  async pickModel(model: string) {
+    if (!this.client) {
+      return;
+    }
+    try {
+      await this.client.request("sessions.patch", { key: this.sessionKey, model: model || null });
+      await this.loadSessionsQuiet();
+    } catch (err) {
+      this.lastError = String(err);
+    }
+  }
+
+  async loadSessionsQuiet() {
+    const { loadSessions } = await import("./controllers/sessions");
+    await loadSessions(this as unknown as Parameters<typeof loadSessions>[0]);
+  }
+
+  /** Approve / reject one approval by id (chat cards and the Approvals page). */
+  async decideApproval(id: string, decision: "allow-once" | "allow-always" | "deny") {
+    const entry = this.execApprovalQueue.find((q) => q.id === id);
+    if (!entry || !this.client || this.execApprovalBusy) {
+      return;
+    }
+    this.execApprovalBusy = true;
+    this.execApprovalError = null;
+    try {
+      await this.client.request("exec.approval.resolve", { id, decision });
+      this.enterprise = {
+        ...this.enterprise,
+        approvalHistory: recordApprovalDecision(
+          this.enterprise.approvalHistory,
+          this.execApprovalQueue,
+          {
+            id,
+            decision,
+            ts: Date.now(),
+          },
+        ),
+      };
+      this.execApprovalQueue = this.execApprovalQueue.filter((q) => q.id !== id);
+    } catch (err) {
+      this.execApprovalError = `${String(err)}`;
+    } finally {
+      this.execApprovalBusy = false;
+    }
+  }
+
   render() {
+    setLocale(resolveLocale({ user: this.settings.locale, org: this.orgLocale, os: osLocales() }));
+    chatMessageHooks.onSaveArtifact = (markdown) => this.beginArtifactSave(markdown);
+    chatMessageHooks.saveLabel = t("artifacts.save");
+    chatMessageHooks.collapse = (text) =>
+      collapseDocumentBlocks(text, (name) => `[${t("upload.attached", { name })}]`);
     return renderApp(this);
   }
 }

@@ -94,11 +94,17 @@ export const DEFAULT_FLEET_STATE: FleetState = {
  * Graceful degradation: individual source failures don't block the whole poll.
  */
 export async function loadFleet(state: FleetState, opts?: { quiet?: boolean }) {
-  if (!state.client || !state.connected) return;
-  if (state.loading) return;
+  if (!state.client || !state.connected) {
+    return;
+  }
+  if (state.loading) {
+    return;
+  }
 
   state.loading = true;
-  if (!opts?.quiet) state.lastError = null;
+  if (!opts?.quiet) {
+    state.lastError = null;
+  }
 
   const errors: string[] = [];
 
@@ -120,7 +126,9 @@ export async function loadFleet(state: FleetState, opts?: { quiet?: boolean }) {
 }
 
 async function loadGates(state: FleetState) {
-  if (!state.client) return;
+  if (!state.client) {
+    return;
+  }
 
   // The gateways to show come from the serving gateway (own port first) plus any extra
   // gateways configured on the page as `?fleet=name:port,name:port`; nothing is hardcoded.
@@ -142,9 +150,12 @@ async function loadGates(state: FleetState) {
   const cards: GateCard[] = [];
   for (const gate of knownGates) {
     try {
-      const res = await state.client.request("gateway.healthCheck", {
-        port: gate.port,
-      });
+      const res = await state.client.request<{ healthy: boolean; uptime?: string }>(
+        "gateway.healthCheck",
+        {
+          port: gate.port,
+        },
+      );
       cards.push({
         name: gate.name,
         port: gate.port,
@@ -169,12 +180,19 @@ async function loadGates(state: FleetState) {
 }
 
 async function loadProcesses(state: FleetState) {
-  if (!state.client) return;
+  if (!state.client) {
+    return;
+  }
   // PM2 jlist via gateway exec or dedicated endpoint
   // For now: use health endpoint process list if available
-  const res = await state.client.request("gateway.pm2List", {}).catch(() => null);
+  const res = await state.client
+    .request<{ processes?: Array<Partial<Omit<Pm2Process, "status">> & { status?: string }> }>(
+      "gateway.pm2List",
+      {},
+    )
+    .catch(() => null);
   if (res?.processes) {
-    state.processes = res.processes.map((p: Record<string, unknown>) => ({
+    state.processes = res.processes.map((p) => ({
       name: String(p.name ?? "?"),
       status: mapPm2Status(String(p.status ?? "stopped")),
       uptime: String(p.uptime ?? "—"),
@@ -186,10 +204,14 @@ async function loadProcesses(state: FleetState) {
 }
 
 async function loadDisks(state: FleetState) {
-  if (!state.client) return;
-  const res = await state.client.request("gateway.diskUsage", {}).catch(() => null);
+  if (!state.client) {
+    return;
+  }
+  const res = await state.client
+    .request<{ disks?: Array<Partial<FleetDisk>> }>("gateway.diskUsage", {})
+    .catch(() => null);
   if (res?.disks) {
-    state.disks = (res.disks as Array<Record<string, unknown>>).map((d) => ({
+    state.disks = res.disks.map((d) => ({
       mount: String(d.mount ?? "?"),
       usedPct: Number(d.usedPct ?? 0),
       total: String(d.total ?? "—"),
@@ -199,8 +221,15 @@ async function loadDisks(state: FleetState) {
 }
 
 async function loadBackup(state: FleetState) {
-  if (!state.client) return;
-  const res = await state.client.request("gateway.backupStatus", {}).catch(() => null);
+  if (!state.client) {
+    return;
+  }
+  const res = await state.client
+    .request<{ lastRun?: string; status?: string; lastFile?: string; consecutivePasses?: number }>(
+      "gateway.backupStatus",
+      {},
+    )
+    .catch(() => null);
   if (res) {
     state.backup = {
       lastRun: String(res.lastRun ?? "never"),
@@ -212,8 +241,12 @@ async function loadBackup(state: FleetState) {
 }
 
 async function loadOAuth(state: FleetState) {
-  if (!state.client) return;
-  const res = await state.client.request("gateway.oauthStatus", {}).catch(() => null);
+  if (!state.client) {
+    return;
+  }
+  const res = await state.client
+    .request<Partial<FleetOAuth>>("gateway.oauthStatus", {})
+    .catch(() => null);
   if (res) {
     state.oauth = {
       expiresIn: String(res.expiresIn ?? "?"),

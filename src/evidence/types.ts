@@ -10,6 +10,7 @@ export const EVIDENCE_EVENT_TYPES = [
   "tool.result",
   "snapshot",
   "permission",
+  "approval",
   "redaction",
   "loop_guard",
   "audit",

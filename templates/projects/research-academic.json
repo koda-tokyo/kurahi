@@ -1,0 +1,28 @@
+{
+  "id": "research-academic",
+  "name": { "ja": "研究・学術", "en": "Research & academic" },
+  "description": {
+    "ja": "文献コーパスを読み、出典を明記した文献レビューと再現可能な分析を作成します。コーパスは読み取り専用。",
+    "en": "Read a corpus and write literature reviews and reproducible analyses with every claim cited. The corpus is read-only."
+  },
+  "folders": ["output"],
+  "rules": {
+    "readOnly": ["corpus"],
+    "writable": ["output"],
+    "artifactApprovalRequired": false,
+    "instructions": [
+      { "ja": "corpus/ は読み取り専用です。", "en": "corpus/ is read-only." },
+      { "ja": "出力に含めるすべての主張には、出典ファイル名を明記してください。出典のない主張は書かないでください。", "en": "Every claim in an output must cite a source file. Do not write claims without a source." },
+      { "ja": "分析は手順とコードを残し、再現できるようにしてください。", "en": "Keep the steps and code of every analysis so it can be reproduced." }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    { "ja": "questions.md の Q1 に、出典ファイルを示して答えてください。", "en": "Answer Q1 in questions.md, citing the source files." },
+    { "ja": "コーパスの文献レビューを作成してください。各主張に出典を付けてください。", "en": "Write a literature review of the corpus, citing a source for each claim." },
+    { "ja": "再現可能な分析の手順を、コードと共に提案してください。", "en": "Propose a reproducible analysis, with the code." }
+  ],
+  "terminalProfile": "scientific",
+  "demoFolder": "~/kurahi-demo-packs/research-academic"
+}

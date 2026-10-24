@@ -118,6 +118,11 @@ function makeRepo(version: string, changelog: string): string {
     path.join(root, "packages", "client", "package.json"),
     `${JSON.stringify({ name: "@kodasoken/kurahi-client", version }, null, 2)}\n`,
   );
+  fs.mkdirSync(path.join(root, "packages", "legacy-analyzer"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "packages", "legacy-analyzer", "package.json"),
+    `${JSON.stringify({ name: "@kodasoken/legacy-analyzer", version, private: true }, null, 2)}\n`,
+  );
   fs.mkdirSync(path.join(root, "extensions", "telegram"), { recursive: true });
   fs.writeFileSync(
     path.join(root, "extensions", "telegram", "package.json"),
@@ -143,9 +148,9 @@ function makeRepo(version: string, changelog: string): string {
 describe("release-prep main", () => {
   it("syncs versions across package files", () => {
     const root = makeRepo("2026.10.15", CHANGELOG);
-    expect(versionFiles(root).length).toBe(3);
+    expect(versionFiles(root).length).toBe(4);
     const changed = syncVersions(root, "2026.10.16");
-    expect(changed.length).toBe(3);
+    expect(changed.length).toBe(4);
     for (const file of versionFiles(root)) {
       expect(JSON.parse(fs.readFileSync(file, "utf8")).version).toBe("2026.10.16");
     }

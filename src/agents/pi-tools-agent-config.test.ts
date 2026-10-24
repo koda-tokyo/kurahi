@@ -194,7 +194,7 @@ describe("Agent-specific tool filtering", () => {
           },
           {
             id: "family",
-            workspace: "~/kolo-family",
+            workspace: "~/kolo-team",
             tools: {
               allow: ["read"],
               deny: ["exec", "write", "edit", "process"],

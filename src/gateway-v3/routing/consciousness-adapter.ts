@@ -1,13 +1,11 @@
 // Stub: gateway-v3 routing consciousness-adapter
-// Bridges biology signals to agent dispatchers for v3 consciousness ticking.
+// Per-agent dispatcher registry for v3 consciousness ticking.
 
 import type { ReasoningLevel } from "../../consciousness/adaptive-reasoning.js";
 import type { LLMCallFn } from "../../consciousness/engine.js";
-import type { BiologySignals } from "./types.js";
 import { getReplyFromConfig } from "../../auto-reply/reply.js";
 
 export interface AgentDispatcher {
-  updateBiology(signals: BiologySignals): void;
   start(): Promise<void>;
   stop(): Promise<void>;
   readonly agentId: string;
@@ -22,9 +20,6 @@ export function createConsciousnessDispatcher(opts: {
 }): AgentDispatcher {
   const dispatcher: AgentDispatcher = {
     agentId: opts.agentId,
-    updateBiology(_signals: BiologySignals) {
-      // Stub: no-op until v3 consciousness is implemented
-    },
     async start() {},
     async stop() {},
   };
@@ -46,10 +41,6 @@ export function getAllV3AgentDispatchers(): AgentDispatcher[] {
 
 export function clearAllV3AgentDispatchers(): void {
   dispatchers.clear();
-}
-
-export function setV3BiologySignals(_signals: BiologySignals): void {
-  // Stub: bridge biology → dispatchers when implemented
 }
 
 export function createConsciousnessAdapterForAgent(_opts: { agentId: string }): {

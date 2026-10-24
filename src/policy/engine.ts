@@ -1,4 +1,3 @@
-import type { BudgetLimits, PolicyDocument } from "./schema.js";
 // Policy engine (KoLo 2.0, M13). One instance per process holds the active document, the runtime
 // kill state and the budget meters, and answers `evaluate(point, ctx)` with allow | deny | ask |
 // pause plus the rule id. Every decision is audited (`policy.decision`) with that rule id.
@@ -6,6 +5,8 @@ import type { BudgetLimits, PolicyDocument } from "./schema.js";
 // Inert when no policy is loaded: every decision is `allow` by `default` and only the M5 config
 // permissions (passed in by the tool guard) can refuse. Nothing runs at import time; the
 // process-wide instance is created on first use and loads the document lazily.
+import os from "node:os";
+import type { BudgetLimits, PolicyDocument } from "./schema.js";
 import { cancelJob, listJobs } from "../agents/jobs.js";
 import { auditSafe } from "../audit/audit-log.js";
 import { BudgetMeters, type BudgetBreach } from "./budgets.js";
@@ -418,7 +419,9 @@ export class PolicyEngine {
         if (budget) {
           return this.record(budget, c, summary);
         }
-        const decision = toolDecision(policy, c, this.loc.home);
+        // `~/` in data.neverRead / neverWrite is the operating-system user's home (where ~/.ssh
+        // lives), not the state directory: the tools run as that user.
+        const decision = toolDecision(policy, c, os.homedir());
         if (decision.effect === "allow") {
           this.meters.record(c.agentId, { toolCalls: 1 });
         }

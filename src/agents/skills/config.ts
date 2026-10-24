@@ -64,15 +64,16 @@ export function resolveRuntimePlatform(): string {
   return process.platform;
 }
 
+/**
+ * `undefined` (unset) means "no allowlist: every bundled skill"; an array, even an empty one,
+ * is an allowlist: `[]` allows no bundled skill. (It used to read `[]` as unset, which loaded
+ * every bundled skill into the prompt of a config that asked for none.)
+ */
 function normalizeAllowlist(input: unknown): string[] | undefined {
-  if (!input) {
-    return undefined;
-  }
   if (!Array.isArray(input)) {
     return undefined;
   }
-  const normalized = input.map((entry) => String(entry).trim()).filter(Boolean);
-  return normalized.length > 0 ? normalized : undefined;
+  return input.map((entry) => String(entry).trim()).filter(Boolean);
 }
 
 const BUNDLED_SOURCES = new Set(["kolo-bundled"]);
@@ -86,7 +87,7 @@ export function resolveBundledAllowlist(config?: KoLoConfig): string[] | undefin
 }
 
 export function isBundledSkillAllowed(entry: SkillEntry, allowlist?: string[]): boolean {
-  if (!allowlist || allowlist.length === 0) {
+  if (!allowlist) {
     return true;
   }
   if (!isBundledSkill(entry)) {

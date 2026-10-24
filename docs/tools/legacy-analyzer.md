@@ -22,26 +22,32 @@ facts; the model explains them. Overview: [Industrial modernisation](/industrial
 | `legacy_design_doc`   | Design document (設計書) from the code, Japanese or English: see [design documents and wave plan](/tools/legacy-design-docs) |
 | `legacy_wave_plan`    | Modernisation wave proposal from dependencies and metrics: see [design documents and wave plan](/tools/legacy-design-docs)   |
 | `modernise_plan`      | Entry point for mixed projects: detected languages, inventory per engine, shared tables, coverage, planned assistants        |
-| `modernise_crud`      | CRUD of SQL tables across COBOL EXEC SQL, Java (JPA, @Query, JDBC) and JCL utilities, with evidence                          |
-| `modernise_impact`    | What a change to a table, column, Java class or program reaches across languages, schema objects and callers                 |
-| `modernise_inventory` | Java types or SQL tables: the list, or one entry in full                                                                     |
+| `modernise_crud`      | CRUD of SQL tables (COBOL and PL/I EXEC SQL, Java JPA/@Query/JDBC, JCL utilities) and of files, with evidence                |
+| `modernise_impact`    | What a change to a table, column, file, COMMON block, Java class or program reaches across languages and callers             |
+| `modernise_inventory` | Java types, SQL tables, FORTRAN units and COMMON blocks, or PL/I procedures: the list, or one entry in full                  |
 
 Every fact carries `file` and `line`. Business meaning is never inferred.
 
 The same analyser runs in engineers' own editors and IDEs as an MCP server, one project per
 server: see [Legacy analyser in your editor (MCP)](/tools/legacy-mcp).
 
-## Modernisation assistant (COBOL, Java, SQL DDL)
+## Modernisation assistant (COBOL, Java, SQL DDL, FORTRAN, PL/I)
 
 `modernise_plan` detects the languages of a folder (extension, then content of the first bytes),
 runs every active engine and says which assistants are only planned. Active: COBOL/JCL, Java, SQL
-DDL. Planned (files are counted, nothing is analysed): FORTRAN, PL/I, PLC IEC 61131-3 (Structured
+DDL, FORTRAN, PL/I. Planned (files are counted, nothing is analysed): PLC IEC 61131-3 (Structured
 Text, ladder exports), batch schedulers, maintenance records, cybersecurity review.
 
 Tables are one node in the knowledge graph across languages, matched by unqualified name,
-case-insensitive: a COBOL `EXEC SQL` table, a JPA `@Table` and a `CREATE TABLE` of the same name
-are the same table. The design document gains Java class specifications and table definitions when
-the folder has Java or DDL.
+case-insensitive: a COBOL or PL/I `EXEC SQL` table, a JPA `@Table` and a `CREATE TABLE` of the
+same name are the same table. Programs meet by name the same way: a JCL `EXEC PGM=`, a COBOL
+`CALL` and a FORTRAN or PL/I `CALL` of one name are one program, so a PL/I batch calling a COBOL
+routine, or a step running a FORTRAN program, is one path in the graph. The design document gains
+Java class specifications, FORTRAN program units (with the COMMON block map), PL/I procedure
+specifications and table definitions when the folder has those sources.
+
+FORTRAN `INCLUDE` and PL/I `%INCLUDE` members are looked up among all files of the folder by file
+or member name, case-insensitive, the including file's folder first.
 
 Limits:
 
@@ -59,7 +65,37 @@ Limits:
   storage clauses are listed as not modelled. Names lose their schema, so two schemas with the same
   table name are merged (the second definition is reported as a duplicate). Quoted identifiers are
   folded to upper case.
-- **COBOL**: as above; table access comes from `EXEC SQL` text.
+- **FORTRAN**: fixed form (FORTRAN 66/77, columns 1-72, DEC tab format) and free form (Fortran 90
+  and later). Units, USE, INCLUDE (one level: an include inside an include is not followed),
+  COMMON, EQUIVALENCE (listed), declarations with `REAL*8` / `KIND` types and the IMPLICIT rule
+  (the default I-N rule when none is written). COMMON layouts are compared across units by type
+  and size (`DOUBLE PRECISION` equals `REAL*8`, dimensions given by PARAMETER constants compare by
+  value; other KIND values and default sizes are compiler-specific and compared as written). A
+  name with an argument list is a function reference only when a FUNCTION of that name is in
+  scope and the name is not an array or character variable of the unit; statement functions and
+  generic interfaces are not resolved. I/O units are bound to the `FILE=` literal of an `OPEN` on
+  the same unit number (the same unit, else the only one in the project); without `OPEN`, to the
+  mainframe DD name `FTnnF001` of the steps whose program reaches the unit through static calls.
+  Units in variables, `FILE=` expressions and units opened with several files are listed as
+  unresolved. Not modelled, reported: preprocessor lines (`#ifdef`: every branch is read),
+  computed and assigned `GO TO`, arithmetic `IF`, `ENTRY` (calls to the entry name are linked to
+  its unit), alternate returns, Cray pointers, `EXEC SQL`, `SUBMODULE`. Interface blocks and
+  derived type definitions are skipped; type-bound procedures, `BLOCK` constructs and coarrays are
+  not analysed.
+- **PL/I**: procedures with `OPTIONS(MAIN)` and nested internal procedures, END matching over
+  DO / BEGIN / SELECT groups (END with a label closes the inner groups). DECLARE: levels,
+  factored names, data attributes, BASED / DEFINED / STATIC / CONTROLLED, INIT; FILE and ENTRY
+  declarations. CALL is resolved to internal procedures in scope, external procedures of the PL/I
+  sources, then by name to any program of the project; CALL through ENTRY variables and function
+  references are not resolved. Record and stream I/O bind to the DD named by the `OPEN` TITLE
+  literal, else the file name (names longer than 8 characters are not truncated). `EXEC SQL`
+  tables per procedure; cursors through `DECLARE CURSOR`. Sequence numbers in columns 73-80 are
+  detected and ignored. Not modelled, reported: macro statements (`%IF`, `%DO`, `%DECLARE`, `%name
+=`: not evaluated, the code of every branch is read), `FETCH` / `RELEASE`, secondary `ENTRY`
+  points, `EXEC CICS` / `EXEC DLI`, dynamic SQL, `EXEC SQL INCLUDE` other than SQLCA / SQLDA.
+  LIKE, DEFAULT and `%INCLUDE` inside an include member are not expanded.
+- **COBOL**: as above; table access comes from `EXEC SQL` text. A FORTRAN include stored with a
+  `.inc` extension is also read by the COBOL index as a copybook.
 
 ## Enabled per project, not for the gateway
 

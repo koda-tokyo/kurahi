@@ -9,6 +9,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { runCheck as runFamilyInternalCheck } from "./family-internal-check.mjs";
 
 type PackFile = { path: string };
 type PackResult = { files?: PackFile[] };
@@ -198,8 +199,22 @@ function checkPackCoversImportGraph(packPaths: Set<string>) {
   );
 }
 
+function checkNoFamilyInternal() {
+  const { findings } = runFamilyInternalCheck(ROOT);
+  if (findings.length > 0) {
+    console.error("release-check: private-deployment identifiers would ship:");
+    for (const item of findings.slice(0, 40)) {
+      console.error(`  - ${item}`);
+    }
+    console.error("release-check: see scripts/family-internal-check.mjs.");
+    process.exit(1);
+  }
+  console.log("release-check: no private-deployment identifiers in src or dist.");
+}
+
 function main() {
   checkPluginVersions();
+  checkNoFamilyInternal();
 
   const results = runPackDry();
   const files = results.flatMap((entry) => entry.files ?? []);

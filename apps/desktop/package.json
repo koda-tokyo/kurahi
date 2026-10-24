@@ -1,0 +1,21 @@
+{
+  "name": "kurahi-desktop",
+  "private": true,
+  "version": "0.4.0",
+  "description": "Kurahi Desktop by KODA SōKEN",
+  "type": "module",
+  "scripts": {
+    "build:web": "vite build --config vite.config.ts",
+    "dev:web": "vite --config vite.config.ts",
+    "tauri": "tauri",
+    "build": "tauri build",
+    "test": "vitest run --config vitest.config.ts",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "2.12.1",
+    "@tauri-apps/cli": "2.12.1",
+    "vite": "7.3.1",
+    "vitest": "4.0.18"
+  }
+}

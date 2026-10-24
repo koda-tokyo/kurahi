@@ -42,7 +42,6 @@ const V3_COMPLETE_CONFIG = {
     ...MINIMAL_V2_CONFIG.gateway,
     v3: {
       enabled: true,
-      biology: true,
       scoring: true,
       health: true,
       memoryBudget: {
@@ -63,7 +62,6 @@ describe("analyseV3Migration", () => {
     const result = analyseV3Migration(MINIMAL_V2_CONFIG);
     expect(result.alreadyComplete).toBe(false);
     expect(result.added.includes("enabled")).toBeTruthy();
-    expect(result.added.includes("biology")).toBeTruthy();
     expect(result.added.includes("scoring")).toBeTruthy();
     expect(result.added.includes("health")).toBeTruthy();
     expect(result.added.includes("memoryBudget")).toBeTruthy();
@@ -82,13 +80,12 @@ describe("analyseV3Migration", () => {
       ...MINIMAL_V2_CONFIG,
       gateway: {
         ...MINIMAL_V2_CONFIG.gateway,
-        v3: { enabled: true }, // missing biology, scoring, health, memoryBudget
+        v3: { enabled: true }, // missing scoring, health, memoryBudget
       },
     };
     const result = analyseV3Migration(partial);
     expect(result.alreadyComplete).toBe(false);
     expect(result.existing.includes("enabled")).toBe(true);
-    expect(result.added.includes("biology")).toBeTruthy();
     expect(result.added.includes("scoring")).toBeTruthy();
     expect(result.added.includes("health")).toBeTruthy();
     expect(result.added.includes("memoryBudget")).toBeTruthy();
@@ -101,7 +98,6 @@ describe("analyseV3Migration", () => {
         ...MINIMAL_V2_CONFIG.gateway,
         v3: {
           enabled: true,
-          biology: true,
           scoring: true,
           health: true,
           memoryBudget: { globalMaxBytes: 2_000_000_000 }, // custom value, missing sub-keys
@@ -123,7 +119,6 @@ describe("analyseV3Migration", () => {
         ...MINIMAL_V2_CONFIG.gateway,
         v3: {
           enabled: false, // explicitly disabled
-          biology: false,
           scoring: true,
           health: true,
           memoryBudget: {
@@ -208,7 +203,7 @@ describe("runMigrateV3 (file operations)", () => {
 
     const migrated = JSON.parse(readFileSync(configPath, "utf8"));
     expect(migrated.gateway.v3.enabled).toBe(true);
-    expect(migrated.gateway.v3.biology).toBe(true);
+    expect(migrated.gateway.v3).not.toHaveProperty("biology");
     expect(migrated.gateway.v3.scoring).toBe(true);
     expect(migrated.gateway.v3.health).toBe(true);
     expect(migrated.gateway.v3.memoryBudget).toBeTruthy();

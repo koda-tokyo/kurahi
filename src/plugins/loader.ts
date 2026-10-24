@@ -7,8 +7,9 @@
 // identity across reloads; consumers never re-fetch it.
 import { createJiti } from "jiti";
 import fs from "node:fs";
+import Module, { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { KoLoConfig } from "../config/config.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import type {
@@ -26,7 +27,7 @@ import { enqueueSystemEvent } from "../infra/system-events.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { recordAuditEvent } from "../security/audit-log.js";
 import { resolveUserPath } from "../utils.js";
-import { clearPluginCommands } from "./commands.js";
+import { clearPluginCommands, clearPluginCommandsForPlugin } from "./commands.js";
 import {
   normalizePluginsConfig,
   resolveEnableState,
@@ -36,6 +37,7 @@ import {
 import { discoverKoLoPlugins, type PluginCandidate } from "./discovery.js";
 import { initializeGlobalHookRunner } from "./hook-runner-global.js";
 import { createPluginHost, type PluginHost } from "./host.js";
+import { gatePluginCandidate } from "./integrity.js";
 import {
   createPluginLifecycle,
   createPluginSignalBus,
@@ -128,6 +130,98 @@ const resolvePluginSdkAlias = (): string | null => {
   }
   return null;
 };
+
+let nativeSdkPreloadAttempted = false;
+
+/** True when the plugin entry imports SDK values (type-only imports are erased by the transform). */
+export function sourceImportsPluginSdkValues(source: string): boolean {
+  return source
+    .split("\n")
+    .some((line) => line.includes("KoLo/plugin-sdk") && !/^\s*import\s+type\b/.test(line));
+}
+
+/**
+ * Loads the built plugin SDK (an ES module) through Node's own loader before jiti sees it.
+ *
+ * jiti consults the native module cache before transpiling, so a plugin's `KoLo/plugin-sdk`
+ * import then resolves to the SDK the host already has in memory instead of being re-evaluated,
+ * file by file, through jiti's babel transform (the whole SDK graph: config, channels, zod, the
+ * provider SDKs as CommonJS copies). That re-evaluation was most of the cost of a plugin load and
+ * gave plugins private copies of host singletons. Here only the dist build (`.js`) is loaded,
+ * synchronously; `preparePluginSdk()` covers the source SDK. Any failure (e.g. a graph with
+ * top-level await, which `require()` of ESM refuses) leaves the jiti path as it was.
+ */
+function preloadPluginSdkNatively(entryFile: string): void {
+  if (nativeSdkPreloadAttempted) {
+    return;
+  }
+  try {
+    if (!sourceImportsPluginSdkValues(fs.readFileSync(entryFile, "utf8"))) {
+      return;
+    }
+  } catch {
+    return;
+  }
+  nativeSdkPreloadAttempted = true;
+  const alias = resolvePluginSdkAlias();
+  if (!alias || !alias.endsWith(".js")) {
+    return;
+  }
+  try {
+    createRequire(import.meta.url)(alias);
+  } catch {
+    // jiti loads it as before.
+  }
+}
+
+let sdkPrepared: Promise<void> | null = null;
+
+/**
+ * Async counterpart for runs from source (`.ts` SDK, e.g. `node --import tsx src/entry.ts`):
+ * `require()` cannot load the source SDK (some dependencies are import-only), and jiti would
+ * babel-transform its whole graph (measured ~100 s CPU with a cold cache). The SDK is imported
+ * through the host's own ESM loader instead and its namespace placed in the module cache jiti
+ * reads, so plugins share the host's modules. A no-op for the dist SDK, which the synchronous
+ * preload above handles on demand. Callers on async paths await this before loading plugins; it
+ * never throws.
+ */
+export function preparePluginSdk(): Promise<void> {
+  if (!sdkPrepared) {
+    sdkPrepared = (async () => {
+      const alias = resolvePluginSdkAlias();
+      if (!alias) {
+        return;
+      }
+      if (alias.endsWith(".js")) {
+        // The dist SDK loads synchronously, and only when a plugin imports it
+        // (preloadPluginSdkNatively), so nothing to do ahead of time.
+        return;
+      }
+      try {
+        const ns = (await import(pathToFileURL(alias).href)) as Record<string, unknown>;
+        const req = createRequire(import.meta.url);
+        const keys = new Set([alias]);
+        try {
+          keys.add(fs.realpathSync(alias));
+        } catch {
+          // keep the alias spelling only
+        }
+        for (const key of keys) {
+          if (!req.cache[key]) {
+            const mod = new Module(key);
+            mod.filename = key;
+            mod.loaded = true;
+            mod.exports = ns;
+            req.cache[key] = mod;
+          }
+        }
+      } catch {
+        // jiti loads it as before.
+      }
+    })();
+  }
+  return sdkPrepared;
+}
 
 function buildCacheKey(params: {
   workspaceDir?: string;
@@ -415,11 +509,21 @@ export function loadPluginCandidate(
     return record;
   }
 
+  // ASI04: an unpinned or modified package is refused in enforce mode before any import.
+  const integrity = gatePluginCandidate({ cfg: ctx.cfg, pluginId, candidate, audit: ctx.audit });
+  if (!integrity.allowed) {
+    const message = `supply-chain ${integrity.message ?? "refused"}`;
+    return quarantine(message, message);
+  }
+
   if (!manifestRecord.configSchema) {
     return quarantine("missing config schema", "missing config schema");
   }
 
   let mod: KoLoPluginModule | null = null;
+  // Just before the first plugin import that needs it, so a run whose plugins never import SDK
+  // values does not load the SDK at all.
+  preloadPluginSdkNatively(candidate.source);
   try {
     mod = ctx.jiti(candidate.source) as KoLoPluginModule;
   } catch (err) {
@@ -700,5 +804,152 @@ export function loadKoLoPlugins(options: PluginLoadOptions = {}): PluginRegistry
   );
   setActivePluginRegistry(registry, cacheKey);
   initializeGlobalHookRunner(registry);
+  return registry;
+}
+
+// ── Project-scoped plugins (Kurahi v0.3) ─────────────────────────────────────────────────
+
+const scopedRegistryCache = new Map<string, PluginRegistry>();
+
+export type ScopedPluginLoadOptions = {
+  config?: KoLoConfig;
+  workspaceDir?: string;
+  /** Plugin ids a project template enables for that project only. */
+  pluginIds: string[];
+  logger?: PluginLogger;
+};
+
+/**
+ * Load plugins for one project scope, without enabling them for the gateway. Only bundled
+ * plugins whose manifest says `projectScope: true` qualify, and only when the config does not
+ * block them (`plugins.enabled: false`, `plugins.deny`, an allowlist without them, or
+ * `plugins.entries.<id>.enabled: false`). A plugin already enabled globally is skipped: its tools
+ * come from the gateway registry.
+ *
+ * The registry is private: it is never activated, so nothing but tools leaves it. A plugin that
+ * registers anything else (hooks, channels, providers, services, commands, HTTP or gateway
+ * handlers) is refused for scoped use and its tools are dropped.
+ */
+export function loadScopedKoLoPlugins(options: ScopedPluginLoadOptions): PluginRegistry {
+  const cfg = options.config ?? {};
+  const logger = options.logger ?? defaultLogger();
+  const base = normalizePluginsConfig(cfg.plugins);
+  const wanted = [...new Set(options.pluginIds.map((id) => id.trim()).filter(Boolean))].toSorted();
+  const cacheKey = `${buildCacheKey({ workspaceDir: options.workspaceDir, plugins: base })}::scoped:${wanted.join(",")}`;
+  const cached = scopedRegistryCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const runtime = createPluginRuntime();
+  const { registry, createApi } = createPluginRegistry({ logger, runtime });
+  const discovery = discoverKoLoPlugins({
+    workspaceDir: options.workspaceDir,
+    extraPaths: base.loadPaths,
+  });
+  const manifestRegistry = loadPluginManifestRegistry({
+    config: cfg,
+    workspaceDir: options.workspaceDir,
+    candidates: discovery.candidates,
+    diagnostics: discovery.diagnostics,
+  });
+
+  // Enabled for this registry only; the global config is untouched.
+  const entries = { ...base.entries };
+  const loadable: Array<{ candidate: PluginCandidate; manifest: PluginManifestRecord }> = [];
+  for (const id of wanted) {
+    const manifest = manifestRegistry.plugins.find((p) => p.id === id);
+    const candidate = manifest
+      ? discovery.candidates.find((c) => c.rootDir === manifest.rootDir)
+      : undefined;
+    const refuse = (message: string) => {
+      registry.diagnostics.push({ level: "warn", pluginId: id, message });
+      logger.warn(`[plugins] ${id}: not enabled for the project (${message})`);
+    };
+    if (!manifest || !candidate) {
+      refuse("plugin not found");
+      continue;
+    }
+    if (candidate.origin !== "bundled" || manifest.projectScope !== true) {
+      refuse("only bundled plugins with projectScope: true can be enabled per project");
+      continue;
+    }
+    if (resolveEnableState(id, candidate.origin, base).enabled) {
+      continue; // already enabled for the gateway
+    }
+    const entry = base.entries[id];
+    if (!base.enabled || base.deny.includes(id) || entry?.enabled === false) {
+      refuse("disabled in config");
+      continue;
+    }
+    if (base.allow.length > 0 && !base.allow.includes(id)) {
+      refuse("not in plugins.allow");
+      continue;
+    }
+    entries[id] = { ...entry, enabled: true };
+    loadable.push({ candidate, manifest });
+  }
+
+  const pluginSdkAlias = resolvePluginSdkAlias();
+  const ctx: PluginLoadContext = {
+    cfg,
+    normalized: { ...base, entries },
+    workspaceDir: options.workspaceDir,
+    logger,
+    validateOnly: false,
+    audit: false,
+    registry,
+    createApi,
+    jiti: createJiti(import.meta.url, {
+      interopDefault: true,
+      extensions: [".ts", ".tsx", ".mts", ".cts", ".mtsx", ".ctsx", ".js", ".mjs", ".cjs", ".json"],
+      ...(pluginSdkAlias ? { alias: { "KoLo/plugin-sdk": pluginSdkAlias } } : {}),
+    }),
+    signals: createPluginSignalBus(),
+    paths: resolvePluginPaths(),
+    instances: new Map(),
+    seenIds: new Map(),
+    memory: { slot: null, selectedId: null, matched: false },
+  };
+  for (const { candidate, manifest } of loadable) {
+    loadPluginCandidate(ctx, candidate, manifest);
+  }
+
+  // Tool-only: anything else a plugin registered would be inert here, which is wrong for it.
+  const nonTool = new Set<string>();
+  const mark = (list: Array<{ pluginId?: string }>) => {
+    for (const r of list) {
+      // No owner recorded: refuse every scoped plugin rather than guess.
+      for (const id of r.pluginId ? [r.pluginId] : loadable.map((l) => l.manifest.id)) {
+        nonTool.add(id);
+      }
+    }
+  };
+  mark(registry.hooks);
+  mark(registry.typedHooks);
+  mark(registry.channels);
+  mark(registry.providers);
+  mark(registry.httpHandlers);
+  mark(registry.httpRoutes);
+  mark(registry.cliRegistrars);
+  mark(registry.services);
+  mark(registry.commands);
+  if (Object.keys(registry.gatewayHandlers).length > 0) {
+    for (const { manifest } of loadable) {
+      nonTool.add(manifest.id);
+    }
+  }
+  for (const id of nonTool) {
+    clearPluginCommandsForPlugin(id);
+    registry.tools = registry.tools.filter((t) => t.pluginId !== id);
+    registry.diagnostics.push({
+      level: "error",
+      pluginId: id,
+      message: "registers more than tools; it cannot be enabled per project",
+    });
+    logger.error(`[plugins] ${id}: registers more than tools; not enabled for the project`);
+  }
+
+  scopedRegistryCache.set(cacheKey, registry);
   return registry;
 }

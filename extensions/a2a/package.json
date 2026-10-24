@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/a2a",
+  "version": "2.1.0",
+  "description": "Agent2Agent (A2A) protocol server and client tools",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

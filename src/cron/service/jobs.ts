@@ -191,6 +191,16 @@ function mergeCronPayload(existing: CronPayload, patch: CronPayloadPatch): CronP
   if (typeof patch.bestEffortDeliver === "boolean") {
     next.bestEffortDeliver = patch.bestEffortDeliver;
   }
+  if (patch.preExec === null) {
+    delete next.preExec;
+  } else if (patch.preExec && typeof patch.preExec.command === "string") {
+    next.preExec = patch.preExec;
+  }
+  if (patch.promptMode === null) {
+    delete next.promptMode;
+  } else if (patch.promptMode === "full" || patch.promptMode === "minimal") {
+    next.promptMode = patch.promptMode;
+  }
   return next;
 }
 
@@ -216,6 +226,8 @@ function buildPayloadFromPatch(patch: CronPayloadPatch): CronPayload {
     channel: patch.channel,
     to: patch.to,
     bestEffortDeliver: patch.bestEffortDeliver,
+    ...(patch.preExec ? { preExec: patch.preExec } : {}),
+    ...(patch.promptMode ? { promptMode: patch.promptMode } : {}),
   };
 }
 

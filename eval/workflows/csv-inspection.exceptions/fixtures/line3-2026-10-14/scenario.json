@@ -1,0 +1,4 @@
+{
+  "clock": "2026-10-14T05:30:00+09:00",
+  "approvals": [{ "tool": "message.send", "decision": "allow", "approver": "supervisor:line3" }]
+}

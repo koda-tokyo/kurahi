@@ -8,9 +8,9 @@ export const WS_PROTOCOL_VERSION = 3;
 /** The handshake method; it is not callable through call(). */
 export const WS_HANDSHAKE_METHOD = "connect";
 
-export const wsMethods = ["agent","agent.identity.get","agent.wait","agents.list","browser.request","channels.logout","channels.status","chat.abort","chat.history","chat.send","codeMode.run","config.apply","config.get","config.patch","config.schema","config.set","cron.add","cron.list","cron.remove","cron.run","cron.runs","cron.status","cron.update","device.pair.approve","device.pair.list","device.pair.reject","device.token.revoke","device.token.rotate","exec.approval.request","exec.approval.resolve","exec.approvals.get","exec.approvals.node.get","exec.approvals.node.set","exec.approvals.set","health","integrity.status","last-heartbeat","logs.tail","mcp.status","models.list","node.describe","node.event","node.invoke","node.invoke.result","node.list","node.pair.approve","node.pair.list","node.pair.reject","node.pair.request","node.pair.verify","node.rename","pair.approve","pair.devices","pair.invite","pair.list","pair.me","pair.nonce","pair.redeem","pair.refresh","pair.revoke","plugins.list","plugins.reload","policy.kill","policy.release","policy.status","send","session.attach","session.detach","sessions.compact","sessions.delete","sessions.discover","sessions.list","sessions.patch","sessions.preview","sessions.reset","set-heartbeats","sibling.history","sibling.read","sibling.send","sibling.subscribe","skills.bins","skills.install","skills.status","skills.update","status","system-event","system-presence","talk.mode","tts.convert","tts.disable","tts.enable","tts.providers","tts.setProvider","tts.status","update.run","usage.cost","usage.status","voicewake.get","voicewake.set","wake","wizard.cancel","wizard.next","wizard.start","wizard.status"] as const;
+export const wsMethods = ["agent","agent.identity.get","agent.wait","agents.list","artifacts.get","artifacts.list","artifacts.save","artifacts.setStatus","artifacts.version","browser.request","channels.logout","channels.status","chat.abort","chat.history","chat.send","chats.archive","chats.archived","chats.search","codeMode.run","config.apply","config.get","config.patch","config.schema","config.set","connectors.status","cron.add","cron.list","cron.remove","cron.run","cron.runs","cron.status","cron.update","debug.profile","device.pair.approve","device.pair.list","device.pair.reject","device.token.revoke","device.token.rotate","exec.approval.request","exec.approval.resolve","exec.approvals.get","exec.approvals.node.get","exec.approvals.node.set","exec.approvals.set","files.upload.abort","files.upload.begin","files.upload.chunk","files.upload.commit","health","integrity.status","last-heartbeat","logs.tail","mcp.status","models.list","node.describe","node.event","node.invoke","node.invoke.result","node.list","node.pair.approve","node.pair.list","node.pair.reject","node.pair.request","node.pair.verify","node.rename","pair.approve","pair.devices","pair.invite","pair.list","pair.me","pair.nonce","pair.redeem","pair.refresh","pair.revoke","plugins.list","plugins.reload","policy.kill","policy.release","policy.status","projects.archive","projects.chatKey","projects.create","projects.files","projects.get","projects.list","projects.pack","projects.setMode","projects.templates","projects.update","send","session.attach","session.detach","sessions.compact","sessions.delete","sessions.discover","sessions.list","sessions.patch","sessions.preview","sessions.reset","set-heartbeats","sibling.history","sibling.read","sibling.send","sibling.subscribe","skills.bins","skills.install","skills.status","skills.update","status","system-event","system-presence","talk.mode","terminal.cancel","terminal.close","terminal.diff","terminal.input","terminal.open","terminal.replay","terminal.resize","tts.convert","tts.disable","tts.enable","tts.providers","tts.setProvider","tts.status","update.run","usage.cost","usage.status","voice.audio","voice.cancel","voice.speak","voice.start","voice.stop","voicewake.get","voicewake.set","wake","wizard.cancel","wizard.next","wizard.start","wizard.status","workitems.assignAgent","workitems.config","workitems.create","workitems.decide","workitems.evidence","workitems.get","workitems.list","workitems.update"] as const;
 
-export const wsEvents = ["agent","chat","connect.challenge","cron","device.pair.requested","device.pair.resolved","exec.approval.requested","exec.approval.resolved","factory.card","health","heartbeat","node.invoke.request","node.pair.requested","node.pair.resolved","presence","shutdown","sibling","talk.mode","tick","voicewake.changed"] as const;
+export const wsEvents = ["agent","chat","connect.challenge","cron","device.pair.requested","device.pair.resolved","exec.approval.requested","exec.approval.resolved","factory.card","health","heartbeat","node.invoke.request","node.pair.requested","node.pair.resolved","presence","shutdown","sibling","talk.mode","terminal.event","tick","voice.audio.out","voice.session.ended","voice.transcript.final","voice.transcript.partial","voicewake.changed","workitems.changed"] as const;
 
 export type WsMethod = (typeof wsMethods)[number];
 export type WsEvent = (typeof wsEvents)[number];
@@ -32,6 +32,26 @@ export interface WsMethodMap {
   "agents.list": {
     params: T.AgentsListParams;
     result: T.AgentsListResult;
+  };
+  "artifacts.get": {
+    params: unknown;
+    result: unknown;
+  };
+  "artifacts.list": {
+    params: unknown;
+    result: unknown;
+  };
+  "artifacts.save": {
+    params: unknown;
+    result: unknown;
+  };
+  "artifacts.setStatus": {
+    params: unknown;
+    result: unknown;
+  };
+  "artifacts.version": {
+    params: unknown;
+    result: unknown;
   };
   "browser.request": {
     params: unknown;
@@ -57,6 +77,18 @@ export interface WsMethodMap {
     params: T.ChatSendParams;
     result: unknown;
   };
+  "chats.archive": {
+    params: unknown;
+    result: unknown;
+  };
+  "chats.archived": {
+    params: unknown;
+    result: unknown;
+  };
+  "chats.search": {
+    params: unknown;
+    result: unknown;
+  };
   "codeMode.run": {
     params: T.CodeModeRunParams;
     result: T.CodeModeRunResult;
@@ -80,6 +112,10 @@ export interface WsMethodMap {
   "config.set": {
     params: T.ConfigSetParams;
     result: unknown;
+  };
+  "connectors.status": {
+    params: T.ConnectorsStatusParams;
+    result: T.ConnectorsStatusResult;
   };
   "cron.add": {
     params: T.CronAddParams;
@@ -107,6 +143,10 @@ export interface WsMethodMap {
   };
   "cron.update": {
     params: T.CronUpdateParams;
+    result: unknown;
+  };
+  "debug.profile": {
+    params: unknown;
     result: unknown;
   };
   "device.pair.approve": {
@@ -151,6 +191,22 @@ export interface WsMethodMap {
   };
   "exec.approvals.set": {
     params: T.ExecApprovalsSetParams;
+    result: unknown;
+  };
+  "files.upload.abort": {
+    params: unknown;
+    result: unknown;
+  };
+  "files.upload.begin": {
+    params: unknown;
+    result: unknown;
+  };
+  "files.upload.chunk": {
+    params: unknown;
+    result: unknown;
+  };
+  "files.upload.commit": {
+    params: unknown;
     result: unknown;
   };
   "health": {
@@ -277,6 +333,46 @@ export interface WsMethodMap {
     params: unknown;
     result: unknown;
   };
+  "projects.archive": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.chatKey": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.create": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.files": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.get": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.list": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.pack": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.setMode": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.templates": {
+    params: unknown;
+    result: unknown;
+  };
+  "projects.update": {
+    params: unknown;
+    result: unknown;
+  };
   "send": {
     params: T.SendParams;
     result: unknown;
@@ -369,6 +465,34 @@ export interface WsMethodMap {
     params: T.TalkModeParams;
     result: unknown;
   };
+  "terminal.cancel": {
+    params: T.TerminalCancelParams;
+    result: T.TerminalAckResult;
+  };
+  "terminal.close": {
+    params: T.TerminalCloseParams;
+    result: T.TerminalAckResult;
+  };
+  "terminal.diff": {
+    params: T.TerminalDiffParams;
+    result: T.TerminalDiffResult;
+  };
+  "terminal.input": {
+    params: T.TerminalInputParams;
+    result: T.TerminalAckResult;
+  };
+  "terminal.open": {
+    params: T.TerminalOpenParams;
+    result: T.TerminalOpenResult;
+  };
+  "terminal.replay": {
+    params: T.TerminalReplayParams;
+    result: T.TerminalReplayResult;
+  };
+  "terminal.resize": {
+    params: T.TerminalResizeParams;
+    result: T.TerminalAckResult;
+  };
   "tts.convert": {
     params: unknown;
     result: unknown;
@@ -405,6 +529,26 @@ export interface WsMethodMap {
     params: unknown;
     result: unknown;
   };
+  "voice.audio": {
+    params: T.VoiceAudioParams;
+    result: T.VoiceAudioResult;
+  };
+  "voice.cancel": {
+    params: T.VoiceCancelParams;
+    result: T.VoiceCancelResult;
+  };
+  "voice.speak": {
+    params: T.VoiceSpeakParams;
+    result: T.VoiceSpeakResult;
+  };
+  "voice.start": {
+    params: T.VoiceStartParams;
+    result: T.VoiceStartResult;
+  };
+  "voice.stop": {
+    params: T.VoiceStopParams;
+    result: T.VoiceStopResult;
+  };
   "voicewake.get": {
     params: unknown;
     result: unknown;
@@ -433,6 +577,38 @@ export interface WsMethodMap {
     params: T.WizardStatusParams;
     result: T.WizardStatusResult;
   };
+  "workitems.assignAgent": {
+    params: T.WorkitemsAssignAgentParams;
+    result: T.WorkitemsAssignAgentResult;
+  };
+  "workitems.config": {
+    params: T.WorkitemsConfigParams;
+    result: T.WorkitemsConfigResult;
+  };
+  "workitems.create": {
+    params: T.WorkitemsCreateParams;
+    result: T.WorkitemsCreateResult;
+  };
+  "workitems.decide": {
+    params: T.WorkitemsDecideParams;
+    result: T.WorkitemsDecideResult;
+  };
+  "workitems.evidence": {
+    params: T.WorkitemsEvidenceParams;
+    result: T.WorkitemsEvidenceResult;
+  };
+  "workitems.get": {
+    params: T.WorkitemsGetParams;
+    result: T.WorkitemsGetResult;
+  };
+  "workitems.list": {
+    params: T.WorkitemsListParams;
+    result: T.WorkitemsListResult;
+  };
+  "workitems.update": {
+    params: T.WorkitemsUpdateParams;
+    result: T.WorkitemsUpdateResult;
+  };
 }
 
 /** Payload per server event. */
@@ -455,8 +631,14 @@ export interface WsEventMap {
   "shutdown": T.ShutdownEvent;
   "sibling": unknown;
   "talk.mode": unknown;
+  "terminal.event": T.TerminalEvent;
   "tick": T.TickEvent;
+  "voice.audio.out": T.VoiceAudioOutEvent;
+  "voice.session.ended": T.VoiceSessionEndedEvent;
+  "voice.transcript.final": T.VoiceTranscriptFinalEvent;
+  "voice.transcript.partial": T.VoiceTranscriptPartialEvent;
   "voicewake.changed": unknown;
+  "workitems.changed": T.WorkitemsChangedEvent;
 }
 
 export type WsHandshakeParams = T.ConnectParams;

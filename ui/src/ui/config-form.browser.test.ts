@@ -51,7 +51,7 @@ describe("config form renderer", () => {
       container,
     );
 
-    const tokenInput = container.querySelector("input[type='password']");
+    const tokenInput = container.querySelector<HTMLInputElement>("input[type='password']");
     expect(tokenInput).not.toBeNull();
     if (!tokenInput) {
       return;
@@ -67,7 +67,7 @@ describe("config form renderer", () => {
     tokenButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onPatch).toHaveBeenCalledWith(["mode"], "token");
 
-    const checkbox = container.querySelector("input[type='checkbox']");
+    const checkbox = container.querySelector<HTMLInputElement>("input[type='checkbox']");
     expect(checkbox).not.toBeNull();
     if (!checkbox) {
       return;

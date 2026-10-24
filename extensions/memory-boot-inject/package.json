@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/memory-boot-inject",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Inject configured memory files into the agent bootstrap context after a gateway start",
   "type": "module",
   "devDependencies": {

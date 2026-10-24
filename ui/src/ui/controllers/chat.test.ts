@@ -8,6 +8,8 @@ function createState(overrides: Partial<ChatState> = {}): ChatState {
     sessionKey: "main",
     chatLoading: false,
     chatMessages: [],
+    chatAttachments: [],
+    chatStreamReasoning: null,
     chatThinkingLevel: null,
     chatSending: false,
     chatMessage: "",

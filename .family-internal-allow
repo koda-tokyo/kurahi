@@ -1,0 +1,4 @@
+# Family-internal check allowlist (scripts/family-internal-check.mjs). One entry per line:
+#   <src path> | <substring the flagged line must contain, or *> | <reason>
+# A rule for src/x/y.ts also covers dist/x/y.js and dist/x/y.d.ts. Every entry here is a known
+# private-deployment surface that still ships; it is tracked for removal, not accepted.

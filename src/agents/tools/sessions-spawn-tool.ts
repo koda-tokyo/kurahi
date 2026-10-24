@@ -13,6 +13,7 @@ import {
 import { normalizeDeliveryContext } from "../../utils/delivery-context.js";
 import { resolveAgentConfig } from "../agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "../lanes.js";
+import { signAgentMessageParams } from "../messaging/signing.js";
 import { optionalStringEnum } from "../schema/typebox.js";
 import { buildSubagentSystemPrompt } from "../subagent-announce.js";
 import { registerSubagentRun } from "../subagent-registry.js";
@@ -236,6 +237,13 @@ export function createSessionsSpawnTool(opts?: {
             groupId: opts?.agentGroupId ?? undefined,
             groupChannel: opts?.agentGroupChannel ?? undefined,
             groupSpace: opts?.agentGroupSpace ?? undefined,
+            ...signAgentMessageParams({
+              cfg,
+              senderSessionKey: requesterInternalKey,
+              recipientSessionKey: childSessionKey,
+              message: task,
+              extraSystemPrompt: childSystemPrompt,
+            }),
           },
           timeoutMs: 10_000,
         });

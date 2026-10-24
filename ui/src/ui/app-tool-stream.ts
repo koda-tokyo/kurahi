@@ -19,7 +19,7 @@ export type ToolStreamEntry = {
   sessionKey?: string;
   name: string;
   args?: unknown;
-  output?: string;
+  output?: string | null;
   startedAt: number;
   updatedAt: number;
   message: Record<string, unknown>;

@@ -6,6 +6,7 @@ import { addGatewayClientOptions, callGatewayFromCli } from "../gateway-rpc.js";
 import {
   getCronChannelOptions,
   parseAtMs,
+  parseCronPromptMode,
   parseDurationMs,
   warnIfCronSchedulerDisabled,
 } from "./shared.js";
@@ -46,6 +47,18 @@ export function registerCronEditCommand(cron: Command) {
       .option("--thinking <level>", "Thinking level for agent jobs")
       .option("--model <model>", "Model override for agent jobs")
       .option("--timeout-seconds <n>", "Timeout seconds for agent jobs")
+      .option(
+        "--pre-exec <command>",
+        "Set the deterministic pre-step command (runs through the agent's exec tool)",
+      )
+      .option("--pre-exec-keep-tools", "Keep the agent's tools for the turn after --pre-exec")
+      .option(
+        "--pre-exec-pin-head",
+        "Deliver and log only the --pre-exec command's first output line (its verdict)",
+      )
+      .option("--clear-pre-exec", "Remove the pre-step")
+      .option("--prompt-mode <mode>", "System prompt for the agent turn (full|minimal)")
+      .option("--clear-prompt-mode", "Use the default system prompt (full) again")
       .option(
         "--deliver",
         "Deliver agent output (required when using last-route delivery without --to)",
@@ -167,7 +180,17 @@ export function registerCronEditCommand(cron: Command) {
             typeof opts.deliver === "boolean" ||
             typeof opts.channel === "string" ||
             typeof opts.to === "string" ||
-            typeof opts.bestEffortDeliver === "boolean";
+            typeof opts.bestEffortDeliver === "boolean" ||
+            typeof opts.preExec === "string" ||
+            opts.clearPreExec === true ||
+            typeof opts.promptMode === "string" ||
+            opts.clearPromptMode === true;
+          if (typeof opts.promptMode === "string" && opts.clearPromptMode === true) {
+            throw new Error("Choose --prompt-mode or --clear-prompt-mode, not both");
+          }
+          if (typeof opts.preExec === "string" && opts.clearPreExec === true) {
+            throw new Error("Choose --pre-exec or --clear-pre-exec, not both");
+          }
           if (hasSystemEventPatch && hasAgentTurnPatch) {
             throw new Error("Choose at most one payload change");
           }
@@ -191,6 +214,24 @@ export function registerCronEditCommand(cron: Command) {
               opts.bestEffortDeliver,
               typeof opts.bestEffortDeliver === "boolean",
             );
+            if (typeof opts.preExec === "string") {
+              const command = opts.preExec.trim();
+              if (!command) {
+                throw new Error("--pre-exec needs a command (use --clear-pre-exec to remove it)");
+              }
+              payload.preExec = {
+                command,
+                ...(opts.preExecKeepTools ? { keepTools: true } : {}),
+                ...(opts.preExecPinHead ? { pinHead: true } : {}),
+              };
+            } else if (opts.clearPreExec === true) {
+              payload.preExec = null;
+            }
+            if (typeof opts.promptMode === "string") {
+              payload.promptMode = parseCronPromptMode(opts.promptMode);
+            } else if (opts.clearPromptMode === true) {
+              payload.promptMode = null;
+            }
             patch.payload = payload;
           }
 

@@ -103,6 +103,9 @@ export const AGENT_DRIVING_OPERATIONS: readonly string[] = [
   "runCodeMode",
   "createResponse",
   "createChatCompletion",
+  // The console terminal starts commands: the kill switch stops new sessions and new input.
+  "terminal.open",
+  "terminal.input",
 ];
 
 export function killDecision(

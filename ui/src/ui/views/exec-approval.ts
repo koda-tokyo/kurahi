@@ -28,6 +28,7 @@ export function renderExecApprovalPrompt(state: AppViewState) {
     return nothing;
   }
   const request = active.request;
+  const terminal = request.sessionKey?.startsWith("terminal:") ?? false;
   const remainingMs = active.expiresAtMs - Date.now();
   const remaining = remainingMs > 0 ? `expires in ${formatRemaining(remainingMs)}` : "expired";
   const queueCount = state.execApprovalQueue.length;
@@ -63,21 +64,25 @@ export function renderExecApprovalPrompt(state: AppViewState) {
         <div class="exec-approval-actions">
           <button
             class="btn primary"
-            ?disabled=${state.execApprovalBusy}
+            ?disabled=${state.execApprovalBusy || (terminal && (!state.connected || remainingMs <= 0))}
             @click=${() => state.handleExecApprovalDecision("allow-once")}
           >
             Allow once
           </button>
-          <button
+          ${
+            !terminal
+              ? html`<button
             class="btn"
-            ?disabled=${state.execApprovalBusy}
+            ?disabled=${state.execApprovalBusy || (terminal && (!state.connected || remainingMs <= 0))}
             @click=${() => state.handleExecApprovalDecision("allow-always")}
           >
             Always allow
-          </button>
+          </button>`
+              : nothing
+          }
           <button
             class="btn danger"
-            ?disabled=${state.execApprovalBusy}
+            ?disabled=${state.execApprovalBusy || (terminal && (!state.connected || remainingMs <= 0))}
             @click=${() => state.handleExecApprovalDecision("deny")}
           >
             Deny

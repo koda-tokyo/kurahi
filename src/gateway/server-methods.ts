@@ -1,6 +1,7 @@
 import type { GatewayRequestHandlers, GatewayRequestOptions } from "./server-methods/types.js";
 import { getPolicyEngine } from "../policy/engine.js";
 import { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
+import { voiceApprovalRefusal } from "../voice/approval-guard.js";
 import { getCredentialStore } from "./pair-store.js";
 import { ErrorCodes, errorShape } from "./protocol/index.js";
 import { scopeSatisfies, wsMethodMinScope } from "./scopes.js";
@@ -12,7 +13,9 @@ import { chatHandlers } from "./server-methods/chat.js";
 import { codeModeHandlers } from "./server-methods/code-mode.js";
 import { configHandlers } from "./server-methods/config.js";
 import { connectHandlers } from "./server-methods/connect.js";
+import { connectorsHandlers } from "./server-methods/connectors.js";
 import { cronHandlers } from "./server-methods/cron.js";
+import { debugHandlers } from "./server-methods/debug.js";
 import { deviceHandlers } from "./server-methods/devices.js";
 import { execApprovalsHandlers } from "./server-methods/exec-approvals.js";
 import { healthHandlers } from "./server-methods/health.js";
@@ -24,6 +27,11 @@ import { nodeHandlers } from "./server-methods/nodes.js";
 import { pairHandlers } from "./server-methods/pair.js";
 import { pluginsHandlers } from "./server-methods/plugins.js";
 import { policyHandlers } from "./server-methods/policy.js";
+import {
+  PROJECT_READ_METHODS,
+  PROJECT_WRITE_METHODS,
+  projectsHandlers,
+} from "./server-methods/projects.js";
 import { sendHandlers } from "./server-methods/send.js";
 import { sessionAttachHandlers, sessionsHandlers } from "./server-methods/sessions.js";
 import { siblingHandlers } from "./server-methods/sibling.js";
@@ -33,9 +41,15 @@ import { talkHandlers } from "./server-methods/talk.js";
 import { ttsHandlers } from "./server-methods/tts.js";
 import { updateHandlers } from "./server-methods/update.js";
 import { usageHandlers } from "./server-methods/usage.js";
+import { VOICE_METHODS, voiceHandlers } from "./server-methods/voice.js";
 import { voicewakeHandlers } from "./server-methods/voicewake.js";
 import { webHandlers } from "./server-methods/web.js";
 import { wizardHandlers } from "./server-methods/wizard.js";
+import {
+  WORKITEMS_READ_METHODS,
+  WORKITEMS_WRITE_METHODS,
+  workitemsHandlers,
+} from "./server-methods/workitems.js";
 import { sessionAllowed, sessionIdentityFromKey } from "./session-allowlist.js";
 
 const ADMIN_SCOPE = "operator.admin";
@@ -44,7 +58,11 @@ const WRITE_SCOPE = "operator.write";
 const APPROVALS_SCOPE = "operator.approvals";
 const PAIRING_SCOPE = "operator.pairing";
 
-const APPROVAL_METHODS = new Set(["exec.approval.request", "exec.approval.resolve"]);
+const APPROVAL_METHODS = new Set([
+  "exec.approval.request",
+  "exec.approval.resolve",
+  "workitems.decide",
+]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
 const PAIRING_METHODS = new Set([
   "node.pair.request",
@@ -96,7 +114,10 @@ const READ_METHODS = new Set([
   "pair.refresh",
   "pair.me",
   "mcp.status",
+  "connectors.status",
   "plugins.list",
+  ...PROJECT_READ_METHODS,
+  ...WORKITEMS_READ_METHODS,
 ]);
 const WRITE_METHODS = new Set([
   "send",
@@ -119,6 +140,9 @@ const WRITE_METHODS = new Set([
   "session.attach",
   "session.detach",
   "codeMode.run",
+  ...VOICE_METHODS,
+  ...PROJECT_WRITE_METHODS,
+  ...WORKITEMS_WRITE_METHODS.filter((m) => m !== "workitems.decide"),
 ]);
 
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
@@ -235,6 +259,8 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...healthHandlers,
   ...integrityHandlers,
   ...policyHandlers,
+  ...projectsHandlers,
+  ...workitemsHandlers,
   ...jobsHandlers,
   ...channelsHandlers,
   ...chatHandlers,
@@ -251,6 +277,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...sessionsHandlers,
   ...sessionAttachHandlers,
   ...codeModeHandlers,
+  ...connectorsHandlers,
   ...pluginsHandlers,
   ...systemHandlers,
   ...updateHandlers,
@@ -262,6 +289,8 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...agentsHandlers,
   ...browserHandlers,
   ...siblingHandlers,
+  ...voiceHandlers,
+  ...debugHandlers,
 };
 
 export async function handleGatewayRequest(
@@ -303,6 +332,15 @@ export async function handleGatewayRequest(
   if (authError) {
     respond(false, undefined, authError);
     return;
+  }
+  // Consequential actions are never approved by voice: an approval-type method carrying any
+  // voice-origin marker is refused before validation and before its handler runs.
+  {
+    const refusal = voiceApprovalRefusal(req.method, req.params);
+    if (refusal) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, refusal));
+      return;
+    }
   }
   // M13: every WS request is a policy decision point (kill switch on agent-driving methods,
   // `requests.deny` by operation and scope). Decided after auth so a refusal carries a rule id.

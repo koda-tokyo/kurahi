@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KoLoConfig } from "../config/config.js";
 import { resetPrivateOverlayCache } from "../infra/private-overlay.js";
+import { EMPTY_LOCK_GRACE_MS } from "../infra/refresh-lock.js";
 import { startOAuthRefresher } from "./oauth-refresher.js";
 import { resolveOAuthRefreshTargets, resolveTargetLockPath } from "./oauth-sources.js";
 
@@ -118,8 +119,13 @@ describe("gateway OAuth refresher", () => {
     const results = await handle.tick();
     expect(results.get("held")).toBeNull();
     expect(refresh).not.toHaveBeenCalled();
-    // An empty lock (what the old release left behind) no longer blocks.
+    // A fresh empty lock may be mid-write: it still blocks.
     fs.writeFileSync(lockPath, "");
+    await handle.tick();
+    expect(refresh).not.toHaveBeenCalled();
+    // An old empty lock (what the old release left behind) no longer blocks.
+    const old = new Date(Date.now() - EMPTY_LOCK_GRACE_MS - 5_000);
+    fs.utimesSync(lockPath, old, old);
     await handle.tick();
     expect(refresh).toHaveBeenCalledTimes(1);
     handle.stop();

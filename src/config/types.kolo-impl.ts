@@ -4,6 +4,7 @@ import type { AuthConfig } from "./types.auth.js";
 import type { DiagnosticsConfig, LoggingConfig, SessionConfig, WebConfig } from "./types.base.js";
 import type { BrowserConfig } from "./types.browser.js";
 import type { ChannelsConfig } from "./types.channels.js";
+import type { ConsoleConfig } from "./types.console.js";
 import type { CronConfig } from "./types.cron.js";
 import type { EvidenceConfig } from "./types.evidence.js";
 import type { FactoryConfig } from "./types.factory.js";
@@ -31,6 +32,7 @@ import type { SkillsConfig } from "./types.skills.js";
 import type { SnapshotsConfig } from "./types.snapshots.js";
 import type { ToolsConfig } from "./types.tools.js";
 import type { TuiConfig } from "./types.tui.js";
+import type { VoiceConfig } from "./types.voice.js";
 
 export type KoLoConfig = {
   meta?: {
@@ -99,6 +101,8 @@ export type KoLoConfig = {
   format?: FormatConfig;
   /** File snapshots before tool edits, with undo and redo (KoLo 2.0, M10). */
   snapshots?: SnapshotsConfig;
+  /** Kurahi Work Console: the gateway-owned terminal broker (off unless enabled). */
+  console?: ConsoleConfig;
   /** Evidence bundles: a signed, hash-chained event log per job (KoLo 2.0, M12). */
   evidence?: EvidenceConfig;
   /** The factory: boards, cards, engine runs and pull requests (KoLo 2.0, M15). */
@@ -127,12 +131,23 @@ export type KoLoConfig = {
   gateway?: GatewayConfig;
   /** MCP servers this gateway connects to as a client (KoLo 2.0, M6). */
   mcp?: McpConfig;
+  /** Push-to-talk speech adapters (Work Console). Off by default; see docs/tools/voice.md. */
+  voice?: VoiceConfig;
   /**
    * Boot integrity gate (KoLo 2.0, M2b). `paths` are the constitution globs `kurahi integrity init`
    * registers (relative to KOLO_HOME or absolute). The registry itself is the source of truth.
    */
   integrity?: {
     paths?: string[];
+    /**
+     * Supply-chain lock (OWASP ASI04, docs/security/skill-integrity.md). Skills and plugin
+     * packages are verified against `<KOLO_HOME>/integrity/supply-chain.lock.json` at load.
+     * enforce: unpinned or modified ones are refused; warn (fallback when unset): loaded with a
+     * warning; off: no check. New installations get enforce.
+     */
+    supplyChain?: {
+      mode?: "off" | "warn" | "enforce";
+    };
   };
   /**
    * Policy as code (KoLo 2.0, M13). The document lives in `<KOLO_HOME>/policy/policy.yaml`; only

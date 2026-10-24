@@ -67,6 +67,19 @@ export type ChatProps = {
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
+  // v0.3: approval cards above the box, extras (picker, upload) inside it, localized labels.
+  inlineCards?: unknown;
+  composeExtras?: unknown;
+  labels?: Partial<{
+    message: string;
+    send: string;
+    queue: string;
+    stop: string;
+    newSession: string;
+    placeholder: string;
+    placeholderImages: string;
+    placeholderOffline: string;
+  }>;
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
@@ -197,11 +210,12 @@ export function renderChat(props: ChatProps) {
   };
 
   const hasAttachments = (props.attachments?.length ?? 0) > 0;
+  const labels = props.labels ?? {};
   const composePlaceholder = props.connected
     ? hasAttachments
-      ? "Add a message or paste more images..."
-      : "Message (↩ to send, Shift+↩ for line breaks, paste images)"
-    : "Connect to the gateway to start chatting…";
+      ? (labels.placeholderImages ?? "Add a message or paste more images...")
+      : (labels.placeholder ?? "Message (↩ to send, Shift+↩ for line breaks, paste images)")
+    : (labels.placeholderOffline ?? "Connect to the gateway to start chatting…");
 
   const splitRatio = props.splitRatio ?? 0.6;
   const sidebarOpen = Boolean(props.sidebarOpen && props.onCloseSidebar);
@@ -343,11 +357,13 @@ export function renderChat(props: ChatProps) {
           : nothing
       }
 
+      ${props.inlineCards ?? nothing}
       <div class="chat-compose">
+        ${props.composeExtras ?? nothing}
         ${renderAttachmentPreview(props)}
         <div class="chat-compose__row">
           <label class="field chat-compose__field">
-            <span>Message</span>
+            <span>${labels.message ?? "Message"}</span>
             <textarea
               ${ref((el) => el && adjustTextareaHeight(el as HTMLTextAreaElement))}
               .value=${props.draft}
@@ -385,14 +401,14 @@ export function renderChat(props: ChatProps) {
               ?disabled=${!props.connected || (!canAbort && props.sending)}
               @click=${canAbort ? props.onAbort : props.onNewSession}
             >
-              ${canAbort ? "Stop" : "New session"}
+              ${canAbort ? (labels.stop ?? "Stop") : (labels.newSession ?? "New session")}
             </button>
             <button
               class="btn primary"
               ?disabled=${!props.connected}
               @click=${props.onSend}
             >
-              ${isBusy ? "Queue" : "Send"}<kbd class="btn-kbd">↵</kbd>
+              ${isBusy ? (labels.queue ?? "Queue") : (labels.send ?? "Send")}<kbd class="btn-kbd">↵</kbd>
             </button>
           </div>
         </div>

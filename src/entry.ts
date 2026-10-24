@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { applyCliProfileEnv, parseCliProfileArgs } from "./cli/profile.js";
 import { isTruthyEnvValue, normalizeEnv } from "./infra/env.js";
+import { beginStartupProfile, parseProfileStartupArg } from "./infra/profiler/startup-profile.js";
 import { installProcessWarningFilter } from "./infra/warnings.js";
 import { attachChildProcessBridge } from "./process/child-process-bridge.js";
 
@@ -158,6 +159,12 @@ if (!ensureExperimentalWarningSuppressed()) {
     applyCliProfileEnv({ profile: parsed.profile });
     // Keep Commander and ad-hoc argv checks consistent.
     process.argv = parsed.argv;
+  }
+
+  // `gateway run --profile-startup <file>`: sample from here, before the CLI modules load.
+  const startupProfileFile = parseProfileStartupArg(process.argv);
+  if (startupProfileFile) {
+    await beginStartupProfile(startupProfileFile);
   }
 
   import("./cli/run-main.js")

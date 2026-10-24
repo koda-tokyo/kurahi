@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import type { ChannelAccountSnapshot } from "../channels/plugins/types.js";
 import type { KoLoConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
@@ -8,7 +6,6 @@ import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
 import { withProgress } from "../cli/progress.js";
 import { loadConfig } from "../config/config.js";
-import { resolveSharedKoloHome } from "../config/kolo-home.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
 import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
 import { info } from "../globals.js";
@@ -47,23 +44,6 @@ export type AgentHealthSummary = {
   sessions: HealthSummary["sessions"];
 };
 
-export type BodyPromptSummary = {
-  source?: string;
-  agent?: string;
-  mode?: string;
-  reason?: string;
-  domains?: string[];
-  suggestions?: string[];
-  questions?: string[];
-  if_then_plans?: string[];
-};
-
-export type BodyHealthSummary = {
-  hormones?: Record<string, unknown> | null;
-  proprioception?: Record<string, unknown> | null;
-  humanPrompts?: BodyPromptSummary | null;
-};
-
 export type HealthSummary = {
   /**
    * Convenience top-level flag for UIs (e.g. WebChat) that only need a binary
@@ -80,7 +60,6 @@ export type HealthSummary = {
   heartbeatSeconds: number;
   defaultAgentId: string;
   agents: AgentHealthSummary[];
-  body?: BodyHealthSummary;
   sessions: {
     path: string;
     count: number;
@@ -93,9 +72,6 @@ export type HealthSummary = {
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-// Shared family root (autonomic state + workspace-<agent>); see kolo-home.ts.
-const KOLO_DIR = resolveSharedKoloHome();
-const AUTONOMIC_DIR = path.join(KOLO_DIR, "autonomic");
 
 const debugHealth = (...args: unknown[]) => {
   if (isTruthyEnvValue(process.env.KOLO_DEBUG_HEALTH)) {
@@ -309,35 +285,6 @@ function styleHealthChannelLine(line: string): string {
   }
 
   return line;
-}
-
-function readJsonRecord(filePath: string): Record<string, unknown> | null {
-  try {
-    if (!existsSync(filePath)) {
-      return null;
-    }
-    const parsed = JSON.parse(readFileSync(filePath, "utf8"));
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
-}
-
-function buildBodyHealthSummary(agentId: string): BodyHealthSummary {
-  const hormones = readJsonRecord(path.join(AUTONOMIC_DIR, "hormones.json"));
-  const proprioception = readJsonRecord(
-    path.join(KOLO_DIR, `workspace-${agentId}`, "proprioception.json"),
-  );
-  const humanPrompts =
-    proprioception && typeof proprioception.human_prompts === "object"
-      ? (proprioception.human_prompts as BodyPromptSummary)
-      : null;
-
-  return {
-    hormones,
-    proprioception,
-    humanPrompts,
-  };
 }
 
 export const formatHealthChannelLines = (
@@ -603,7 +550,6 @@ export async function getHealthSnapshot(params?: {
     heartbeatSeconds,
     defaultAgentId,
     agents,
-    body: buildBodyHealthSummary(defaultAgentId),
     sessions: {
       path: sessions.path,
       count: sessions.count,

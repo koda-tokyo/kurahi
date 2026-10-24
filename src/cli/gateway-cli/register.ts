@@ -28,7 +28,7 @@ import {
   pickGatewayPort,
   renderBeaconLines,
 } from "./discover.js";
-import { addGatewayRunCommand } from "./run.js";
+import { addGatewayRunCommand, forwardGatewayOptionsToSubcommand } from "./run.js";
 
 function styleHealthChannelLine(line: string, rich: boolean): string {
   if (!rich) {
@@ -129,6 +129,9 @@ export function registerGatewayCli(program: Command) {
   addGatewayRunCommand(
     gateway.command("run").description("Run the WebSocket Gateway (foreground)"),
   );
+  gateway.hook("preAction", (_gateway, action) => {
+    forwardGatewayOptionsToSubcommand(gateway, action);
+  });
 
   gateway
     .command("status")

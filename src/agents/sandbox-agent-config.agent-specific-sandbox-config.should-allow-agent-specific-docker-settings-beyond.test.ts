@@ -166,7 +166,7 @@ describe("Agent-specific sandbox config", () => {
         list: [
           {
             id: "family",
-            workspace: "~/kolo-family",
+            workspace: "~/kolo-team",
             sandbox: {
               mode: "all", // Agent override
               scope: "agent",

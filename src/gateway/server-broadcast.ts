@@ -14,6 +14,10 @@ const EVENT_SCOPE_GUARDS: Record<string, string[]> = {
   "device.pair.resolved": [PAIRING_SCOPE],
   "node.pair.requested": [PAIRING_SCOPE],
   "node.pair.resolved": [PAIRING_SCOPE],
+  // Sent per owner by src/gateway/terminal-broker.ts; never to a non-admin if broadcast.
+  "terminal.event": [ADMIN_SCOPE],
+  // Work queue changes (ids and status only) go to operators who can read.
+  "workitems.changed": ["operator.read", "operator.write"],
 };
 
 function hasEventScope(client: GatewayWsClient, event: string): boolean {
@@ -106,5 +110,25 @@ export function createGatewayBroadcaster(params: { clients: Set<GatewayWsClient>
       }
     }
   };
-  return { broadcast };
+  /**
+   * One event to one connection (voice transcripts and audio are private to the socket that
+   * captured them). A slow consumer drops the frame rather than closing the socket.
+   */
+  const sendToConn = (connId: string, event: string, payload: unknown) => {
+    for (const c of params.clients) {
+      if (c.connId !== connId) {
+        continue;
+      }
+      if (c.socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+        return;
+      }
+      try {
+        c.socket.send(JSON.stringify({ type: "event", event, payload }));
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+  };
+  return { broadcast, sendToConn };
 }

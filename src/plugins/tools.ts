@@ -2,7 +2,7 @@ import type { AnyAgentTool } from "../agents/tools/common.js";
 import type { KoLoPluginToolContext } from "./types.js";
 import { normalizeToolName } from "../agents/tool-policy.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { loadKoLoPlugins } from "./loader.js";
+import { loadKoLoPlugins, loadScopedKoLoPlugins } from "./loader.js";
 
 const log = createSubsystemLogger("plugins");
 
@@ -40,6 +40,13 @@ function isOptionalToolAllowed(params: {
   return params.allowlist.has("group:plugins");
 }
 
+const pluginLogger = {
+  info: (msg: string) => log.info(msg),
+  warn: (msg: string) => log.warn(msg),
+  error: (msg: string) => log.error(msg),
+  debug: (msg: string) => log.debug(msg),
+};
+
 export function resolvePluginTools(params: {
   context: KoLoPluginToolContext;
   existingToolNames?: Set<string>;
@@ -48,14 +55,41 @@ export function resolvePluginTools(params: {
   const registry = loadKoLoPlugins({
     config: params.context.config,
     workspaceDir: params.context.workspaceDir,
-    logger: {
-      info: (msg) => log.info(msg),
-      warn: (msg) => log.warn(msg),
-      error: (msg) => log.error(msg),
-      debug: (msg) => log.debug(msg),
-    },
+    logger: pluginLogger,
   });
+  return collectRegistryTools(registry, params);
+}
 
+/**
+ * Tools of plugins enabled for one project only (a project template's `plugins`), from a private
+ * registry (see loadScopedKoLoPlugins). The caller still wraps every tool in the project's
+ * permission guard, with the same `context.workspaceDir` for relative paths.
+ */
+export function resolveProjectScopedPluginTools(params: {
+  pluginIds: string[];
+  context: KoLoPluginToolContext;
+  existingToolNames?: Set<string>;
+  toolAllowlist?: string[];
+}): AnyAgentTool[] {
+  if (params.pluginIds.length === 0) {
+    return [];
+  }
+  const registry = loadScopedKoLoPlugins({
+    config: params.context.config,
+    pluginIds: params.pluginIds,
+    logger: pluginLogger,
+  });
+  return collectRegistryTools(registry, params);
+}
+
+function collectRegistryTools(
+  registry: ReturnType<typeof loadKoLoPlugins>,
+  params: {
+    context: KoLoPluginToolContext;
+    existingToolNames?: Set<string>;
+    toolAllowlist?: string[];
+  },
+): AnyAgentTool[] {
   const tools: AnyAgentTool[] = [];
   const existing = params.existingToolNames ?? new Set<string>();
   const existingNormalized = new Set(Array.from(existing, (tool) => normalizeToolName(tool)));

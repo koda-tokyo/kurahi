@@ -90,11 +90,37 @@ function union(parts) {
  * @returns {boolean}
  */
 function needsParens(t) {
-  // Multi-line object literals and arrays are self-delimiting; bare unions/intersections are not.
-  if (t.startsWith("{") || t.endsWith("[]") || t.startsWith("Record<")) {
-    return false;
+  // Object literals, arrays and generics are self-delimiting; bare unions/intersections are not.
+  // Only operators at nesting depth 0 count: `{ a: 1 } | { b: 2 }` starts with "{" but is a union.
+  return hasTopLevelOperator(t);
+}
+
+/**
+ * @param {string} t
+ * @returns {boolean}
+ */
+function hasTopLevelOperator(t) {
+  let depth = 0;
+  let quote = "";
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (quote) {
+      if (c === "\\") {
+        i++;
+      } else if (c === quote) {
+        quote = "";
+      }
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === "{" || c === "(" || c === "[" || c === "<") {
+      depth++;
+    } else if (c === "}" || c === ")" || c === "]" || c === ">") {
+      depth--;
+    } else if (depth === 0 && (c === "|" || c === "&") && t[i - 1] === " " && t[i + 1] === " ") {
+      return true;
+    }
   }
-  return / [|&] /.test(t);
+  return false;
 }
 
 /** Map one JSON Schema to a TypeScript type expression. */
@@ -166,7 +192,7 @@ function arrayToTs(schema, indent) {
 }
 
 function wrapArrayElem(t) {
-  return / [|&] /.test(t) && !t.startsWith("{") ? `(${t})` : t;
+  return hasTopLevelOperator(t) ? `(${t})` : t;
 }
 
 function objectToTs(schema, indent) {

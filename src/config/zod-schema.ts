@@ -7,6 +7,7 @@ import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-
 import { McpSchema } from "./zod-schema.mcp.js";
 import { ChannelsSchema } from "./zod-schema.providers.js";
 import { CommandsSchema, MessagesSchema, SessionSchema } from "./zod-schema.session.js";
+import { VoiceSchema } from "./zod-schema.voice.js";
 
 const BrowserSnapshotDefaultsSchema = z
   .object({
@@ -321,6 +322,11 @@ export const KoLoSchema = z
       .object({
         /** Constitution globs (relative to KOLO_HOME or absolute; `~/`, `**`, `{a,b}`, `!exclude`). */
         paths: z.array(z.string()).optional(),
+        /** Supply-chain lock for skills and plugins: off | warn (unset fallback) | enforce. */
+        supplyChain: z
+          .object({ mode: z.enum(["off", "warn", "enforce"]).optional() })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),
@@ -345,6 +351,7 @@ export const KoLoSchema = z
       .strict()
       .optional(),
     mcp: McpSchema.optional(),
+    voice: VoiceSchema.optional(),
     tui: z
       .object({
         /** A built-in theme name or a path to a JSON theme file. */
@@ -394,6 +401,34 @@ export const KoLoSchema = z
           .optional(),
         timeoutMs: z.number().int().min(100).max(120_000).optional(),
         maxOutputChars: z.number().int().min(100).max(100_000).optional(),
+      })
+      .strict()
+      .optional(),
+    console: z
+      .object({
+        terminal: z
+          .object({
+            enabled: z.boolean().optional(),
+            actApprovals: z.union([z.literal("always"), z.literal("policy")]).optional(),
+            sandbox: z.union([z.literal("off"), z.literal("required")]).optional(),
+            allowInteractive: z
+              .array(z.string().regex(/^[A-Za-z0-9._+-]{1,64}$/, "A program name, not a path"))
+              .max(64)
+              .optional(),
+            maxSessionsPerProject: z.number().int().min(1).max(32).optional(),
+            maxSessionsPerUser: z.number().int().min(1).max(64).optional(),
+            idleTimeoutMs: z.number().int().min(10_000).max(86_400_000).optional(),
+            maxLineLength: z.number().int().min(64).max(65_536).optional(),
+            outputBytesPerSecond: z
+              .number()
+              .int()
+              .min(1024)
+              .max(64 * 1024 * 1024)
+              .optional(),
+            approvalTimeoutMs: z.number().int().min(5_000).max(3_600_000).optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict()
       .optional(),
@@ -460,6 +495,10 @@ export const KoLoSchema = z
             basePath: z.string().optional(),
             allowInsecureAuth: z.boolean().optional(),
             dangerouslyDisableDeviceAuth: z.boolean().optional(),
+            defaultLocale: z
+              .string()
+              .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, "BCP 47 language tag, e.g. ja or en")
+              .optional(),
           })
           .strict()
           .optional(),
@@ -598,6 +637,8 @@ export const KoLoSchema = z
           .object({
             enabled: z.boolean().optional(),
             lease: z.boolean().optional(),
+            // Removed flag, still accepted so configs that set it keep loading (the CLI refuses
+            // to start on legacy-flagged keys until `doctor --fix`). Nothing reads it.
             biology: z.boolean().optional(),
             scoring: z.boolean().optional(),
             health: z.boolean().optional(),

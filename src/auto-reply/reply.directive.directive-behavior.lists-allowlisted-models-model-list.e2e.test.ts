@@ -206,7 +206,8 @@ describe("directive behavior", () => {
       );
 
       const text = Array.isArray(res) ? res[0]?.text : res?.text;
-      expect(text).toContain("Model set to minimax");
+      // `/models <provider>` lists that provider; it does not switch the session model.
+      expect(text).toContain("Models (minimax)");
       expect(text).toContain("minimax/MiniMax-M2.1");
       expect(runEmbeddedPiAgent).not.toHaveBeenCalled();
     });

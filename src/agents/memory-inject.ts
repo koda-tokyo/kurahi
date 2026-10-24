@@ -9,6 +9,12 @@ import type { KoLoConfig } from "../config/config.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { getMemorySearchManager } from "../memory/index.js";
+import {
+  markMemoryText,
+  resolveTrustMarkContext,
+  trustOfPath,
+  type TrustMarkContext,
+} from "../memory/retrieval-trust.js";
 
 const log = createSubsystemLogger("memory-inject");
 
@@ -74,7 +80,13 @@ export async function injectMemoryContext(
     }
 
     // Build memory context file
-    const memoryContent = buildMemoryContextContent(results);
+    // ASI06: each recalled snippet is marked by the trust of its origin.
+    const marks = resolveTrustMarkContext({
+      config,
+      agentId,
+      workspaceDir: manager.status().workspaceDir,
+    });
+    const memoryContent = buildMemoryContextContent(results, marks);
     const memoryFile: EmbeddedContextFile = {
       path: "[Memory Recall]",
       content: memoryContent,
@@ -126,14 +138,16 @@ function extractSearchQuery(prompt: string): string | null {
 /**
  * Format memory search results into a context file content string.
  */
-function buildMemoryContextContent(
+export function buildMemoryContextContent(
   results: Array<{
     path: string;
     snippet: string;
     score: number;
+    source?: string;
     startLine?: number;
     endLine?: number;
   }>,
+  marks: TrustMarkContext | null = null,
 ): string {
   const lines: string[] = [
     "# Relevant Memories (auto-recalled)",
@@ -144,7 +158,8 @@ function buildMemoryContextContent(
 
   for (const r of results) {
     const scoreDisplay = (r.score * 100).toFixed(0);
-    lines.push(`## ${r.path} (${scoreDisplay}% match)`);
+    const trust = marks ? trustOfPath(r.path, marks, r.source).trust : null;
+    lines.push(`## ${r.path} (${scoreDisplay}% match${trust ? `, trust: ${trust}` : ""})`);
 
     // Clean and truncate snippet
     const snippet = r.snippet
@@ -152,7 +167,7 @@ function buildMemoryContextContent(
       .replace(/\n{3,}/g, "\n\n") // Collapse multiple newlines
       .slice(0, 500); // Cap snippet length
 
-    lines.push(snippet);
+    lines.push(trust ? markMemoryText(snippet, trust, r.path) : snippet);
     lines.push("");
   }
 

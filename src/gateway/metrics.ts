@@ -14,28 +14,14 @@
  *   - consciousness_ticks_total{agent}
  *   - consciousness_actions_total{agent}
  *   - consciousness_errors_total{agent}
- *   - biology_organ_health{organ}
- *   - biology_pain_score / pain_level
- *   - biology_hormones{hormone}
  *   - auth_profiles{provider,status}
  *   - disk_usage_percent
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 import { loadConfig } from "../config/config.js";
-import { resolveKoloHome } from "../config/kolo-home.js";
 import { getAllConsciousnessStates } from "../consciousness/engine.js";
-
-/** Resolve the Kurahi data directory. */
-function resolveKoloDir(): string {
-  // Check env first (allows override)
-  if (process.env.KOLO_DIR) return process.env.KOLO_DIR;
-  // Default: the state root (KOLO_HOME)
-  return resolveKoloHome();
-}
 
 // ── Metrics Collector ──────────────────────────────────────────────────────
 
@@ -124,7 +110,6 @@ export function decrementWsConnections(): void {
 function buildMetricsSnapshot(): MetricsRegistry {
   const registry = new MetricsRegistry();
   const mem = process.memoryUsage();
-  const koloDir = resolveKoloDir();
 
   // ── Gateway basics ────────────────────────────────────────────────
   registry.addMetric("gateway_uptime_seconds", "Gateway process uptime in seconds", "gauge", [
@@ -236,54 +221,6 @@ function buildMetricsSnapshot(): MetricsRegistry {
     "gauge",
     errorSamples,
   );
-
-  // ── Biology ────────────────────────────────────────────────────────
-  try {
-    // Pain state
-    const painPath = join(koloDir, "autonomic", "pain-state.json");
-    if (existsSync(painPath)) {
-      const pain = JSON.parse(readFileSync(painPath, "utf8"));
-      registry.addMetric("biology_pain_score", "Current pain score (0-100)", "gauge", [
-        { labels: {}, value: pain.painScore ?? 0 },
-      ]);
-      registry.addMetric("biology_pain_level", "Current pain level (0-3)", "gauge", [
-        { labels: {}, value: pain.level ?? 0 },
-      ]);
-    }
-
-    // Hormones
-    const endocrinePath = join(koloDir, "autonomic", "endocrine.json");
-    const hormoneSamples: MetricSample[] = [];
-    if (existsSync(endocrinePath)) {
-      const endocrine = JSON.parse(readFileSync(endocrinePath, "utf8"));
-      hormoneSamples.push({ labels: { hormone: "stress" }, value: endocrine.stress ?? 0 });
-      hormoneSamples.push({ labels: { hormone: "dopamine" }, value: endocrine.dopamine ?? 0 });
-      hormoneSamples.push({ labels: { hormone: "serotonin" }, value: endocrine.serotonin ?? 0 });
-    }
-    registry.addMetric("biology_hormones", "Hormone levels (0-100)", "gauge", hormoneSamples);
-
-    // Organ health
-    const bioPath = join(koloDir, "autonomic", "bio-status.json");
-    const organSamples: MetricSample[] = [];
-    if (existsSync(bioPath)) {
-      const bio = JSON.parse(readFileSync(bioPath, "utf8"));
-      const organs = bio.organs ?? {};
-      for (const [name, organ] of Object.entries(organs)) {
-        organSamples.push({
-          labels: { organ: name },
-          value: (organ as any).ok ? 1 : 0,
-        });
-      }
-    }
-    registry.addMetric(
-      "biology_organ_health",
-      "Organ health status (1=healthy, 0=failed)",
-      "gauge",
-      organSamples,
-    );
-  } catch {
-    // Biology data may not be available during early boot
-  }
 
   // ── Auth profiles ──────────────────────────────────────────────────
   const authSamples: MetricSample[] = [];

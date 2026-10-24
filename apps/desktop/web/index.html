@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kurahi</title>
+    <meta name="color-scheme" content="light" />
+    <link rel="icon" type="image/svg+xml" href="/kurahi-mark.svg" />
+    <link rel="stylesheet" href="./boot.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand">
+        <img src="/kurahi-mark.svg" width="32" height="32" alt="" />
+        <div>
+          <div class="product">Kurahi</div>
+          <div class="maker" data-i18n="app.by">KODA SōKEN</div>
+        </div>
+      </div>
+      <nav class="langs" id="langs" data-i18n-label="lang.label"></nav>
+    </header>
+
+    <main class="wrap">
+      <p class="tagline" data-i18n="app.tagline"></p>
+
+      <ol class="steps">
+        <li class="step">
+          <span class="state" id="engine-state"></span>
+          <div class="body">
+            <h2 data-i18n="step.engine"></h2>
+            <p id="engine-text"></p>
+          </div>
+        </li>
+        <li class="step">
+          <span class="state" id="service-state"></span>
+          <div class="body">
+            <h2 data-i18n="step.service"></h2>
+            <p id="service-text"></p>
+            <div class="row">
+              <button type="button" class="secondary" id="btn-start" data-i18n="service.start" hidden></button>
+              <button type="button" class="secondary" id="btn-stop" data-i18n="service.stop" hidden></button>
+            </div>
+          </div>
+        </li>
+        <li class="step">
+          <span class="state" id="connect-state"></span>
+          <div class="body">
+            <h2 data-i18n="step.connect"></h2>
+            <p id="connect-text"></p>
+            <p class="warn" id="persist-warning" data-i18n="connect.notPersistent" hidden></p>
+            <div class="row">
+              <button type="button" class="secondary" id="btn-local" data-i18n="connect.useLocal" hidden></button>
+              <button type="button" class="link" id="btn-clear" data-i18n="connect.clear" hidden></button>
+            </div>
+            <form class="row" id="token-form" autocomplete="off">
+              <label class="sr" for="token-input" data-i18n="connect.paste"></label>
+              <input id="token-input" type="password" spellcheck="false" data-i18n-placeholder="connect.paste" />
+              <button type="submit" class="secondary" data-i18n="connect.save"></button>
+            </form>
+            <p class="hint" data-i18n="connect.device"></p>
+          </div>
+        </li>
+      </ol>
+
+      <details class="advanced">
+        <summary data-i18n="advanced.title"></summary>
+        <form class="row" id="url-form" autocomplete="off">
+          <label for="gateway-url" data-i18n="advanced.url"></label>
+          <input id="gateway-url" type="text" spellcheck="false" inputmode="url" />
+          <button type="submit" class="secondary" data-i18n="advanced.save"></button>
+        </form>
+      </details>
+
+      <p class="notice" id="notice" role="status"></p>
+      <p class="error" id="error" role="alert"></p>
+
+      <div class="actions">
+        <button type="button" class="secondary" id="btn-check" data-i18n="action.check"></button>
+        <button type="button" class="primary" id="btn-open" data-i18n="action.open" disabled></button>
+      </div>
+    </main>
+
+    <footer class="foot">
+      <span><span data-i18n="footer.version"></span> <span id="version"></span></span>
+      <span data-i18n="footer.unsigned"></span>
+    </footer>
+    <script type="module" src="./boot.ts"></script>
+  </body>
+</html>

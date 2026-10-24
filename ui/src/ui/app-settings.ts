@@ -7,20 +7,33 @@ import {
   stopDebugPolling,
 } from "./app-polling";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll";
+import { loadArtifacts as loadArtifactsUi } from "./controllers/artifacts";
+import { loadBusiness } from "./controllers/business";
 import { loadChannels } from "./controllers/channels";
+import { loadChatHistoryPanel } from "./controllers/chat-history";
 import { loadConfig, loadConfigSchema } from "./controllers/config";
+import { loadConnectors } from "./controllers/connectors";
 import { loadCronJobs, loadCronStatus } from "./controllers/cron";
 import { loadDebug } from "./controllers/debug";
 import { loadDevices } from "./controllers/devices";
+import {
+  loadAuditEvents,
+  loadModelsCatalog,
+  loadPolicyStatus,
+  type EnterpriseState,
+} from "./controllers/enterprise";
 import { loadExecApprovals } from "./controllers/exec-approvals";
-import { DEFAULT_FLEET_STATE, loadFleet as loadFleetController } from "./controllers/fleet";
+import { loadFleet as loadFleetController } from "./controllers/fleet";
 import { loadLogs } from "./controllers/logs";
 import { loadNodes } from "./controllers/nodes";
 import { loadPresence } from "./controllers/presence";
+import { loadProjects as loadProjectsUi } from "./controllers/projects";
 import { loadSessions } from "./controllers/sessions";
 import { loadSkills } from "./controllers/skills";
 import {
+  audienceFromAuth,
   inferBasePathFromPathname,
+  isTabVisible,
   normalizeBasePath,
   normalizePath,
   pathForTab,
@@ -33,15 +46,17 @@ import { startThemeTransition, type ThemeTransitionContext } from "./theme-trans
 
 async function loadFleetHost(app: KoLoApp) {
   const fs = app.fleetState;
-  if (!fs) return;
+  if (!fs) {
+    return;
+  }
   fs.client = app.client;
   fs.connected = app.connected;
   await loadFleetController(fs, { quiet: true });
 }
 
-
 type SettingsHost = {
   settings: UiSettings;
+  password?: string;
   theme: ThemeMode;
   themeResolved: ResolvedTheme;
   applySessionKey: string;
@@ -106,7 +121,7 @@ export function applySettingsFromUrl(host: SettingsHost) {
   if (passwordRaw != null) {
     const password = passwordRaw.trim();
     if (password) {
-      (host as { password: string }).password = password;
+      host.password = password;
     }
     params.delete("password");
     shouldCleanUrl = true;
@@ -141,7 +156,16 @@ export function applySettingsFromUrl(host: SettingsHost) {
   window.history.replaceState({}, "", url.toString());
 }
 
-export function setTab(host: SettingsHost, next: Tab) {
+/** Business users only reach the pages the role filter allows; anything else opens Home. */
+export function guardTab(host: SettingsHost, next: Tab): Tab {
+  const hello = (
+    host as unknown as { hello?: { auth?: { role?: string; scopes?: string[] } } | null }
+  ).hello;
+  return isTabVisible(next, audienceFromAuth(hello?.auth)) ? next : "home";
+}
+
+export function setTab(host: SettingsHost, requested: Tab) {
+  const next = guardTab(host, requested);
   if (host.tab !== next) {
     host.tab = next;
   }
@@ -177,6 +201,48 @@ export function setTheme(host: SettingsHost, next: ThemeMode, context?: ThemeTra
 }
 
 export async function refreshActiveTab(host: SettingsHost) {
+  const app = host as unknown as KoLoApp;
+  const enterpriseHost = app;
+  if (host.tab === "home") {
+    await Promise.all([loadSessions(app), loadCronStatus(app), loadCronJobs(app), loadDebug(app)]);
+  }
+  if (host.tab === "projects") {
+    await Promise.all([
+      loadProjectsUi(app),
+      loadBusiness(app),
+      loadSessions(app),
+      loadArtifactsUi(app),
+      loadChatHistoryPanel(app),
+    ]);
+  }
+  if (host.tab === "artifacts") {
+    await Promise.all([loadArtifactsUi(app), loadProjectsUi(app)]);
+  }
+  if (host.tab === "chat") {
+    void loadProjectsUi(app);
+    void loadChatHistoryPanel(app);
+    if ((app as unknown as { audience?: string }).audience !== "business") {
+      void loadConfigQuiet(app);
+    }
+  }
+  if (host.tab === "connectors") {
+    await loadConfig(app);
+    await loadConnectors(enterpriseHost);
+  }
+  if (host.tab === "policies") {
+    await Promise.all([loadConfig(app), loadExecApprovals(app), loadPolicyStatus(enterpriseHost)]);
+  }
+  if (host.tab === "models") {
+    await Promise.all([loadConfig(app), loadModelsCatalog(enterpriseHost)]);
+  }
+  if (host.tab === "audit") {
+    const source = (host as unknown as { enterprise: EnterpriseState }).enterprise.auditSource;
+    if (source === "audit") {
+      await loadAuditEvents(enterpriseHost);
+    } else {
+      await loadLogs(app, { reset: true });
+    }
+  }
   if (host.tab === "overview") {
     await loadOverview(host);
   }
@@ -293,7 +359,8 @@ export function syncTabWithLocation(host: SettingsHost, replace: boolean) {
   if (typeof window === "undefined") {
     return;
   }
-  const resolved = tabFromPath(window.location.pathname, host.basePath) ?? "chat";
+  // Unknown paths open Home; old paths (/cron, /logs, …) are rewritten to their new path.
+  const resolved = guardTab(host, tabFromPath(window.location.pathname, host.basePath) ?? "home");
   setTabFromRoute(host, resolved);
   syncUrlWithTab(host, resolved, replace);
 }
@@ -321,7 +388,8 @@ export function onPopState(host: SettingsHost) {
   setTabFromRoute(host, resolved);
 }
 
-export function setTabFromRoute(host: SettingsHost, next: Tab) {
+export function setTabFromRoute(host: SettingsHost, requested: Tab) {
+  const next = guardTab(host, requested);
   if (host.tab !== next) {
     host.tab = next;
   }
@@ -368,7 +436,7 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
   }
 }
 
-export function syncUrlWithSessionKey(host: SettingsHost, sessionKey: string, replace: boolean) {
+export function syncUrlWithSessionKey(_host: object, sessionKey: string, replace: boolean) {
   if (typeof window === "undefined") {
     return;
   }
@@ -405,4 +473,19 @@ export async function loadCron(host: SettingsHost) {
     loadCronStatus(host as unknown as KoLoApp),
     loadCronJobs(host as unknown as KoLoApp),
   ]);
+}
+
+/** Config for the chat's model picker; failures stay silent (business users cannot read it). */
+async function loadConfigQuiet(app: KoLoApp) {
+  if (!app.client || !app.connected || app.configSnapshot) {
+    return;
+  }
+  try {
+    const res = (await app.client.request("config.get", {})) as KoLoApp["configSnapshot"];
+    if (!app.configSnapshot) {
+      app.configSnapshot = res;
+    }
+  } catch {
+    // not permitted or not available
+  }
 }

@@ -230,6 +230,13 @@ function renderReasoningSection(text: string, live: ChatStreamReasoning | null |
   `;
 }
 
+/** v0.3 hooks set by the app: save an assistant reply as an output, and how document blocks show. */
+export const chatMessageHooks: {
+  onSaveArtifact: ((markdown: string) => void) | null;
+  saveLabel: string;
+  collapse: (text: string) => string;
+} = { onSaveArtifact: null, saveLabel: "Save as output", collapse: (text) => text };
+
 function renderGroupedMessage(
   message: unknown,
   opts: {
@@ -256,7 +263,7 @@ function renderGroupedMessage(
   const extractedText = extractTextCached(message);
   const extractedThinking =
     opts.showReasoning && role === "assistant" ? extractThinkingCached(message) : null;
-  const markdownBase = extractedText?.trim() ? extractedText : null;
+  const markdownBase = extractedText?.trim() ? chatMessageHooks.collapse(extractedText) : null;
   const reasoningMarkdown = extractedThinking?.trim() ? extractedThinking : null;
   const markdown = markdownBase;
   const canCopyMarkdown = role === "assistant" && Boolean(markdown?.trim());
@@ -281,6 +288,7 @@ function renderGroupedMessage(
   return html`
     <div class="${bubbleClasses}">
       ${canCopyMarkdown ? renderCopyAsMarkdownButton(markdown!) : nothing}
+
       ${renderMessageImages(images)}
       ${reasoningMarkdown ? renderReasoningSection(reasoningMarkdown, opts.reasoning) : nothing}
       ${
@@ -289,6 +297,18 @@ function renderGroupedMessage(
           : nothing
       }
       ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+      ${
+        canCopyMarkdown && chatMessageHooks.onSaveArtifact && !opts.isStreaming
+          ? html`<button
+              type="button"
+              class="ent-save-artifact"
+              title=${chatMessageHooks.saveLabel}
+              @click=${() => chatMessageHooks.onSaveArtifact?.(markdown!)}
+            >
+              ${chatMessageHooks.saveLabel}
+            </button>`
+          : nothing
+      }
     </div>
   `;
 }

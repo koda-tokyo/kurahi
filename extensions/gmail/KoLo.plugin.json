@@ -1,0 +1,34 @@
+{
+  "id": "gmail",
+  "name": "Gmail",
+  "description": "Business connector for Gmail (Google Workspace) through the Gmail API. Read-only by default (gmail.readonly); sending is a separate opt-in and always needs a person's approval.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "description": "OAuth client ID (Desktop app type) from the customer's Google Cloud project."
+      },
+      "allowedDomain": {
+        "type": "string",
+        "description": "Google Workspace domain the signed-in mailbox must belong to (e.g. example.co.jp). Sign-ins from other domains are refused."
+      },
+      "write": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "send": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow sending mail (gmail.send). Every send needs a person's approval."
+          }
+        }
+      },
+      "redirectPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 15 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 50, "default": 8 },
+      "approvalTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 600, "default": 120 }
+    }
+  }
+}

@@ -12,6 +12,7 @@ import { renderTable } from "../terminal/table.js";
 import { theme } from "../terminal/theme.js";
 import { shortenHomePath } from "../utils.js";
 import { formatCliCommand } from "./command-format.js";
+import { registerSupplyChainCommands } from "./supply-chain-cli.js";
 
 export type SkillsListOptions = {
   json?: boolean;
@@ -341,8 +342,9 @@ export function formatSkillsCheck(report: SkillStatusReport, opts: SkillsCheckOp
 export function registerSkillsCli(program: Command) {
   const skills = program
     .command("skills")
-    .description("List and inspect available skills")
+    .description("List, inspect and pin (approve) available skills")
     .addHelpText("after", () => `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/skills")}\n`);
+  registerSupplyChainCommands(skills, "skill");
 
   skills
     .command("list")

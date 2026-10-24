@@ -20,6 +20,8 @@ export type AnnounceQueueItem = {
   sessionKey: string;
   origin?: DeliveryContext;
   originKey?: string;
+  /** Announcing sub-agent session; the send is signed with its key (inter-agent signing). */
+  senderSessionKey?: string;
 };
 
 export type AnnounceQueueSettings = {
@@ -109,7 +111,10 @@ function scheduleAnnounceDrain(key: string) {
             }
             return { key: item.originKey };
           });
-          if (isCrossChannel) {
+          // A collected prompt is signed as one sender, so it may only merge one child's items.
+          const mixedSenders =
+            new Set(queue.items.map((item) => item.senderSessionKey ?? "")).size > 1;
+          if (isCrossChannel || mixedSenders) {
             forceIndividualCollect = true;
             const next = queue.items.shift();
             if (!next) {
@@ -140,7 +145,8 @@ function scheduleAnnounceDrain(key: string) {
           if (!next) {
             break;
           }
-          await queue.send({ ...next, prompt: summaryPrompt });
+          // Written by the queue from several children's summaries: not signed as any of them.
+          await queue.send({ ...next, prompt: summaryPrompt, senderSessionKey: undefined });
           continue;
         }
 

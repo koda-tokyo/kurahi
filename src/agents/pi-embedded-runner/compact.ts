@@ -9,6 +9,7 @@ import os from "node:os";
 import type { ReasoningLevel, ThinkLevel } from "../../auto-reply/thinking.js";
 import type { KoLoConfig } from "../../config/config.js";
 import type { ExecElevatedDefaults } from "../bash-tools.js";
+import type { PromptMode } from "../system-prompt.js";
 import type { EmbeddedPiCompactResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
@@ -44,7 +45,7 @@ import {
   resolveCompactionReserveTokensFloor,
 } from "../pi-settings.js";
 import { createKoLoCodingTools } from "../pi-tools.js";
-import { resolveSandboxContext } from "../sandbox.js";
+import { resolveSandboxContextOrUnavailable } from "../sandbox.js";
 import { guardSessionManager } from "../session-tool-result-guard-wrapper.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import {
@@ -96,6 +97,8 @@ export type CompactEmbeddedPiSessionParams = {
   agentDir?: string;
   config?: KoLoConfig;
   skillsSnapshot?: SkillSnapshot;
+  /** System prompt mode; unset = minimal for subagent sessions, full otherwise. */
+  promptMode?: PromptMode;
   provider?: string;
   model?: string;
   thinkLevel?: ThinkLevel;
@@ -168,7 +171,7 @@ export async function compactEmbeddedPiSessionDirect(
 
   await fs.mkdir(resolvedWorkspace, { recursive: true });
   const sandboxSessionKey = params.sessionKey?.trim() || params.sessionId;
-  const sandbox = await resolveSandboxContext({
+  const { sandbox, unavailable: sandboxUnavailable } = await resolveSandboxContextOrUnavailable({
     config: params.config,
     sessionKey: sandboxSessionKey,
     workspaceDir: resolvedWorkspace,
@@ -223,6 +226,7 @@ export async function compactEmbeddedPiSessionDirect(
         elevated: params.bashElevated,
       },
       sandbox,
+      sandboxUnavailable,
       messageProvider: params.messageChannel ?? params.messageProvider,
       agentAccountId: params.agentAccountId,
       sessionKey: params.sessionKey ?? params.sessionId,
@@ -322,7 +326,8 @@ export async function compactEmbeddedPiSessionDirect(
       config: params.config,
     });
     const isDefaultAgent = sessionAgentId === defaultAgentId;
-    const promptMode = isSubagentSessionKey(params.sessionKey) ? "minimal" : "full";
+    const promptMode =
+      params.promptMode ?? (isSubagentSessionKey(params.sessionKey) ? "minimal" : "full");
     const docsPath = await resolveKoLoDocsPath({
       workspaceDir: effectiveWorkspace,
       argv1: process.argv[1],
@@ -387,10 +392,16 @@ export async function compactEmbeddedPiSessionDirect(
       });
       trackSessionManagerAccess(params.sessionFile);
       const settingsManager = SettingsManager.create(effectiveWorkspace, agentDir);
-      ensurePiCompactionReserveTokens({
+      const reserve = ensurePiCompactionReserveTokens({
         settingsManager,
         minReserveTokens: resolveCompactionReserveTokensFloor(params.config),
+        contextWindowTokens: model.contextWindow,
       });
+      if (reserve.clampedToWindow) {
+        log.warn(
+          `compaction reserve clamped to ${reserve.reserveTokens} tokens (half of the ${model.contextWindow}-token context window)`,
+        );
+      }
       // Call for side effects (sets compaction/pruning runtime state)
       buildEmbeddedExtensionPaths({
         cfg: params.config,

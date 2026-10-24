@@ -15,6 +15,21 @@ const ENVELOPE_CHANNELS = [
   "BlueBubbles",
 ];
 
+/** Project context the gateway adds for the agent (src/projects/scope.ts); hidden from history. */
+const PROJECT_CONTEXT_BLOCK = /^\[\[kurahi-project\]\][\s\S]*?\[\[\/kurahi-project\]\]\s*/;
+
+export function stripProjectContext(text: string): string {
+  return text.replace(PROJECT_CONTEXT_BLOCK, "");
+}
+
+/** Uploaded document text sent to the agent; history shows only the document name. */
+const DOCUMENT_BLOCK =
+  /\[\[kurahi-document name="([^"\]]*)"[^\]]*\]\][\s\S]*?\[\[\/kurahi-document\]\]/g;
+
+export function collapseDocumentBlocks(text: string): string {
+  return text.replace(DOCUMENT_BLOCK, (_m, name: string) => `[Attached document: ${name}]`);
+}
+
 const MESSAGE_ID_LINE = /^\s*\[message_id:\s*[^\]]+\]\s*$/i;
 
 function looksLikeEnvelopeHeader(header: string): boolean {
@@ -58,7 +73,9 @@ function stripEnvelopeFromContent(content: unknown[]): { content: unknown[]; cha
     if (entry.type !== "text" || typeof entry.text !== "string") {
       return item;
     }
-    const stripped = stripMessageIdHints(stripEnvelope(entry.text));
+    const stripped = collapseDocumentBlocks(
+      stripMessageIdHints(stripEnvelope(stripProjectContext(entry.text))),
+    );
     if (stripped === entry.text) {
       return item;
     }
@@ -97,7 +114,9 @@ export function stripEnvelopeFromMessage(message: unknown): unknown {
       changed = true;
     }
   } else if (typeof entry.text === "string") {
-    const stripped = stripMessageIdHints(stripEnvelope(entry.text));
+    const stripped = collapseDocumentBlocks(
+      stripMessageIdHints(stripEnvelope(stripProjectContext(entry.text))),
+    );
     if (stripped !== entry.text) {
       next.text = stripped;
       changed = true;

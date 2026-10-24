@@ -66,6 +66,17 @@ describe("evaluateWritePolicy", () => {
     expect(decide("exec", { command: `rm -f ${soul}` })).toBe(true);
     expect(decide("exec", { command: `rm -rf ${path.join(home, "integrity")}` })).toBe(true);
     expect(decide("exec", { command: "kurahi integrity update SOUL.md --yes" })).toBe(true);
+    // Approving code into the supply-chain lock (ASI04) is an operator action too.
+    expect(decide("exec", { command: "kurahi skills pin --all --force" })).toBe(true);
+    expect(decide("exec", { command: "npx kurahi plugins pin evil" })).toBe(true);
+    expect(decide("exec", { command: "kurahi skills verify" })).toBe(false);
+    expect(decide("write", { path: path.join(home, "integrity", "supply-chain.lock.json") })).toBe(
+      true,
+    );
+    // ASI06: an agent may not approve its own quarantined memory write.
+    expect(decide("exec", { command: "kurahi memory quarantine approve abc123 --yes" })).toBe(true);
+    expect(decide("exec", { command: "kurahi memory quarantine reject abc123" })).toBe(true);
+    expect(decide("exec", { command: "kurahi memory quarantine list" })).toBe(false);
     expect(decide("exec", { command: "cat SOUL.md 2>&1 | head -c 400" })).toBe(false);
     expect(decide("exec", { command: "sha256sum SOUL.md" })).toBe(false);
     expect(decide("exec", { command: "echo hi > notes.md" })).toBe(false);

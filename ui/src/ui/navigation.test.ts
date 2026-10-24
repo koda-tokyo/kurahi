@@ -1,189 +1,240 @@
 import { describe, expect, it } from "vitest";
+import { en } from "./i18n/en";
+import { ja } from "./i18n/ja";
 import {
-  TAB_GROUPS,
+  ALL_TABS,
+  BUSINESS_PAGES,
+  LEGACY_PATHS,
+  NAV_GROUPS,
+  PAGES,
+  audienceFromAuth,
+  iconForPage,
   iconForTab,
   inferBasePathFromPathname,
+  isLegacyPath,
+  isTabVisible,
   normalizeBasePath,
   normalizePath,
+  pageForTab,
+  pathForPage,
   pathForTab,
-  subtitleForTab,
+  subtitleKeyForPage,
   tabFromPath,
-  titleForTab,
+  tabLabelKey,
+  tabsForPage,
+  titleKeyForPage,
+  visiblePages,
+  type Page,
   type Tab,
 } from "./navigation";
 
-/** All valid tab identifiers derived from TAB_GROUPS */
-const ALL_TABS: Tab[] = TAB_GROUPS.flatMap((group) => group.tabs) as Tab[];
+const ALL_PAGES = NAV_GROUPS.flatMap((g) => g.pages);
 
-describe("iconForTab", () => {
-  it("returns a non-empty string for every tab", () => {
-    for (const tab of ALL_TABS) {
-      const icon = iconForTab(tab);
-      expect(icon).toBeTruthy();
-      expect(typeof icon).toBe("string");
-      expect(icon.length).toBeGreaterThan(0);
+describe("sidebar structure", () => {
+  it("has the v0.2 groups in order", () => {
+    expect(NAV_GROUPS.map((g) => g.id)).toEqual(["top", "work", "governance", "system", "bottom"]);
+    expect(NAV_GROUPS.map((g) => g.pages)).toEqual([
+      ["home", "chat", "projects", "approvals"],
+      ["agents", "artifacts", "automations", "skills", "connections"],
+      ["policies", "audit", "evaluation"],
+      ["devices", "models", "settings"],
+      ["help"],
+    ]);
+  });
+
+  it("lists every page once and every tab under exactly one page", () => {
+    expect(new Set(ALL_PAGES).size).toBe(ALL_PAGES.length);
+    expect(new Set(ALL_PAGES)).toEqual(new Set(Object.keys(PAGES)));
+    const tabs = Object.values(PAGES).flatMap((p) => p.tabs);
+    expect(new Set(tabs).size).toBe(tabs.length);
+    expect(new Set(ALL_TABS)).toEqual(new Set(tabs));
+  });
+
+  it("groups existing views as sub-tabs", () => {
+    expect(tabsForPage("agents")).toEqual(["fleet", "sessions"]);
+    expect(tabsForPage("automations")).toEqual(["cron"]);
+    expect(tabsForPage("connections")).toEqual(["channels", "connectors"]);
+    expect(tabsForPage("devices")).toEqual(["instances", "nodes"]);
+    expect(tabsForPage("settings")).toEqual(["config", "overview", "logs", "debug"]);
+    expect(pageForTab("logs")).toBe("settings");
+    expect(pageForTab("cron")).toBe("automations");
+  });
+
+  it("has an icon for every page and tab", () => {
+    for (const page of ALL_PAGES) {
+      expect(iconForPage(page)).toBeTruthy();
     }
+    for (const tab of ALL_TABS) {
+      expect(iconForTab(tab)).toBe(iconForPage(pageForTab(tab)));
+    }
+    expect(iconForTab("unknown" as Tab)).toBe("home");
   });
 
-  it("returns stable icons for known tabs", () => {
-    expect(iconForTab("chat")).toBe("💬");
-    expect(iconForTab("overview")).toBe("📊");
-    expect(iconForTab("channels")).toBe("🔗");
-    expect(iconForTab("instances")).toBe("📡");
-    expect(iconForTab("sessions")).toBe("📄");
-    expect(iconForTab("cron")).toBe("⏰");
-    expect(iconForTab("skills")).toBe("⚡️");
-    expect(iconForTab("nodes")).toBe("🖥️");
-    expect(iconForTab("config")).toBe("⚙️");
-    expect(iconForTab("debug")).toBe("🐞");
-    expect(iconForTab("logs")).toBe("🧾");
-  });
-
-  it("returns a fallback icon for unknown tab", () => {
-    // TypeScript won't allow this normally, but runtime could receive unexpected values
-    const unknownTab = "unknown" as Tab;
-    expect(iconForTab(unknownTab)).toBe("📁");
+  it("has Japanese and English labels for every page and sub-tab", () => {
+    for (const page of ALL_PAGES) {
+      for (const key of [titleKeyForPage(page), subtitleKeyForPage(page)]) {
+        expect(en[key], key).toBeTruthy();
+        expect(ja[key], key).toBeTruthy();
+      }
+    }
+    for (const page of ALL_PAGES) {
+      if (tabsForPage(page).length > 1) {
+        for (const tab of tabsForPage(page)) {
+          expect(en[tabLabelKey(tab)], tab).toBeTruthy();
+          expect(ja[tabLabelKey(tab)], tab).toBeTruthy();
+        }
+      }
+    }
+    for (const group of NAV_GROUPS) {
+      if (group.label) {
+        expect(ja[group.label]).toBeTruthy();
+      }
+    }
+    expect(ja["page.automations"]).toBe("自動化");
+    expect(ja["page.connections"]).toBe("連携");
+    expect(ja["page.artifacts"]).toBe("成果物");
+    expect(ja["leaf.connectors"]).toBe("データ連携");
   });
 });
 
-describe("titleForTab", () => {
-  it("returns a non-empty string for every tab", () => {
+describe("paths", () => {
+  it("gives each page a path and nested paths for sub-tabs", () => {
+    expect(pathForTab("home")).toBe("/home");
+    expect(pathForTab("cron")).toBe("/automations");
+    expect(pathForTab("channels")).toBe("/connections");
+    expect(pathForTab("connectors")).toBe("/connections/connectors");
+    expect(pathForTab("fleet")).toBe("/agents");
+    expect(pathForTab("sessions")).toBe("/agents/sessions");
+    expect(pathForTab("instances")).toBe("/devices");
+    expect(pathForTab("nodes")).toBe("/devices/nodes");
+    expect(pathForTab("config")).toBe("/settings");
+    expect(pathForTab("overview")).toBe("/settings/connection");
+    expect(pathForTab("logs")).toBe("/settings/logs");
+    expect(pathForTab("debug")).toBe("/settings/debug");
+    expect(pathForPage("audit")).toBe("/audit");
+  });
+
+  it("round-trips every tab", () => {
     for (const tab of ALL_TABS) {
-      const title = titleForTab(tab);
-      expect(title).toBeTruthy();
-      expect(typeof title).toBe("string");
+      expect(tabFromPath(pathForTab(tab))).toBe(tab);
+      expect(tabFromPath(pathForTab(tab, "/ui"), "/ui")).toBe(tab);
+      expect(isLegacyPath(pathForTab(tab))).toBe(false);
     }
   });
 
-  it("returns expected titles", () => {
-    expect(titleForTab("chat")).toBe("Chat");
-    expect(titleForTab("overview")).toBe("Overview");
-    expect(titleForTab("cron")).toBe("Cron Jobs");
+  it("prepends base paths", () => {
+    expect(pathForTab("chat", "/ui")).toBe("/ui/chat");
+    expect(pathForTab("sessions", "/apps/KoLo")).toBe("/apps/KoLo/agents/sessions");
+  });
+
+  it("opens Home at the root and at an entry page", () => {
+    expect(tabFromPath("/")).toBe("home");
+    expect(tabFromPath("/index.html")).toBe("home");
+    expect(tabFromPath("/control.html")).toBe("home");
+    expect(tabFromPath("/ui", "/ui")).toBe("home");
+  });
+
+  it("returns null for unknown paths and is case-insensitive", () => {
+    expect(tabFromPath("/unknown")).toBeNull();
+    expect(tabFromPath("/CHAT")).toBe("chat");
+    expect(tabFromPath("/Automations")).toBe("cron");
   });
 });
 
-describe("subtitleForTab", () => {
-  it("returns a string for every tab", () => {
-    for (const tab of ALL_TABS) {
-      const subtitle = subtitleForTab(tab);
-      expect(typeof subtitle).toBe("string");
+describe("old URLs redirect", () => {
+  const expected: Record<string, { tab: Tab; to: string }> = {
+    "/overview": { tab: "home", to: "/home" },
+    "/fleet": { tab: "fleet", to: "/agents" },
+    "/sessions": { tab: "sessions", to: "/agents/sessions" },
+    "/cron": { tab: "cron", to: "/automations" },
+    "/schedules": { tab: "cron", to: "/automations" },
+    "/channels": { tab: "channels", to: "/connections" },
+    "/instances": { tab: "instances", to: "/devices" },
+    "/nodes": { tab: "nodes", to: "/devices/nodes" },
+    "/config": { tab: "config", to: "/settings" },
+    "/debug": { tab: "debug", to: "/settings/debug" },
+    "/logs": { tab: "logs", to: "/settings/logs" },
+  };
+
+  it("maps every old path to its tab and new path", () => {
+    expect(Object.keys(LEGACY_PATHS).toSorted()).toEqual(Object.keys(expected).toSorted());
+    for (const [old, { tab, to }] of Object.entries(expected)) {
+      expect(tabFromPath(old), old).toBe(tab);
+      expect(isLegacyPath(old), old).toBe(true);
+      expect(pathForTab(tabFromPath(old) as Tab)).toBe(to);
     }
   });
 
-  it("returns descriptive subtitles", () => {
-    expect(subtitleForTab("chat")).toContain("chat session");
-    expect(subtitleForTab("config")).toContain("kolo.json");
+  it("redirects under a base path too", () => {
+    expect(tabFromPath("/ui/cron", "/ui")).toBe("cron");
+    expect(isLegacyPath("/ui/cron", "/ui")).toBe(true);
+    expect(pathForTab("cron", "/ui")).toBe("/ui/automations");
+    expect(isLegacyPath("/ui/automations", "/ui")).toBe(false);
   });
 });
 
-describe("normalizeBasePath", () => {
-  it("returns empty string for falsy input", () => {
+describe("normalizeBasePath / normalizePath", () => {
+  it("normalizes base paths", () => {
     expect(normalizeBasePath("")).toBe("");
-  });
-
-  it("adds leading slash if missing", () => {
     expect(normalizeBasePath("ui")).toBe("/ui");
-  });
-
-  it("removes trailing slash", () => {
     expect(normalizeBasePath("/ui/")).toBe("/ui");
-  });
-
-  it("returns empty string for root path", () => {
     expect(normalizeBasePath("/")).toBe("");
-  });
-
-  it("handles nested paths", () => {
     expect(normalizeBasePath("/apps/KoLo")).toBe("/apps/KoLo");
   });
-});
 
-describe("normalizePath", () => {
-  it("returns / for falsy input", () => {
+  it("normalizes paths", () => {
     expect(normalizePath("")).toBe("/");
-  });
-
-  it("adds leading slash if missing", () => {
     expect(normalizePath("chat")).toBe("/chat");
-  });
-
-  it("removes trailing slash except for root", () => {
     expect(normalizePath("/chat/")).toBe("/chat");
     expect(normalizePath("/")).toBe("/");
   });
 });
 
-describe("pathForTab", () => {
-  it("returns correct path without base", () => {
-    expect(pathForTab("chat")).toBe("/chat");
-    expect(pathForTab("overview")).toBe("/overview");
-  });
-
-  it("prepends base path", () => {
-    expect(pathForTab("chat", "/ui")).toBe("/ui/chat");
-    expect(pathForTab("sessions", "/apps/KoLo")).toBe("/apps/KoLo/sessions");
-  });
-});
-
-describe("tabFromPath", () => {
-  it("returns tab for valid path", () => {
-    expect(tabFromPath("/chat")).toBe("chat");
-    expect(tabFromPath("/overview")).toBe("overview");
-    expect(tabFromPath("/sessions")).toBe("sessions");
-  });
-
-  it("returns chat for root path", () => {
-    expect(tabFromPath("/")).toBe("chat");
-  });
-
-  it("handles base paths", () => {
-    expect(tabFromPath("/ui/chat", "/ui")).toBe("chat");
-    expect(tabFromPath("/apps/KoLo/sessions", "/apps/KoLo")).toBe("sessions");
-  });
-
-  it("returns null for unknown path", () => {
-    expect(tabFromPath("/unknown")).toBeNull();
-  });
-
-  it("is case-insensitive", () => {
-    expect(tabFromPath("/CHAT")).toBe("chat");
-    expect(tabFromPath("/Overview")).toBe("overview");
-  });
-});
-
 describe("inferBasePathFromPathname", () => {
-  it("returns empty string for root", () => {
+  it("finds the base for new, nested and old paths", () => {
     expect(inferBasePathFromPathname("/")).toBe("");
-  });
-
-  it("returns empty string for direct tab path", () => {
     expect(inferBasePathFromPathname("/chat")).toBe("");
-    expect(inferBasePathFromPathname("/overview")).toBe("");
-  });
-
-  it("infers base path from nested paths", () => {
     expect(inferBasePathFromPathname("/ui/chat")).toBe("/ui");
-    expect(inferBasePathFromPathname("/apps/KoLo/sessions")).toBe("/apps/KoLo");
+    expect(inferBasePathFromPathname("/apps/KoLo/agents/sessions")).toBe("/apps/KoLo");
+    expect(inferBasePathFromPathname("/apps/KoLo/cron")).toBe("/apps/KoLo");
+    expect(inferBasePathFromPathname("/ui/overview")).toBe("/ui");
   });
 
-  it("handles index.html suffix", () => {
+  it("treats an entry page as the root", () => {
     expect(inferBasePathFromPathname("/index.html")).toBe("");
     expect(inferBasePathFromPathname("/ui/index.html")).toBe("/ui");
+    expect(inferBasePathFromPathname("/control.html")).toBe("");
   });
 });
 
-describe("TAB_GROUPS", () => {
-  it("contains all expected groups", () => {
-    const labels = TAB_GROUPS.map((g) => g.label);
-    expect(labels).toContain("Chat");
-    expect(labels).toContain("Control");
-    expect(labels).toContain("Agent");
-    expect(labels).toContain("Settings");
+describe("role filter", () => {
+  it("derives the audience from the connect-time auth", () => {
+    expect(audienceFromAuth(null)).toBeNull();
+    expect(audienceFromAuth(undefined)).toBeNull();
+    expect(audienceFromAuth({})).toBeNull();
+    expect(
+      audienceFromAuth({ role: "operator", scopes: ["operator.admin", "operator.approvals"] }),
+    ).toBe("admin");
+    expect(
+      audienceFromAuth({ role: "operator", scopes: ["operator.read", "operator.approvals"] }),
+    ).toBe("business");
+    expect(audienceFromAuth({ role: "operator" })).toBe("business");
   });
 
-  it("all tabs are unique", () => {
-    const allTabs = TAB_GROUPS.flatMap((g) => g.tabs);
-    const uniqueTabs = new Set(allTabs);
-    expect(uniqueTabs.size).toBe(allTabs.length);
+  it("shows everything when the role is unknown or admin", () => {
+    expect(visiblePages(null)).toEqual(ALL_PAGES);
+    expect(visiblePages("admin")).toEqual(ALL_PAGES);
+  });
+
+  it("shows business users only Home, Chat, Projects, Approvals and Help", () => {
+    expect(visiblePages("business")).toEqual(["home", "chat", "projects", "approvals", "help"]);
+    expect(BUSINESS_PAGES).toEqual(["home", "chat", "projects", "approvals", "help"]);
+    const hidden: Page[] = ["agents", "policies", "audit", "settings", "models", "devices"];
+    for (const page of hidden) {
+      expect(visiblePages("business")).not.toContain(page);
+    }
+    expect(isTabVisible("chat", "business")).toBe(true);
+    expect(isTabVisible("logs", "business")).toBe(false);
+    expect(isTabVisible("logs", null)).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/signal",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Kurahi Signal channel plugin",
   "type": "module",
   "devDependencies": {

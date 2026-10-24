@@ -519,6 +519,7 @@ export async function runEmbeddedPiAgent(
             prompt,
             images: params.images,
             disableTools: params.disableTools,
+            promptMode: params.promptMode,
             provider,
             modelId,
             model,
@@ -574,6 +575,7 @@ export async function runEmbeddedPiAgent(
                   agentDir,
                   config: params.config,
                   skillsSnapshot: params.skillsSnapshot,
+                  promptMode: params.promptMode,
                   provider,
                   model: modelId,
                   thinkLevel,
@@ -868,6 +870,7 @@ export async function runEmbeddedPiAgent(
               durationMs: Date.now() - started,
               agentMeta,
               aborted,
+              timedOut: timedOut || undefined,
               loopStopped: attempt.loopStopped,
               steps: attempt.messagesSnapshot.filter(
                 (m) => (m as { role?: string }).role === "assistant",

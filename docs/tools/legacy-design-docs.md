@@ -41,13 +41,33 @@ paths, a stable order). Each document records a fingerprint of the sources it wa
    utilities, EXEC blocks that are not modelled, SELECTs without a DD and DDs without a SELECT,
    programs nothing starts, paragraphs nothing performs), followed by the analyser's limits.
 
+When the folder also has Java, FORTRAN, PL/I or SQL DDL sources, the document gains a section per
+engine (by default only when the project has those sources):
+
+- **Java クラス仕様 / Java class specifications**: classes, fields with their column mapping,
+  methods with resolved calls and table access.
+- **FORTRAN プログラム単位仕様 / FORTRAN program units**: the unit list (kind, host, IMPLICIT rule,
+  calls, COMMON blocks, files), the **COMMON ブロック対応表 / COMMON block map** (each unit's
+  member layout with types, explicit or implicit, and whether the layouts agree), then per unit
+  its declaration, USE and INCLUDE, calls (call or function reference, and how each was resolved),
+  declarations and file I/O with the binding of each unit number.
+- **PL/I 手続き仕様 / PL/I procedure specifications**: the procedure list, **構造体定義 /
+  structure definitions** (levels, attributes, BASED / DEFINED storage, initial values, members
+  from `%INCLUDE` at their own lines), **ファイル定義 / file definitions** (attributes, DD name,
+  operations), then per procedure its calls, EXEC SQL, file I/O and ON-units.
+- **テーブル定義 / Table definitions**: DDL tables with columns and keys, and who accesses each
+  table across COBOL, Java and PL/I.
+
+Each of these sections ends with what its engine did not model.
+
 Every fact line (each table row and list item) cites the source as `path:line`. What code cannot
 tell is never filled in: a program's business purpose is **要確認 / needs confirmation**, and so is
 the business meaning of every rule candidate. A program's header comment is quoted as written,
 labelled as unverified.
 
 Arguments: `path` (the folder), `lang` (`ja` or `en`), `section` (comma list of `overview`, `jobs`,
-`programs`, `dictionary`, `crud`, `coverage`) and `program` (one program's specification). The
+`programs`, `java`, `fortran`, `pli`, `dictionary`, `tables`, `crud`, `coverage`) and `program`
+(one program's specification). The
 tool returns the Markdown and also saves it in the analyser's cache folder
 (`output/.legacy-index/design-doc-<lang>.md` in a project).
 
@@ -120,7 +140,8 @@ in short:
   runs a program without source gets its CRUD from DISP alone, and DISP=OLD is shown as `?`.
 - **CRUD from statements.** A file that is only OPENed, never read or written, does not appear in
   the matrix (its OPEN mode is in the program specification).
-- **Not analysed:** IMS DL/I, assembler, PL/I, REXX/CLIST, utility control statements, scheduler
-  definitions.
+- **Not analysed:** IMS DL/I, assembler, REXX/CLIST, utility control statements, scheduler
+  definitions. The limits of the Java, SQL DDL, FORTRAN and PL/I engines are in
+  [the legacy analyser](/tools/legacy-analyzer).
 - **Diagrams.** Mermaid source is generated from the graph; each arrow is also listed with its
   source lines in a table next to it.

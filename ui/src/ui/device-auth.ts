@@ -1,3 +1,5 @@
+import { SECRET_STORAGE_KEYS, secretStorage } from "./secret-storage";
+
 export type DeviceAuthEntry = {
   token: string;
   role: string;
@@ -11,7 +13,7 @@ type DeviceAuthStore = {
   tokens: Record<string, DeviceAuthEntry>;
 };
 
-const STORAGE_KEY = "KoLo.device.auth.v1";
+const STORAGE_KEY = SECRET_STORAGE_KEYS.deviceAuth;
 
 function normalizeRole(role: string): string {
   return role.trim();
@@ -33,7 +35,7 @@ function normalizeScopes(scopes: string[] | undefined): string[] {
 
 function readStore(): DeviceAuthStore | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = secretStorage().getItem(STORAGE_KEY);
     if (!raw) {
       return null;
     }
@@ -55,7 +57,7 @@ function readStore(): DeviceAuthStore | null {
 
 function writeStore(store: DeviceAuthStore) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    secretStorage().setItem(STORAGE_KEY, JSON.stringify(store));
   } catch {
     // best-effort
   }

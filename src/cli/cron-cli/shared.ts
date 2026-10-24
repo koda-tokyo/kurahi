@@ -1,4 +1,4 @@
-import type { CronJob, CronSchedule } from "../../cron/types.js";
+import type { CronJob, CronPromptMode, CronSchedule } from "../../cron/types.js";
 import type { GatewayRpcOpts } from "../gateway-rpc.js";
 import { listChannelPlugins } from "../../channels/plugins/index.js";
 import { parseAbsoluteTimeMs } from "../../cron/parse.js";
@@ -31,6 +31,18 @@ export async function warnIfCronSchedulerDisabled(opts: GatewayRpcOpts) {
   } catch {
     // Ignore status failures (older gateway, offline, etc.)
   }
+}
+
+/** --prompt-mode: full|minimal; undefined when not given; anything else is an error. */
+export function parseCronPromptMode(raw: unknown): CronPromptMode | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const mode = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (mode !== "full" && mode !== "minimal") {
+    throw new Error("--prompt-mode must be full or minimal");
+  }
+  return mode;
 }
 
 export function parseDurationMs(input: string): number | null {

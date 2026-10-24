@@ -1,0 +1,56 @@
+# 人事 / HR leave and overtime work queue policy (example; adjust to your 36協定 and rules).
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+queues:
+  - id: hr-leave
+    name: { ja: 休暇申請, en: Leave requests }
+    types: [leave]
+    slaHours: 24
+  - id: hr-overtime
+    name: { ja: 残業申請, en: Overtime requests }
+    types: [request]
+    slaHours: 8
+rules:
+  - id: hr.leave.required
+    kind: required
+    types: [leave]
+    fields: [employeeId, leaveType, startDate, endDate]
+    label: { ja: 必須項目（社員番号・種別・期間）, en: "Required: employee id, leave type, start and end date" }
+  - id: hr.leave.dates
+    kind: date
+    types: [leave]
+    field: startDate
+    notInPast: true
+    minLeadDays: 3
+    before: endDate
+    label: { ja: 開始日は3日以上先かつ終了日以前, en: Start date at least 3 days ahead and not after the end date }
+  - id: hr.ot.required
+    kind: required
+    queues: [hr-overtime]
+    fields: [employeeId, date, hours, reason, monthToDateHours, forecastMonthHours]
+    label: { ja: 必須項目（社員番号・日付・時間・理由・当月累計・月末見込み）, en: "Required: employee id, date, hours, reason, month-to-date and forecast hours" }
+  - id: hr.ot.forecast
+    kind: threshold
+    queues: [hr-overtime]
+    field: forecastMonthHours
+    warnAbove: 36
+    secondApproverAbove: 45
+    max: 80
+    label: { ja: 月末見込み（36時間超は注意、45時間超は二名承認、80時間超は不可）, en: "Month-end forecast: warn above 36 h, second approver above 45 h, over 80 h not allowed" }
+  - id: hr.ot.hours
+    kind: threshold
+    queues: [hr-overtime]
+    field: hours
+    max: 8
+    label: { ja: 1日の残業は8時間まで, en: At most 8 overtime hours per day }
+  - id: hr.attachment
+    kind: attachment
+    types: [leave]
+    severity: warn
+    label: { ja: 証明書類の添付（慶弔・病気休暇）, en: Supporting document attached (special or sick leave) }
+  - id: hr.phrases
+    kind: forbiddenPhrases
+    target: draft
+    phrases: [承認しました, 承認済み, approved]
+    label: { ja: 下書きで承認済みと書かない, en: The draft must not say the request is approved }

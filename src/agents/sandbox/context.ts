@@ -153,3 +153,32 @@ export async function ensureSandboxWorkspaceForSession(params: {
     containerWorkdir: cfg.docker.workdir,
   };
 }
+
+export type SandboxResolution = {
+  sandbox: SandboxContext | null;
+  /** The session must be sandboxed but the container could not be started. */
+  unavailable: { reason: string } | null;
+};
+
+/**
+ * Resolve the sandbox for a run without failing the run when the container cannot start (no
+ * container runtime, missing image, daemon down). The caller then refuses exec with the reason
+ * and keeps file tools inside the workspace: the risky capability is refused, never run on the
+ * host instead.
+ */
+export async function resolveSandboxContextOrUnavailable(params: {
+  config?: KoLoConfig;
+  sessionKey?: string;
+  workspaceDir?: string;
+}): Promise<SandboxResolution> {
+  try {
+    return { sandbox: await resolveSandboxContext(params), unavailable: null };
+  } catch (err) {
+    const message = (err instanceof Error ? err.message : String(err)).split("\n")[0] ?? "";
+    const reason = message.length > 300 ? `${message.slice(0, 300)}…` : message;
+    defaultRuntime.error?.(
+      `Sandbox unavailable for ${params.sessionKey ?? "session"}: ${reason}. Exec is refused in this session; file tools stay inside the workspace.`,
+    );
+    return { sandbox: null, unavailable: { reason: reason || "container runtime unavailable" } };
+  }
+}

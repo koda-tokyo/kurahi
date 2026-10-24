@@ -16,12 +16,14 @@ import type {
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveBundledSkillsDir } from "./bundled-dir.js";
+import { resolveSkillsConfigKey } from "./config-key.js";
 import { shouldIncludeSkill } from "./config.js";
 import {
   parseFrontmatter,
   resolveKoLoMetadata,
   resolveSkillInvocationPolicy,
 } from "./frontmatter.js";
+import { gatePinnedSkills } from "./integrity.js";
 import { resolvePluginSkillDirs } from "./plugin-skills.js";
 import { serializeByKey } from "./serialize.js";
 
@@ -102,6 +104,8 @@ function loadSkillEntries(
     config?: KoLoConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    /** false: skip the supply-chain gate (`kurahi skills pin` needs the unfiltered list). */
+    verifyIntegrity?: boolean;
   },
 ): SkillEntry[] {
   const loadSkills = (params: { dir: string; source: string }): Skill[] => {
@@ -170,7 +174,14 @@ function loadSkillEntries(
     merged.set(skill.name, skill);
   }
 
-  const skillEntries: SkillEntry[] = Array.from(merged.values()).map((skill) => {
+  const loadable =
+    opts?.verifyIntegrity === false
+      ? Array.from(merged.values())
+      : gatePinnedSkills(Array.from(merged.values()), opts?.config, [
+          ...extraSkills,
+          ...bundledSkills,
+        ]);
+  const skillEntries: SkillEntry[] = loadable.map((skill) => {
     let frontmatter: ParsedSkillFrontmatter = {};
     try {
       const raw = fs.readFileSync(skill.filePath, "utf-8");
@@ -222,6 +233,7 @@ export function buildWorkspaceSkillSnapshot(
     })),
     resolvedSkills,
     version: opts?.snapshotVersion,
+    configKey: resolveSkillsConfigKey(opts?.config, opts?.skillFilter),
   };
 }
 
@@ -279,6 +291,7 @@ export function loadWorkspaceSkillEntries(
     config?: KoLoConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    verifyIntegrity?: boolean;
   },
 ): SkillEntry[] {
   return loadSkillEntries(workspaceDir, opts);

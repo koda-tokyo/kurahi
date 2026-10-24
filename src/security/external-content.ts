@@ -69,6 +69,9 @@ export type ExternalContentSource =
   | "api"
   | "web_search"
   | "web_fetch"
+  | "memory"
+  | "agent"
+  | "a2a"
   | "unknown";
 
 const EXTERNAL_SOURCE_LABELS: Record<ExternalContentSource, string> = {
@@ -77,6 +80,9 @@ const EXTERNAL_SOURCE_LABELS: Record<ExternalContentSource, string> = {
   api: "API",
   web_search: "Web Search",
   web_fetch: "Web Fetch",
+  memory: "Memory (external origin)",
+  agent: "Another agent",
+  a2a: "A2A Agent",
   unknown: "External",
 };
 
@@ -154,6 +160,8 @@ export type WrapExternalContentOptions = {
   sender?: string;
   /** Subject line (for emails) */
   subject?: string;
+  /** Trust level of the sender (e.g. "verified signature", "unverified") */
+  trust?: string;
   /** Whether to include detailed security warning */
   includeWarning?: boolean;
 };
@@ -175,17 +183,23 @@ export type WrapExternalContentOptions = {
  * ```
  */
 export function wrapExternalContent(content: string, options: WrapExternalContentOptions): string {
-  const { source, sender, subject, includeWarning = true } = options;
+  const { source, sender, subject, trust, includeWarning = true } = options;
 
   const sanitized = replaceMarkers(content);
   const sourceLabel = EXTERNAL_SOURCE_LABELS[source] ?? "External";
   const metadataLines: string[] = [`Source: ${sourceLabel}`];
 
+  // Metadata is attacker-controlled too (a subject line, a display name): markers are
+  // neutralised and line breaks folded so it cannot close the boundary or forge a header.
+  const meta = (value: string) => replaceMarkers(value).replace(/[\r\n]+/g, " ");
   if (sender) {
-    metadataLines.push(`From: ${sender}`);
+    metadataLines.push(`From: ${meta(sender)}`);
   }
   if (subject) {
-    metadataLines.push(`Subject: ${subject}`);
+    metadataLines.push(`Subject: ${meta(subject)}`);
+  }
+  if (trust) {
+    metadataLines.push(`Trust: ${meta(trust)}`);
   }
 
   const metadata = metadataLines.join("\n");

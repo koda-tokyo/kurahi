@@ -302,6 +302,8 @@ export type ConfigSchemaResponse = {
 };
 
 export type PresenceEntry = {
+  roles?: string[];
+  scopes?: string[];
   instanceId?: string | null;
   host?: string | null;
   ip?: string | null;

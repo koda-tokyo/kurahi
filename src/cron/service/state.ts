@@ -1,5 +1,11 @@
 import type { HeartbeatRunResult } from "../../infra/heartbeat-wake.js";
-import type { CronJob, CronJobCreate, CronJobPatch, CronStoreFile } from "../types.js";
+import type {
+  CronJob,
+  CronJobCreate,
+  CronJobPatch,
+  CronPreExecOutcome,
+  CronStoreFile,
+} from "../types.js";
 
 export type CronEvent = {
   jobId: string;
@@ -10,6 +16,8 @@ export type CronEvent = {
   error?: string;
   summary?: string;
   nextRunAtMs?: number;
+  /** The job's deterministic pre-step outcome (payload.preExec). */
+  preExec?: CronPreExecOutcome;
 };
 
 export type Logger = {
@@ -33,6 +41,7 @@ export type CronServiceDeps = {
     /** Last non-empty agent text output (not truncated). */
     outputText?: string;
     error?: string;
+    preExec?: CronPreExecOutcome;
   }>;
   onEvent?: (evt: CronEvent) => void;
 };

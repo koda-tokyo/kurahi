@@ -2,6 +2,7 @@ import type { KoLoConfig } from "../../config/config.js";
 import type { SandboxConfig, SandboxToolPolicyResolved } from "./types.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { canonicalizeMainSessionAlias, resolveAgentMainSessionKey } from "../../config/sessions.js";
+import { parseProjectSessionKey } from "../../projects/scope.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { expandToolGroups } from "../tool-policy.js";
 import { resolveSandboxConfigForAgent } from "./config.js";
@@ -55,13 +56,16 @@ export function resolveSandboxRuntimeStatus(params: { cfg?: KoLoConfig; sessionK
   const cfg = params.cfg;
   const sandboxCfg = resolveSandboxConfigForAgent(cfg, agentId);
   const mainSessionKey = resolveMainSessionKeyForSandbox({ cfg, agentId });
-  const sandboxed = sessionKey
-    ? shouldSandboxSession(
-        sandboxCfg,
-        resolveComparableSessionKeyForSandbox({ cfg, agentId, sessionKey }),
-        mainSessionKey,
-      )
-    : false;
+  // Project sessions are confined by the project scope instead (src/projects/scope.ts): files
+  // only inside the project folder, exec never granted. A container would hide that folder.
+  const sandboxed =
+    sessionKey && !parseProjectSessionKey(sessionKey)
+      ? shouldSandboxSession(
+          sandboxCfg,
+          resolveComparableSessionKeyForSandbox({ cfg, agentId, sessionKey }),
+          mainSessionKey,
+        )
+      : false;
   return {
     agentId,
     sessionKey,

@@ -11,15 +11,19 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { ConnectDeps } from "./connect/types.js";
 import { ensureAuthProfileStore, upsertAuthProfile } from "../agents/auth-profiles.js";
 import { ensureAgentWorkspace } from "../agents/workspace.js";
+import { installStarterPolicyIfAbsent } from "../cli/policy-cli-actions.js";
 import { createConfigIO, type KoLoConfig, writeConfigFile } from "../config/config.js";
 import { ensureKoloDir, koloSecretsDir, resolveKoloHome } from "../config/kolo-home.js";
 import { resolveGatewayPort } from "../config/paths.js";
 import { DOCS_URL } from "../config/product-urls.js";
+import { applySecureDefaults, findLegacyDefaults } from "../config/secure-defaults.js";
 import { defaultGatewayTokenFilePath, ensureGatewayTokenFile } from "../gateway/token-file.js";
 import { t } from "../i18n/index.js";
 import { RESIDENCIES, type Residency } from "../model-bench/catalogue.js";
+import { resolvePolicyLocations } from "../policy/paths.js";
 import { defaultRuntime } from "../runtime.js";
 import { buildDoctorJsonReport } from "./doctor-json.js";
+import { isDockerAvailable } from "./doctor-sandbox.js";
 import { applyKodaTestedProfile } from "./init-koda-tested.js";
 import {
   INIT_PHONE_CHOICES,
@@ -442,8 +446,32 @@ export async function initCommand(
       ...(bindPlan.remote ? { remote: { ...base.gateway?.remote, enabled: true } } : {}),
     },
   } as KoLoConfig;
-  const providerNote = await applyInitProvider(next, answers, home);
+  // Secure defaults (credential isolation, sandbox, exec approvals, memory quarantine) for a fresh
+  // config only; an existing config keeps its behaviour and is told which settings still use
+  // legacy defaults.
+  const fresh = !existing || Boolean(opts.force);
+  const secured = fresh
+    ? applySecureDefaults(next, { identityAgentId: answers.name })
+    : { config: next, applied: [] as string[] };
+  const providerNote = await applyInitProvider(secured.config, answers, home);
   await writeConfigFile(providerNote.config);
+  const legacyDefaults = findLegacyDefaults(providerNote.config);
+  // Budgets and job limits: the signed starter policy, installed only when no policy exists.
+  let policy: Awaited<ReturnType<typeof installStarterPolicyIfAbsent>> | null = null;
+  if (fresh) {
+    try {
+      policy = await installStarterPolicyIfAbsent();
+    } catch (err) {
+      runtime.error(
+        `policy: starter policy not installed (${String(err)}); run kurahi policy init`,
+      );
+    }
+  } else {
+    const policyPath = resolvePolicyLocations().policyPath;
+    policy = fs.existsSync(policyPath) ? { installed: false, path: policyPath } : null;
+  }
+  const sandboxOn = (providerNote.config.agents?.defaults?.sandbox?.mode ?? "off") !== "off";
+  const containerRuntime = sandboxOn ? await isDockerAvailable() : null;
 
   koloSecretsDir(home);
   const tokenPath = defaultGatewayTokenFilePath();
@@ -478,6 +506,11 @@ export async function initCommand(
           remoteEnabled: bindPlan.remote,
           port,
           provider: providerNote.summary,
+          secureDefaults: { applied: secured.applied, legacy: legacyDefaults.map((d) => d.key) },
+          policy: policy
+            ? { path: policy.path, installed: policy.installed, keyId: policy.keyId }
+            : null,
+          containerRuntime,
           doctor: report,
           ...(phone ? { phone } : {}),
         },
@@ -508,6 +541,21 @@ export async function initCommand(
     ),
     row("init.k.port", String(port)),
     row("init.k.provider", providerNote.summary),
+    row(
+      "init.k.security",
+      legacyDefaults.length === 0
+        ? t("init.security.secure")
+        : t("init.security.legacy", { n: legacyDefaults.length }),
+    ),
+    row(
+      "init.k.policy",
+      policy?.installed
+        ? t("init.policy.installed", { path: policy.path })
+        : policy
+          ? t("init.policy.kept", { path: policy.path })
+          : t("init.policy.none"),
+    ),
+    ...(containerRuntime === false ? [row("init.k.security", t("init.sandbox.noRuntime"))] : []),
     row(
       "init.k.doctor",
       `${report.ok ? t("init.doctor.ok") : t("init.doctor.issues")} (${t("init.doctor.notes", { n: report.checks.filter((c) => c.level !== "ok").length })})`,

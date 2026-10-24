@@ -9,6 +9,7 @@ import { parsePositiveIntOrUndefined } from "../program/helpers.js";
 import {
   getCronChannelOptions,
   parseAtMs,
+  parseCronPromptMode,
   parseDurationMs,
   printCronList,
   warnIfCronSchedulerDisabled,
@@ -81,6 +82,24 @@ export function registerCronAddCommand(cron: Command) {
       .option("--model <model>", "Model override for agent jobs (provider/model or alias)")
       .option("--timeout-seconds <n>", "Timeout seconds for agent jobs")
       .option(
+        "--pre-exec <command>",
+        "Run this command through the agent's exec tool (same allowlist/approvals) before the model turn; the model then only reports on its output",
+      )
+      .option(
+        "--pre-exec-keep-tools",
+        "Keep the agent's tools for the turn after --pre-exec",
+        false,
+      )
+      .option(
+        "--prompt-mode <mode>",
+        "System prompt for the agent turn: full (default) or minimal (tools, safety, workspace and runtime only; no skills list, memory, messaging or docs sections)",
+      )
+      .option(
+        "--pre-exec-pin-head",
+        "Deliver and log only the --pre-exec command's first output line (its verdict); the model's reply is kept as a diagnostic",
+        false,
+      )
+      .option(
         "--deliver",
         "Deliver agent output (required when using last-route delivery without --to)",
         false,
@@ -94,7 +113,7 @@ export function registerCronAddCommand(cron: Command) {
       .option("--post-prefix <prefix>", "Prefix for main-session post", "Cron")
       .option(
         "--post-mode <mode>",
-        "What to post back to main for isolated jobs (summary|full)",
+        "What to post back to main for isolated jobs (none|summary|full)",
         "summary",
       )
       .option("--post-max-chars <n>", "Max chars when --post-mode=full (default 8000)", "8000")
@@ -158,6 +177,7 @@ export function registerCronAddCommand(cron: Command) {
               return { kind: "systemEvent" as const, text: systemEvent };
             }
             const timeoutSeconds = parsePositiveIntOrUndefined(opts.timeoutSeconds);
+            const promptMode = parseCronPromptMode(opts.promptMode);
             return {
               kind: "agentTurn" as const,
               message,
@@ -173,6 +193,15 @@ export function registerCronAddCommand(cron: Command) {
               channel: typeof opts.channel === "string" ? opts.channel : "last",
               to: typeof opts.to === "string" && opts.to.trim() ? opts.to.trim() : undefined,
               bestEffortDeliver: opts.bestEffortDeliver ? true : undefined,
+              preExec:
+                typeof opts.preExec === "string" && opts.preExec.trim()
+                  ? {
+                      command: opts.preExec.trim(),
+                      ...(opts.preExecKeepTools ? { keepTools: true } : {}),
+                      ...(opts.preExecPinHead ? { pinHead: true } : {}),
+                    }
+                  : undefined,
+              ...(promptMode ? { promptMode } : {}),
             };
           })();
 
@@ -183,6 +212,18 @@ export function registerCronAddCommand(cron: Command) {
             throw new Error("Isolated jobs require --message (agentTurn).");
           }
 
+          const postMode =
+            typeof opts.postMode === "string" ? opts.postMode.trim().toLowerCase() : undefined;
+          if (
+            sessionTarget === "isolated" &&
+            postMode !== undefined &&
+            postMode !== "none" &&
+            postMode !== "summary" &&
+            postMode !== "full"
+          ) {
+            throw new Error("--post-mode must be none, summary, or full");
+          }
+
           const isolation =
             sessionTarget === "isolated"
               ? {
@@ -190,10 +231,7 @@ export function registerCronAddCommand(cron: Command) {
                     typeof opts.postPrefix === "string" && opts.postPrefix.trim()
                       ? opts.postPrefix.trim()
                       : "Cron",
-                  postToMainMode:
-                    opts.postMode === "full" || opts.postMode === "summary"
-                      ? opts.postMode
-                      : undefined,
+                  postToMainMode: postMode as "none" | "summary" | "full" | undefined,
                   postToMainMaxChars:
                     typeof opts.postMaxChars === "string" && /^\d+$/.test(opts.postMaxChars)
                       ? Number.parseInt(opts.postMaxChars, 10)

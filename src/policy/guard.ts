@@ -11,6 +11,7 @@ import type { AnyAgentTool } from "../agents/pi-tools.types.js";
 import { ToolPermissionDeniedError, type ToolPermissionSet } from "../agents/permissions.js";
 import { callGatewayTool } from "../agents/tools/gateway.js";
 import { emitEvidenceSignal } from "../evidence/bus.js";
+import { digestOf } from "../evidence/redact.js";
 import { getMcpToolMeta } from "../mcp/client/meta.js";
 import { getPolicyEngine, type PolicyEngine } from "./engine.js";
 import {
@@ -46,7 +47,14 @@ export type PolicyGuardContext = {
   legacyPermissions?: ToolPermissionSet;
   engine?: PolicyEngine;
   /** Injected for tests; defaults to the gateway approval request. */
-  askHuman?: (params: AskParams) => Promise<"allow" | "deny">;
+  askHuman?: (params: AskParams) => Promise<"allow" | "deny" | AskVerdict>;
+};
+
+/** A human decision with who made it, when the approval path reports it. */
+export type AskVerdict = {
+  decision: "allow" | "deny";
+  approver?: string | null;
+  approvalId?: string;
 };
 
 export type AskParams = {
@@ -59,10 +67,10 @@ export type AskParams = {
   channel?: string;
 };
 
-async function askViaGateway(params: AskParams): Promise<"allow" | "deny"> {
+export async function askViaGateway(params: AskParams): Promise<AskVerdict> {
   const approvalId = randomUUID();
   try {
-    const result = await callGatewayTool<{ decision?: string }>(
+    const result = await callGatewayTool<{ decision?: string; resolvedBy?: string | null }>(
       "exec.approval.request",
       { timeoutMs: params.timeoutMs + 5_000 },
       {
@@ -77,9 +85,13 @@ async function askViaGateway(params: AskParams): Promise<"allow" | "deny"> {
       },
     );
     const decision = typeof result?.decision === "string" ? result.decision : "";
-    return decision === "allow-once" || decision === "allow-always" ? "allow" : "deny";
+    return {
+      decision: decision === "allow-once" || decision === "allow-always" ? "allow" : "deny",
+      approver: typeof result?.resolvedBy === "string" ? result.resolvedBy : null,
+      approvalId,
+    };
   } catch {
-    return "deny";
+    return { decision: "deny", approver: null, approvalId };
   }
 }
 
@@ -149,7 +161,7 @@ export function wrapToolWithPolicyGuard(tool: AnyAgentTool, ctx: PolicyGuardCont
       }
       if (decision.effect === "ask") {
         const approvals = engine.document?.approvals;
-        const verdict = await (ctx.askHuman ?? askViaGateway)({
+        const raw = await (ctx.askHuman ?? askViaGateway)({
           agentId: ctx.agentId,
           sessionKey: ctx.sessionKey,
           tool: tool.name,
@@ -158,7 +170,21 @@ export function wrapToolWithPolicyGuard(tool: AnyAgentTool, ctx: PolicyGuardCont
           timeoutMs: approvals?.timeoutMs ?? DEFAULT_ASK_TIMEOUT_MS,
           channel: approvals?.channel,
         });
-        if (verdict === "allow") {
+        const verdict: AskVerdict = typeof raw === "string" ? { decision: raw } : raw;
+        if (ctx.sessionKey) {
+          // Approvals are first-class evidence: the evaluator checks approval-before-action on it.
+          emitEvidenceSignal({
+            kind: "approval",
+            sessionKey: ctx.sessionKey,
+            tool: ref,
+            decision: verdict.decision,
+            ruleId: decision.ruleId,
+            approvalId: verdict.approvalId,
+            approver: verdict.approver ?? null,
+            argsDigest: digestOf(toolArgs),
+          });
+        }
+        if (verdict.decision === "allow") {
           return guarded(args);
         }
         throw new PolicyDeniedError(

@@ -1,0 +1,28 @@
+{
+  "id": "professional",
+  "name": { "ja": "専門業務", "en": "Professional" },
+  "description": {
+    "ja": "契約書や議事録などの文書をレビュー・要約し、提案書や返信の下書きを作成します。文書は読み取り専用、外部に出す下書きは承認が必要。",
+    "en": "Review and summarise contracts, minutes and other documents, and draft proposals and replies. Documents are read-only; drafts need approval before anything leaves."
+  },
+  "folders": ["output"],
+  "rules": {
+    "readOnly": ["documents", "docs"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      { "ja": "documents/ は読み取り専用です。", "en": "documents/ is read-only." },
+      { "ja": "社外に出す可能性のある下書きは、承認されるまで送信・共有しないでください。成果物として保存し、確認に回してください。", "en": "Drafts that may leave the organisation must not be sent or shared until approved. Save them as artifacts and send them for review." }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    { "ja": "契約書のリスクをレビューしてください。", "en": "Review the contract for risks." },
+    { "ja": "議事録を要約してください。", "en": "Summarise the meeting minutes." },
+    { "ja": "取引先への返信を下書きしてください（承認待ちとして保存）。", "en": "Draft a reply to the vendor (saved for approval)." },
+    { "ja": "RFP への提案書の骨子を作成してください。", "en": "Outline a proposal for the RFP." }
+  ],
+  "terminalProfile": "data",
+  "demoFolder": "~/kurahi-demo-packs/professional-documents"
+}

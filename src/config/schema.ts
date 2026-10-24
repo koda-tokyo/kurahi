@@ -180,6 +180,10 @@ const FIELD_LABELS: Record<string, string> = {
   "tools.exec.notifyOnExit": "Exec Notify On Exit",
   "tools.exec.approvalRunningNoticeMs": "Exec Approval Running Notice (ms)",
   "tools.exec.host": "Exec Host",
+  "tools.exec.unsandboxed": "Exec Without Sandbox",
+  "agents.messaging.signing.mode": "Inter-Agent Message Signing",
+  "agents.messaging.signing.maxAgeSeconds": "Inter-Agent Message Max Age (s)",
+  "agents.messaging.signing.maxPayloadBytes": "Inter-Agent Payload Limit (bytes)",
   "tools.exec.security": "Exec Security",
   "tools.exec.ask": "Exec Ask",
   "tools.exec.node": "Exec Node Binding",
@@ -207,6 +211,7 @@ const FIELD_LABELS: Record<string, string> = {
   "gateway.controlUi.basePath": "Control UI Base Path",
   "gateway.controlUi.allowInsecureAuth": "Allow Insecure Control UI Auth",
   "gateway.controlUi.dangerouslyDisableDeviceAuth": "Dangerously Disable Control UI Device Auth",
+  "gateway.controlUi.defaultLocale": "Control UI Default Language",
   "gateway.http.endpoints.chatCompletions.enabled": "OpenAI Chat Completions Endpoint",
   "gateway.reload.mode": "Config Reload Mode",
   "gateway.reload.debounceMs": "Config Reload Debounce (ms)",
@@ -410,6 +415,8 @@ const FIELD_HELP: Record<string, string> = {
     "Allow Control UI auth over insecure HTTP (token-only; not recommended).",
   "gateway.controlUi.dangerouslyDisableDeviceAuth":
     "DANGEROUS. Disable Control UI device identity checks (token/password only).",
+  "gateway.controlUi.defaultLocale":
+    'Organisation default language for the Control UI and Kurahi Desktop (BCP 47, e.g. "ja" or "en"). Users can still choose their own; unsupported values fall back to the OS language.',
   "gateway.http.endpoints.chatCompletions.enabled":
     "Enable the OpenAI-compatible `POST /v1/chat/completions` endpoint (default: false).",
   "gateway.reload.mode": 'Hot reload strategy for config changes ("hybrid" recommended).',
@@ -440,6 +447,14 @@ const FIELD_HELP: Record<string, string> = {
     'Optional allowlist of model ids (e.g. "gpt-5.2" or "openai/gpt-5.2").',
   "tools.exec.notifyOnExit":
     "When true (default), backgrounded exec sessions enqueue a system event and request a heartbeat on exit.",
+  "tools.exec.unsandboxed":
+    'When host is "sandbox" but no sandbox container is active: "host" runs on the host with no approvals (legacy fallback), "approve" routes through exec approvals, "deny" refuses. New installations get "approve".',
+  "agents.messaging.signing.mode":
+    'Signed inter-agent messages (sessions_send, A2A steps, sub-agent spawn/announce): "enforce" rejects unsigned, forged, replayed, stale or malformed messages; "warn" delivers them flagged (legacy fallback when unset); "off" disables checks. New installations get "enforce".',
+  "agents.messaging.signing.maxAgeSeconds":
+    "Accepted age / clock skew of a signed inter-agent message in seconds (default 300).",
+  "agents.messaging.signing.maxPayloadBytes":
+    "Maximum size of an inter-agent payload, message plus context, in bytes (default 262144).",
   "tools.exec.pathPrepend": "Directories to prepend to PATH for exec runs (gateway/sandbox).",
   "tools.exec.safeBins":
     "Allow stdin-only safe binaries to run without explicit allowlist entries.",

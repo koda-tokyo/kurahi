@@ -163,6 +163,16 @@ export type GroupToolPolicyBySenderConfig = Record<string, GroupToolPolicyConfig
 export type ExecToolConfig = {
   /** Exec host routing (default: sandbox). */
   host?: "sandbox" | "gateway" | "node";
+  /**
+   * What exec does when host is "sandbox" but the session has no sandbox container (sandbox mode
+   * off, or a main session under mode "non-main"):
+   * - "host": run directly on the gateway host with no approvals (legacy; the fallback when unset,
+   *   with a startup and doctor warning)
+   * - "approve": run on the gateway host through exec approvals (allowlist, ask on miss)
+   * - "deny": refuse
+   * `kurahi init` writes "approve" for new installations.
+   */
+  unsandboxed?: "host" | "approve" | "deny";
   /** Exec security mode (default: deny). */
   security?: "deny" | "allowlist" | "full";
   /** Exec ask mode (default: on-miss). */

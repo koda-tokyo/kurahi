@@ -137,6 +137,16 @@ describe("resolveToolPermissions", () => {
 });
 
 describe("classifyToolCall", () => {
+  it("classifies the Claude-style file_path alias the file tools accept", () => {
+    expect(classifyToolCall("read", { file_path: "/a" })).toEqual({
+      toolClass: "read",
+      targets: ["/a"],
+    });
+    expect(classifyToolCall("write", { file_path: "/b" }).targets).toEqual(["/b"]);
+    expect(classifyToolCall("edit", { file_path: "/c" }).targets).toEqual(["/c"]);
+    expect(classifyToolCall("read", { path: "/p", file_path: "/f" }).targets).toEqual(["/p"]);
+  });
+
   it("classifies read/write/exec classes with targets", () => {
     expect(classifyToolCall("read", { path: "/a" })).toEqual({
       toolClass: "read",
@@ -153,6 +163,41 @@ describe("classifyToolCall", () => {
       toolClass: "exec",
       targets: ["process:kill"],
     });
+  });
+
+  it("classifies the legacy analyser tools as reads of their path", () => {
+    for (const name of [
+      "legacy_index",
+      "legacy_query",
+      "legacy_rules",
+      "legacy_dictionary",
+      "legacy_impact",
+      "legacy_design_doc",
+      "legacy_wave_plan",
+      "modernise_plan",
+      "modernise_crud",
+      "modernise_impact",
+      "modernise_inventory",
+    ]) {
+      expect(classifyToolCall(name, { path: "/proj/source" })).toEqual({
+        toolClass: "read",
+        targets: ["/proj/source"],
+      });
+    }
+    expect(
+      checkToolPermission({
+        toolName: "legacy_index",
+        args: { path: "/elsewhere/_answer-keys/x" },
+        permissionSet: {
+          active: true,
+          rules: [],
+          problems: [],
+          denyByDefault: ["read", "write", "exec"],
+          denyPaths: [/\/_answer-keys(\/|$)/],
+        },
+        workspaceDir: "/proj",
+      }).ok,
+    ).toBe(false);
   });
 
   it("extracts every file from apply_patch payloads", () => {

@@ -94,11 +94,33 @@ export type ConsciousnessConfig = {
   agents?: ConsciousnessAgentConfig[];
 };
 
+export type AgentMessageSigningMode = "off" | "warn" | "enforce";
+
+/** Signed inter-agent messages (OWASP ASI07). See docs/security/agent-message-signing.md. */
+export type AgentMessageSigningConfig = {
+  /**
+   * off: no envelopes, no checks. warn: sign, verify and flag failures (audit + log) but deliver.
+   * enforce: reject inter-agent messages that fail verification or payload validation.
+   * Unset falls back to warn (legacy installs); new installations get enforce.
+   */
+  mode?: AgentMessageSigningMode;
+  /** Accepted clock skew / message age in seconds (default 300). */
+  maxAgeSeconds?: number;
+  /** Maximum inter-agent payload size in bytes, message plus context (default 262144). */
+  maxPayloadBytes?: number;
+};
+
+export type AgentMessagingConfig = {
+  signing?: AgentMessageSigningConfig;
+};
+
 export type AgentsConfig = {
   defaults?: AgentDefaultsConfig;
   list?: AgentConfig[];
   /** N7 Consciousness — sentient-tier agent configuration. */
   consciousness?: ConsciousnessConfig;
+  /** Inter-agent messaging security (signing, verification, payload limits). */
+  messaging?: AgentMessagingConfig;
 };
 
 export type AgentBinding = {

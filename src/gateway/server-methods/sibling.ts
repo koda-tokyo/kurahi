@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
+import { checkSiblingSend } from "../../agents/messaging/sibling.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveKoloHome } from "../../config/kolo-home.js";
 import { resolveSiblingInboxDir } from "../../config/sibling-paths.js";
@@ -20,12 +21,11 @@ import {
   insertMessage,
   getConversationHistory,
   markAsRead,
-  getMessageByRunId,
   getUndeliveredMessages,
   markAsDelivered,
-  type SiblingMessageRow,
 } from "../sibling-chat-db.js";
 import { formatForLog } from "../ws-log.js";
+import { checkSiblingRateLimit, resetSiblingRateLimits } from "./sibling-rate-limit.js";
 
 // ── Singleton DB (initialized on first handler use) ────────────────────────────
 
@@ -36,7 +36,7 @@ let _dbPath: string | null = null;
 export function resetSiblingDb(): void {
   _db = null;
   _dbPath = null;
-  rateLimitMap.clear();
+  resetSiblingRateLimits();
 }
 
 export function setSiblingDb(db: DatabaseSync, dbPath: string): void {
@@ -85,63 +85,6 @@ function validateSiblingName(name: string): string | null {
   return null;
 }
 
-// ── Rate limiter (in-memory, per-sibling pair) ─────────────────────────────────
-
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_MESSAGES = 30; // per pair per window
-
-type RateLimitEntry = {
-  timestamps: number[];
-};
-
-const rateLimitMap = new Map<string, RateLimitEntry>();
-
-function getRateLimitKey(from: string, to: string): string {
-  const a = from.toLowerCase();
-  const b = to.toLowerCase();
-  return a < b ? `${a}:${b}` : `${b}:${a}`;
-}
-
-function checkRateLimit(from: string, to: string): { ok: boolean; retryAfterMs?: number } {
-  const key = getRateLimitKey(from, to);
-  const now = Date.now();
-  let entry = rateLimitMap.get(key);
-
-  if (!entry) {
-    entry = { timestamps: [] };
-    rateLimitMap.set(key, entry);
-  }
-
-  // Prune old timestamps
-  entry.timestamps = entry.timestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
-
-  if (entry.timestamps.length >= RATE_LIMIT_MAX_MESSAGES) {
-    const oldestInWindow = entry.timestamps[0];
-    const retryAfter = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow);
-    return { ok: false, retryAfterMs: Math.max(retryAfter, 1000) };
-  }
-
-  entry.timestamps.push(now);
-  return { ok: true };
-}
-
-// Clean up rate limit entries periodically (every 5 minutes). unref: this module is imported
-// transitively by CLI subcommands, and a referenced interval would keep every `kolo` process
-// alive after its command finished (seen as a hang in `kurahi completion --install`).
-const rateLimitPrune = setInterval(
-  () => {
-    const now = Date.now();
-    for (const [key, entry] of rateLimitMap.entries()) {
-      entry.timestamps = entry.timestamps.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
-      if (entry.timestamps.length === 0) {
-        rateLimitMap.delete(key);
-      }
-    }
-  },
-  5 * 60 * 1000,
-);
-rateLimitPrune.unref?.();
-
 // ── File inbox fallback ────────────────────────────────────────────────────────
 
 function writeToFileInbox(
@@ -150,6 +93,7 @@ function writeToFileInbox(
   to: string,
   text: string,
   runId: string,
+  verified: boolean,
 ): string {
   const inboxDir = path.join(resolveSiblingInboxDir(to), "sibling-chat");
 
@@ -160,13 +104,17 @@ function writeToFileInbox(
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `from_${from}_${timestamp}_${runId.slice(0, 8)}.md`;
+  // runId is the client's idempotency key: keep only safe characters in the file name (no path
+  // separators or "..") and quote it in the front matter so it cannot add or override fields.
+  const runIdTag = runId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 8) || "msg";
+  const filename = `from_${from}_${timestamp}_${runIdTag}.md`;
   const filepath = path.join(inboxDir, filename);
 
   const content = `---
 from: ${from}
 to: ${to}
-runId: ${runId}
+runId: ${JSON.stringify(runId)}
+verified: ${verified}
 timestamp: ${new Date().toISOString()}
 ---
 
@@ -209,6 +157,7 @@ export const siblingHandlers: GatewayRequestHandlers = {
         content?: string;
       }>;
       idempotencyKey: string;
+      agentEnvelope?: Record<string, unknown>;
     };
 
     // Validate target sibling
@@ -218,10 +167,33 @@ export const siblingHandlers: GatewayRequestHandlers = {
       return;
     }
 
-    // Validate sender (from client identity)
+    // Check idempotency (dedup) first: a retry of an accepted signed send carries the same
+    // envelope and would otherwise be refused as a replay.
+    const dedupeKey = `sibling.send:${p.idempotencyKey}`;
+    const cached = context.dedupe.get(dedupeKey);
+    if (cached) {
+      respond(cached.ok, cached.payload, cached.error, { cached: true });
+      return;
+    }
+
+    // Sender: the verified envelope signer when signed (OWASP ASI07), otherwise the agent name
+    // from the client's declared id (e.g. "alice" from "alice-tui"), which signing mode
+    // enforce refuses and warn flags.
     const senderName = client?.connect?.client?.id ?? "unknown";
-    // Extract the agent name from the client id (e.g. "alice" from "alice-tui")
-    const fromSibling = senderName.split("-")[0]?.toLowerCase() || senderName.toLowerCase();
+    const claimedFrom = senderName.split("-")[0]?.toLowerCase() || senderName.toLowerCase();
+    const signing = checkSiblingSend({
+      cfg: loadConfig(),
+      claimedFrom,
+      to: p.to,
+      text: (p.text || "").trim(),
+      attachments: p.attachments,
+      agentEnvelope: p.agentEnvelope,
+    });
+    if (signing.kind === "reject") {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, signing.error));
+      return;
+    }
+    const fromSibling = signing.from;
     const senderError = validateSiblingName(fromSibling);
     if (senderError) {
       respond(
@@ -254,7 +226,7 @@ export const siblingHandlers: GatewayRequestHandlers = {
     }
 
     // Rate limit check
-    const rateLimit = checkRateLimit(fromSibling, p.to);
+    const rateLimit = checkSiblingRateLimit(fromSibling, p.to);
     if (!rateLimit.ok) {
       respond(
         false,
@@ -264,14 +236,6 @@ export const siblingHandlers: GatewayRequestHandlers = {
           retryAfterMs: rateLimit.retryAfterMs,
         }),
       );
-      return;
-    }
-
-    // Check idempotency (dedup)
-    const dedupeKey = `sibling.send:${p.idempotencyKey}`;
-    const cached = context.dedupe.get(dedupeKey);
-    if (cached) {
-      respond(cached.ok, cached.payload, cached.error, { cached: true });
       return;
     }
 
@@ -298,6 +262,7 @@ export const siblingHandlers: GatewayRequestHandlers = {
         seq: row.seq,
         runId: row.runId,
         timestamp: row.timestamp,
+        verified: signing.verified,
       };
 
       // Broadcast to all subscribers (the recipient's connected clients will receive it)
@@ -310,7 +275,14 @@ export const siblingHandlers: GatewayRequestHandlers = {
       });
 
       // File inbox fallback (always write for offline persistence)
-      const inboxPath = writeToFileInbox(context, fromSibling, p.to.toLowerCase(), text, runId);
+      const inboxPath = writeToFileInbox(
+        context,
+        fromSibling,
+        p.to.toLowerCase(),
+        text,
+        runId,
+        signing.verified,
+      );
 
       const resultPayload = {
         ok: true,

@@ -18,6 +18,8 @@ export type EmbeddedPiRunMeta = {
   durationMs: number;
   agentMeta?: EmbeddedPiAgentMeta;
   aborted?: boolean;
+  /** Set when the run was aborted because it hit its timeout. */
+  timedOut?: boolean;
   /** Set when the doom-loop guard stopped the run (M5). */
   loopStopped?: { reason: string; summary: string };
   /** Assistant-message (LLM turn) count for the run (M5 jobs API). */

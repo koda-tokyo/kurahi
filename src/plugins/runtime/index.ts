@@ -2,8 +2,6 @@ import { createRequire } from "node:module";
 import type { PluginRuntime } from "./types.js";
 import { resolveEffectiveMessagesConfig, resolveHumanDelayConfig } from "../../agents/identity.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../../agents/tools/memory-tool.js";
-import { handleSlackAction } from "../../agents/tools/slack-actions.js";
-import { handleWhatsAppAction } from "../../agents/tools/whatsapp-actions.js";
 import {
   chunkByNewline,
   chunkMarkdownText,
@@ -44,7 +42,6 @@ import { signalMessageActions } from "../../channels/plugins/actions/signal.js";
 import { telegramMessageActions } from "../../channels/plugins/actions/telegram.js";
 import { createWhatsAppLoginTool } from "../../channels/plugins/agent-tools/whatsapp-login.js";
 import { recordInboundSession } from "../../channels/session.js";
-import { monitorWebChannel } from "../../channels/web/index.js";
 import { registerMemoryCli } from "../../cli/memory-cli.js";
 import { loadConfig, writeConfigFile } from "../../config/config.js";
 import {
@@ -59,20 +56,7 @@ import {
   resolveStorePath,
   updateLastRoute,
 } from "../../config/sessions.js";
-import { auditDiscordChannelPermissions } from "../../discord/audit.js";
-import {
-  listDiscordDirectoryGroupsLive,
-  listDiscordDirectoryPeersLive,
-} from "../../discord/directory-live.js";
-import { monitorDiscordProvider } from "../../discord/monitor.js";
-import { probeDiscord } from "../../discord/probe.js";
-import { resolveDiscordChannelAllowlist } from "../../discord/resolve-channels.js";
-import { resolveDiscordUserAllowlist } from "../../discord/resolve-users.js";
-import { sendMessageDiscord, sendPollDiscord } from "../../discord/send.js";
 import { shouldLogVerbose } from "../../globals.js";
-import { monitorIMessageProvider } from "../../imessage/monitor.js";
-import { probeIMessage } from "../../imessage/probe.js";
-import { sendMessageIMessage } from "../../imessage/send.js";
 import { getChannelActivity, recordChannelActivity } from "../../infra/channel-activity.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
 import {
@@ -81,18 +65,7 @@ import {
   resolveDefaultLineAccountId,
   resolveLineAccount,
 } from "../../line/accounts.js";
-import { monitorLineProvider } from "../../line/monitor.js";
-import { probeLineBot } from "../../line/probe.js";
-import {
-  createQuickReplyItems,
-  pushMessageLine,
-  pushMessagesLine,
-  pushFlexMessage,
-  pushTemplateMessage,
-  pushLocationMessage,
-  pushTextMessageWithQuickReplies,
-  sendMessageLine,
-} from "../../line/send.js";
+import { createQuickReplyItems } from "../../line/quick-reply.js";
 import { buildTemplateMessageFromPayload } from "../../line/template-messages.js";
 import { getChildLogger } from "../../logging.js";
 import { normalizeLogLevel } from "../../logging/levels.js";
@@ -110,27 +83,9 @@ import {
 } from "../../pairing/pairing-store.js";
 import { runCommandWithTimeout } from "../../process/exec.js";
 import { resolveAgentRoute } from "../../routing/resolve-route.js";
-import { monitorSignalProvider } from "../../signal/index.js";
-import { probeSignal } from "../../signal/probe.js";
-import { sendMessageSignal } from "../../signal/send.js";
-import {
-  listSlackDirectoryGroupsLive,
-  listSlackDirectoryPeersLive,
-} from "../../slack/directory-live.js";
-import { monitorSlackProvider } from "../../slack/index.js";
-import { probeSlack } from "../../slack/probe.js";
-import { resolveSlackChannelAllowlist } from "../../slack/resolve-channels.js";
-import { resolveSlackUserAllowlist } from "../../slack/resolve-users.js";
-import { sendMessageSlack } from "../../slack/send.js";
-import {
-  auditTelegramGroupMembership,
-  collectTelegramUnmentionedGroupIds,
-} from "../../telegram/audit.js";
-import { monitorTelegramProvider } from "../../telegram/monitor.js";
-import { probeTelegram } from "../../telegram/probe.js";
-import { sendMessageTelegram } from "../../telegram/send.js";
+import { lazyModule } from "../../shared/lazy-module.js";
+import { collectTelegramUnmentionedGroupIds } from "../../telegram/audit.js";
 import { resolveTelegramToken } from "../../telegram/token.js";
-import { textToSpeechTelephony } from "../../tts/tts.js";
 import { getActiveWebListener } from "../../web/active-listener.js";
 import {
   getWebAuthAgeMs,
@@ -139,11 +94,46 @@ import {
   readWebSelfId,
   webAuthExists,
 } from "../../web/auth-store.js";
-import { startWebLoginWithQr, waitForWebLogin } from "../../web/login-qr.js";
-import { loginWeb } from "../../web/login.js";
 import { loadWebMedia } from "../../web/media.js";
-import { sendMessageWhatsApp, sendPollWhatsApp } from "../../web/outbound.js";
 import { formatNativeDependencyHint } from "./native-deps.js";
+
+// Channel and provider modules load on first use: they pull in Slack Bolt, discord carbon, grammy,
+// the LINE SDK, Baileys and the TTS provider SDKs, which every plugin load (each CLI command and
+// each gateway start) paid for even when no channel is configured. Only async exports are wrapped,
+// so the runtime surface plugins see is unchanged.
+const slackActions = lazyModule(() => import("../../agents/tools/slack-actions.js"));
+const whatsappActions = lazyModule(() => import("../../agents/tools/whatsapp-actions.js"));
+const webChannel = lazyModule(() => import("../../channels/web/index.js"));
+const discordAudit = lazyModule(() => import("../../discord/audit.js"));
+const discordDirectory = lazyModule(() => import("../../discord/directory-live.js"));
+const discordMonitor = lazyModule(() => import("../../discord/monitor.js"));
+const discordProbe = lazyModule(() => import("../../discord/probe.js"));
+const discordResolveChannels = lazyModule(() => import("../../discord/resolve-channels.js"));
+const discordResolveUsers = lazyModule(() => import("../../discord/resolve-users.js"));
+const discordSend = lazyModule(() => import("../../discord/send.js"));
+const imessageMonitor = lazyModule(() => import("../../imessage/monitor.js"));
+const imessageProbe = lazyModule(() => import("../../imessage/probe.js"));
+const imessageSend = lazyModule(() => import("../../imessage/send.js"));
+const lineMonitor = lazyModule(() => import("../../line/monitor.js"));
+const lineProbe = lazyModule(() => import("../../line/probe.js"));
+const lineSend = lazyModule(() => import("../../line/send.js"));
+const signalMonitor = lazyModule(() => import("../../signal/index.js"));
+const signalProbe = lazyModule(() => import("../../signal/probe.js"));
+const signalSend = lazyModule(() => import("../../signal/send.js"));
+const slackDirectory = lazyModule(() => import("../../slack/directory-live.js"));
+const slackMonitor = lazyModule(() => import("../../slack/index.js"));
+const slackProbe = lazyModule(() => import("../../slack/probe.js"));
+const slackResolveChannels = lazyModule(() => import("../../slack/resolve-channels.js"));
+const slackResolveUsers = lazyModule(() => import("../../slack/resolve-users.js"));
+const slackSend = lazyModule(() => import("../../slack/send.js"));
+const telegramAudit = lazyModule(() => import("../../telegram/audit.js"));
+const telegramMonitor = lazyModule(() => import("../../telegram/monitor.js"));
+const telegramProbe = lazyModule(() => import("../../telegram/probe.js"));
+const telegramSend = lazyModule(() => import("../../telegram/send.js"));
+const tts = lazyModule(() => import("../../tts/tts.js"));
+const webLoginQr = lazyModule(() => import("../../web/login-qr.js"));
+const webLogin = lazyModule(() => import("../../web/login.js"));
+const webOutbound = lazyModule(() => import("../../web/outbound.js"));
 
 let cachedVersion: string | null = null;
 
@@ -183,7 +173,7 @@ export function createPluginRuntime(): PluginRuntime {
       resizeToJpeg,
     },
     tts: {
-      textToSpeechTelephony,
+      textToSpeechTelephony: tts.fn("textToSpeechTelephony"),
     },
     tools: {
       createMemoryGetTool,
@@ -262,45 +252,45 @@ export function createPluginRuntime(): PluginRuntime {
       },
       discord: {
         messageActions: discordMessageActions,
-        auditChannelPermissions: auditDiscordChannelPermissions,
-        listDirectoryGroupsLive: listDiscordDirectoryGroupsLive,
-        listDirectoryPeersLive: listDiscordDirectoryPeersLive,
-        probeDiscord,
-        resolveChannelAllowlist: resolveDiscordChannelAllowlist,
-        resolveUserAllowlist: resolveDiscordUserAllowlist,
-        sendMessageDiscord,
-        sendPollDiscord,
-        monitorDiscordProvider,
+        auditChannelPermissions: discordAudit.fn("auditDiscordChannelPermissions"),
+        listDirectoryGroupsLive: discordDirectory.fn("listDiscordDirectoryGroupsLive"),
+        listDirectoryPeersLive: discordDirectory.fn("listDiscordDirectoryPeersLive"),
+        probeDiscord: discordProbe.fn("probeDiscord"),
+        resolveChannelAllowlist: discordResolveChannels.fn("resolveDiscordChannelAllowlist"),
+        resolveUserAllowlist: discordResolveUsers.fn("resolveDiscordUserAllowlist"),
+        sendMessageDiscord: discordSend.fn("sendMessageDiscord"),
+        sendPollDiscord: discordSend.fn("sendPollDiscord"),
+        monitorDiscordProvider: discordMonitor.fn("monitorDiscordProvider"),
       },
       slack: {
-        listDirectoryGroupsLive: listSlackDirectoryGroupsLive,
-        listDirectoryPeersLive: listSlackDirectoryPeersLive,
-        probeSlack,
-        resolveChannelAllowlist: resolveSlackChannelAllowlist,
-        resolveUserAllowlist: resolveSlackUserAllowlist,
-        sendMessageSlack,
-        monitorSlackProvider,
-        handleSlackAction,
+        listDirectoryGroupsLive: slackDirectory.fn("listSlackDirectoryGroupsLive"),
+        listDirectoryPeersLive: slackDirectory.fn("listSlackDirectoryPeersLive"),
+        probeSlack: slackProbe.fn("probeSlack"),
+        resolveChannelAllowlist: slackResolveChannels.fn("resolveSlackChannelAllowlist"),
+        resolveUserAllowlist: slackResolveUsers.fn("resolveSlackUserAllowlist"),
+        sendMessageSlack: slackSend.fn("sendMessageSlack"),
+        monitorSlackProvider: slackMonitor.fn("monitorSlackProvider"),
+        handleSlackAction: slackActions.fn("handleSlackAction"),
       },
       telegram: {
-        auditGroupMembership: auditTelegramGroupMembership,
+        auditGroupMembership: telegramAudit.fn("auditTelegramGroupMembership"),
         collectUnmentionedGroupIds: collectTelegramUnmentionedGroupIds,
-        probeTelegram,
+        probeTelegram: telegramProbe.fn("probeTelegram"),
         resolveTelegramToken,
-        sendMessageTelegram,
-        monitorTelegramProvider,
+        sendMessageTelegram: telegramSend.fn("sendMessageTelegram"),
+        monitorTelegramProvider: telegramMonitor.fn("monitorTelegramProvider"),
         messageActions: telegramMessageActions,
       },
       signal: {
-        probeSignal,
-        sendMessageSignal,
-        monitorSignalProvider,
+        probeSignal: signalProbe.fn("probeSignal"),
+        sendMessageSignal: signalSend.fn("sendMessageSignal"),
+        monitorSignalProvider: signalMonitor.fn("monitorSignalProvider"),
         messageActions: signalMessageActions,
       },
       imessage: {
-        monitorIMessageProvider,
-        probeIMessage,
-        sendMessageIMessage,
+        monitorIMessageProvider: imessageMonitor.fn("monitorIMessageProvider"),
+        probeIMessage: imessageProbe.fn("probeIMessage"),
+        sendMessageIMessage: imessageSend.fn("sendMessageIMessage"),
       },
       whatsapp: {
         getActiveWebListener,
@@ -309,13 +299,13 @@ export function createPluginRuntime(): PluginRuntime {
         logWebSelfId,
         readWebSelfId,
         webAuthExists,
-        sendMessageWhatsApp,
-        sendPollWhatsApp,
-        loginWeb,
-        startWebLoginWithQr,
-        waitForWebLogin,
-        monitorWebChannel,
-        handleWhatsAppAction,
+        sendMessageWhatsApp: webOutbound.fn("sendMessageWhatsApp"),
+        sendPollWhatsApp: webOutbound.fn("sendPollWhatsApp"),
+        loginWeb: webLogin.fn("loginWeb"),
+        startWebLoginWithQr: webLoginQr.fn("startWebLoginWithQr"),
+        waitForWebLogin: webLoginQr.fn("waitForWebLogin"),
+        monitorWebChannel: webChannel.fn("monitorWebChannel"),
+        handleWhatsAppAction: whatsappActions.fn("handleWhatsAppAction"),
         createLoginTool: createWhatsAppLoginTool,
       },
       line: {
@@ -323,17 +313,17 @@ export function createPluginRuntime(): PluginRuntime {
         resolveDefaultLineAccountId,
         resolveLineAccount,
         normalizeAccountId: normalizeLineAccountId,
-        probeLineBot,
-        sendMessageLine,
-        pushMessageLine,
-        pushMessagesLine,
-        pushFlexMessage,
-        pushTemplateMessage,
-        pushLocationMessage,
-        pushTextMessageWithQuickReplies,
+        probeLineBot: lineProbe.fn("probeLineBot"),
+        sendMessageLine: lineSend.fn("sendMessageLine"),
+        pushMessageLine: lineSend.fn("pushMessageLine"),
+        pushMessagesLine: lineSend.fn("pushMessagesLine"),
+        pushFlexMessage: lineSend.fn("pushFlexMessage"),
+        pushTemplateMessage: lineSend.fn("pushTemplateMessage"),
+        pushLocationMessage: lineSend.fn("pushLocationMessage"),
+        pushTextMessageWithQuickReplies: lineSend.fn("pushTextMessageWithQuickReplies"),
         createQuickReplyItems,
         buildTemplateMessageFromPayload,
-        monitorLineProvider,
+        monitorLineProvider: lineMonitor.fn("monitorLineProvider"),
       },
     },
     logging: {

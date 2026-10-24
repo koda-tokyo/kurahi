@@ -104,6 +104,7 @@ export function createExecApprovalHandlers(
         {
           id: record.id,
           decision,
+          resolvedBy: record.resolvedBy ?? null,
           createdAtMs: record.createdAtMs,
           expiresAtMs: record.expiresAtMs,
         },

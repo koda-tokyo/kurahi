@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/entra",
+  "version": "2.1.0",
+  "description": "Microsoft Entra ID business connector: sign-in (OIDC) and directory read",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

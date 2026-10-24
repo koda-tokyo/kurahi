@@ -32,20 +32,20 @@ kurahi legacy mcp --root /path/to/project --http 7465  # ループバックHTTP�
 すべて読み取り専用（`readOnlyHint`）で、共通の引数を3つ持ちます：`path`（ルートからの相対で
 プロジェクト内のサブフォルダまたはファイル、既定はルート）、`offset` と `limit`（ページ送り）。
 
-| ツール                | 返す内容                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `legacy_index_status` | 対象範囲に最新のインデックスがあるか、件数。解析は行わない                                                                |
-| `legacy_index_build`  | COBOL、コピーブック、JCLを解析してインデックスを作成。プログラム、コピーブック、ジョブ、診断                              |
-| `legacy_query`        | 構造：呼び出し元・先、CALL/PERFORMグラフ、ファイルアクセス、データ項目と参照、ジョブステップ、データセット、未解決の参照  |
-| `legacy_rules`        | ルール候補：条件、定数を含む演算、丸め、88レベル値、定数                                                                  |
-| `legacy_dictionary`   | コピーブックのデータ辞書：レベル、PIC、USAGE、長さ、オフセット、位置、OCCURS、REDEFINES、値                               |
-| `legacy_impact`       | データ項目の変更が及ぶ範囲と、各項目を結ぶ根拠の事実                                                                      |
-| `legacy_design_doc`   | コードから生成する設計書（日本語／英語）。セクションごとに返却し、すべての事実に path:line を付記                         |
-| `legacy_wave_plan`    | 依存関係とリスクに基づく移行ウェーブの提案（人による確認が前提）                                                          |
-| `modernise_plan`      | 検出した言語、COBOL/JCL・Java・SQL DDL の棚卸し、言語をまたぐテーブル、カバレッジ、予定中のアシスタント（解析は行わない） |
-| `modernise_crud`      | COBOL・Java・JCL ユーティリティをまたぐ SQL テーブルの CRUD と根拠                                                        |
-| `modernise_impact`    | テーブル・列・Java クラス・プログラムの変更が言語をまたいで及ぶ範囲                                                       |
-| `modernise_inventory` | Java の型または SQL テーブルの一覧、または 1 件の詳細                                                                     |
+| ツール                | 返す内容                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `legacy_index_status` | 対象範囲に最新のインデックスがあるか、件数。解析は行わない                                                                               |
+| `legacy_index_build`  | COBOL、コピーブック、JCLを解析してインデックスを作成。プログラム、コピーブック、ジョブ、診断                                             |
+| `legacy_query`        | 構造：呼び出し元・先、CALL/PERFORMグラフ、ファイルアクセス、データ項目と参照、ジョブステップ、データセット、未解決の参照                 |
+| `legacy_rules`        | ルール候補：条件、定数を含む演算、丸め、88レベル値、定数                                                                                 |
+| `legacy_dictionary`   | コピーブックのデータ辞書：レベル、PIC、USAGE、長さ、オフセット、位置、OCCURS、REDEFINES、値                                              |
+| `legacy_impact`       | データ項目の変更が及ぶ範囲と、各項目を結ぶ根拠の事実                                                                                     |
+| `legacy_design_doc`   | コードから生成する設計書（日本語／英語）。セクションごとに返却し、すべての事実に path:line を付記                                        |
+| `legacy_wave_plan`    | 依存関係とリスクに基づく移行ウェーブの提案（人による確認が前提）                                                                         |
+| `modernise_plan`      | 検出した言語、COBOL/JCL・Java・SQL DDL・FORTRAN・PL/I の棚卸し、言語をまたぐテーブル、カバレッジ、予定中のアシスタント（解析は行わない） |
+| `modernise_crud`      | COBOL・PL/I・Java・JCL ユーティリティをまたぐ SQL テーブルの CRUD、およびファイル（COBOL・FORTRAN・PL/I）の CRUD と根拠                  |
+| `modernise_impact`    | テーブル・列・ファイル・FORTRAN の COMMON ブロック・Java クラス・プログラムの変更が言語をまたいで及ぶ範囲                                |
+| `modernise_inventory` | Java の型、SQL テーブル、FORTRAN の単位と COMMON ブロック、PL/I の手続きの一覧、または 1 件の詳細                                        |
 
 ほかのツールは初回利用時にインデックスを作成します。`legacy_index_build` は再作成を強制します。
 対象範囲のファイルが1つでも変わると、インデックスは自動的に作り直されます。

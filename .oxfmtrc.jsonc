@@ -14,6 +14,7 @@
     "node_modules/",
     "openapi/",
     "packages/client/src/generated/",
+    "packages/legacy-analyzer/examples/",
     "patches/",
     "pnpm-lock.yaml/",
     "Swabble/",

@@ -1,0 +1,11 @@
+{
+  "id": "legacy-analyzer",
+  "name": "Legacy analyser",
+  "description": "Read-only static analysis of COBOL, copybooks, JCL, Java, SQL DDL, FORTRAN and PL/I for modernisation: verified facts with file and line.",
+  "projectScope": true,
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

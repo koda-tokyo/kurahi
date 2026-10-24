@@ -67,6 +67,8 @@ export const AgentParamsSchema = Type.Object(
     idempotencyKey: NonEmptyString,
     label: Type.Optional(SessionLabelString),
     spawnedBy: Type.Optional(Type.String()),
+    /** Signed inter-agent envelope (src/agents/messaging/envelope.ts validates its shape). */
+    agentEnvelope: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   },
   { additionalProperties: false },
 );

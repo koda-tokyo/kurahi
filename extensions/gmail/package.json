@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/gmail",
+  "version": "2.1.0",
+  "description": "Gmail business connector: list, search and read mail (read-only by default)",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "id": "business-hr-leave-overtime",
+  "name": {
+    "ja": "人事 / 休暇・残業申請",
+    "en": "HR leave and overtime"
+  },
+  "description": {
+    "ja": "休暇・残業申請をキューで受け付け、36協定の上限や月末見込みを確認したうえで、エージェントが確認文・回答案を下書きし、管理者が承認します。",
+    "en": "Take leave and overtime requests in a queue; the agent checks them against the overtime limits and month-end forecast and drafts the confirmation, and a manager approves."
+  },
+  "folders": ["requests", "output"],
+  "rules": {
+    "readOnly": ["requests", "attendance"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "エージェントは下書きのみを作成します。承認・差戻し・取消は必ず人が行います。",
+        "en": "Agents only draft. Approve, send back and cancel are always done by a person."
+      },
+      {
+        "ja": "申請内容と添付資料にない事実は書かず、不足は【要確認】と明記してください。",
+        "en": "Use only facts from the request and its attachments; mark anything missing as 【要確認 / to confirm】."
+      },
+      {
+        "ja": "承認されるまで、送信・発注・支払・予約・共有は一切しないでください。",
+        "en": "Never send, order, pay, book or share anything until the item is approved."
+      },
+      {
+        "ja": "勤怠データ（attendance/）は読み取り専用で、数値は勤怠データの値をそのまま使ってください。",
+        "en": "Attendance data (attendance/) is read-only; use its figures exactly as recorded."
+      },
+      {
+        "ja": "個人の健康・家族の事情など、申請に不要な個人情報は下書きに書かないでください。",
+        "en": "Do not put health, family or other personal details in drafts beyond what the request needs."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "この残業申請を36協定の上限と月末見込みで確認し、承認者向けの確認メモを作成してください。",
+      "en": "Check this overtime request against the monthly limit and month-end forecast and draft a note for the approver."
+    },
+    {
+      "ja": "この休暇申請への回答案を作成してください。",
+      "en": "Draft the reply to this leave request."
+    },
+    {
+      "ja": "今月、上限を超える見込みの社員を一覧にしてください。",
+      "en": "List employees forecast to exceed the limit this month."
+    }
+  ],
+  "terminalProfile": "data"
+}

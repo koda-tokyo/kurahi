@@ -14,6 +14,7 @@ import {
   INTERNAL_MESSAGE_CHANNEL,
 } from "../../utils/message-channel.js";
 import { AGENT_LANE_NESTED } from "../lanes.js";
+import { signAgentMessageParams } from "../messaging/signing.js";
 import { jsonResult, readStringParam } from "./common.js";
 import {
   createAgentToAgentPolicy,
@@ -262,6 +263,13 @@ export function createSessionsSendTool(opts?: {
         channel: INTERNAL_MESSAGE_CHANNEL,
         lane: AGENT_LANE_NESTED,
         extraSystemPrompt: agentMessageContext,
+        ...signAgentMessageParams({
+          cfg,
+          senderSessionKey: requesterInternalKey,
+          recipientSessionKey: resolvedKey,
+          message,
+          extraSystemPrompt: agentMessageContext,
+        }),
       };
       const requesterSessionKey = opts?.agentSessionKey;
       const requesterChannel = opts?.agentChannel;

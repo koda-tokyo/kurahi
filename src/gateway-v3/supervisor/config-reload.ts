@@ -47,7 +47,6 @@ export const CONFIG_SAFETY_MAP: ReadonlyArray<[pattern: string, klass: ConfigRel
   ["logging.level", "live"],
   ["metrics.verbosity", "live"],
   ["gateway.circuitBreaker.openDurationMs", "live"],
-  ["biology.organ.", "live"], // organ threshold overrides
 
   // ── Drain-reloadable ──────────────────────────────────────────────────────
   ["gateway.providers.", "drain"], // provider enable/disable

@@ -2,9 +2,9 @@
 
 ## What was built
 
-- **Module:** `src/security/hardline-guard.ts` — standalone, tested, not wired
+- **Module:** `src/security/hardline-guard.ts` — tested; wired through `src/security/exec-guard.ts`
 - **Tests:** `src/security/hardline-guard.test.ts` — 110 tests, 0 failures
-- **Status:** Ready for integration review
+- **Status:** Wired into every agent exec path (2026-10-20); see "Where it is wired" below
 
 ## Architecture
 
@@ -41,28 +41,28 @@ detectHardlinePreExec(command)
 - Shell empty-string escapes (`r''m` → `rm`)
 - Combinations of above
 
-## Wiring point
+## Where it is wired
 
-The guard sits in the exec pipeline **before any yolo/allowlist check**:
+`enforceExecGuard` / `checkExecCommand` (`src/security/exec-guard.ts`) run the hardline check
+and write an `exec.guard` entry to the hash-chained audit log (`denied` with the pattern, or
+`allowed`). A blocked command is refused, never queued for approval.
 
-```ts
-// In exec dispatch (e.g., src/infra/exec-approvals.ts or similar exec path):
-import { detectHardlinePreExec } from "../security/hardline-guard.js";
+| Entry point | File | Notes |
+| --- | --- | --- |
+| `exec` tool, all hosts (sandbox, gateway, node) | `src/agents/bash-tools.exec.ts` | First check after argument validation: before elevated mode, allowlists and approvals |
+| `process` tool `write` / `send-keys` / `paste` | `src/agents/bash-tools.process.ts` | Text joined with the unterminated line typed before it; only refusals are audited |
+| `nodes` tool `run` | `src/agents/tools/nodes-tool.ts` | Before `node.invoke system.run` leaves the gateway |
+| `system.run` on a node host | `src/node-host/runner.ts` | Defence in depth for any caller; an `approvalDecision` in the request does not override it |
+| `lobster` plugin `run` | `extensions/lobster/src/lobster-tool.ts` | Pipelines can contain shell steps |
 
-async function executeCommand(command: string, context: ExecContext) {
-  // 1. HARDLINE — unconditional floor, no flag can bypass
-  const hardline = detectHardlinePreExec(command);
-  if (hardline.blocked) {
-    return { approved: false, hardline: true, message: hardline.message };
-  }
+Not wired, on purpose: the TUI `!` local shell (`src/tui/tui-local-shell.ts`, the operator's own
+terminal, not agent output) and CLI backends (`claude-cli`, `codex-cli`), whose shell tools run
+inside the external CLI; their default is read-only tools (`src/agents/cli-permissions.ts`).
 
-  // 2. Existing yolo/allowlist/approval path continues here...
-}
-```
+Tests: `src/security/exec-guard.test.ts`, `src/agents/bash-tools.exec.hardline.test.ts`.
 
 ## What was NOT done (per scope)
 
-- NOT wired into the live gateway exec path
 - No dangerous-pattern check (medium-severity, allows yolo — separate module)
 - No "unpaired door" audit (gating all write vectors symmetrically)
 - No credential path confinement (separate borrow from report)

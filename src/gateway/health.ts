@@ -11,6 +11,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
+import type { KoLoConfig } from "../config/config.js";
 import {
   buildAuthHealthSummary,
   formatRemainingShort,
@@ -60,15 +61,15 @@ interface DeepHealthResponse {
    *
    *   process_up        — Node.js process alive, HTTP responding
    *   gateway_ready     — lease held, auth ok, accepting connections
-   *   consciousness_ready — v3 dispatcher active, biology running, organs healthy
-   *   degraded          — serving but with issues (auth expiring, organs failing, etc.)
+   *   consciousness_ready — v3 consciousness dispatchers registered (gateway.v3.enabled)
+   *   degraded          — serving but with issues (auth expiring, etc.)
    */
   readiness: "process_up" | "gateway_ready" | "consciousness_ready" | "degraded";
   /**
    * Inter-node posture for v4 mesh handshakes.
    * Machine-readable: other nodes consume this to decide load sharing and failover.
-   *   alive          — lease held, biology healthy, accepting sessions
-   *   serviceable    — lease held but biology degraded, limited capacity
+   *   alive          — lease held, accepting sessions
+   *   serviceable    — serving with issues, limited capacity
    *   handoff_ready  — no lease, stable, ready to accept if leader drops
    */
   posture: NodePosture;
@@ -164,20 +165,42 @@ function buildDeepHealthAuthProvider(provider: AuthProviderHealth): DeepHealthAu
   };
 }
 
+const primaryOf = (model: unknown): string =>
+  typeof model === "string"
+    ? model.trim()
+    : model &&
+        typeof model === "object" &&
+        typeof (model as { primary?: unknown }).primary === "string"
+      ? ((model as { primary: string }).primary ?? "").trim()
+      : "";
+
+/**
+ * A local model server needs no credential, so "no auth profile" is not a missing credential
+ * when the installation uses one: an explicit `models.providers.ollama`, OLLAMA_BASE_URL /
+ * OLLAMA_HOST, or a primary model on the `ollama/` provider (what `kurahi init --provider local`
+ * writes as `agents.defaults.model.primary`).
+ */
+export function hasLocalModelFallback(
+  cfg: Pick<KoLoConfig, "models" | "agents">,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (cfg.models?.providers?.ollama || env.OLLAMA_BASE_URL?.trim() || env.OLLAMA_HOST?.trim()) {
+    return true;
+  }
+  const primaries = [
+    primaryOf(cfg.agents?.defaults?.model),
+    ...(cfg.agents?.list ?? []).map((agent) => primaryOf(agent.model)),
+  ].filter(Boolean);
+  return primaries.length > 0 && primaries.every((ref) => ref.toLowerCase().startsWith("ollama/"));
+}
+
 function resolveAggregateAuthStatus(
   summary: AuthHealthSummary,
   store: ReturnType<typeof loadAuthProfileStore>,
   cfg: ReturnType<typeof loadConfig>,
 ): "ok" | "expiring" | "expired" | "missing" {
   if (summary.profiles.length === 0) {
-    const hasLocalOllamaFallback =
-      Boolean(cfg.models?.providers?.ollama) ||
-      Boolean(process.env.OLLAMA_BASE_URL?.trim()) ||
-      Boolean(process.env.OLLAMA_HOST?.trim());
-    if (hasLocalOllamaFallback) {
-      return "ok";
-    }
-    return "missing";
+    return hasLocalModelFallback(cfg) ? "ok" : "missing";
   }
 
   let hasExpired = false;
@@ -213,12 +236,12 @@ function resolveOverallStatus(authStatus: string): "healthy" | "degraded" | "unh
  * Resolve readiness level — four distinct states.
  *
  * Rule: one "ok" must not lie about actual capability.
- * A gateway reporting "healthy" with no biology or a dead dispatcher is deceptive.
+ * A gateway reporting "healthy" with no consciousness dispatcher is deceptive.
  *
  *   process_up        — this function is running, HTTP is responding
  *   gateway_ready     — auth ok, lease held (v3 lease if enabled), accepting connections
- *   consciousness_ready — v3 dispatcher active AND biology has healthy organs
- *   degraded          — serving but with issues (auth expiring, organs unhealthy)
+ *   consciousness_ready — v3 consciousness dispatchers registered (gateway.v3.enabled)
+ *   degraded          — serving but with issues (auth expiring)
  */
 export function resolveReadiness(
   authStatus: string,
@@ -237,14 +260,8 @@ export function resolveReadiness(
 
   // Auth ok — check v3 if present
   if (v3) {
-    const biologyClear =
-      v3.biology != null &&
-      v3.biology.healthyOrgans > 0 &&
-      v3.biology.lastTickAt != null &&
-      Date.now() - v3.biology.lastTickAt < 5 * 60_000; // last tick within 5min
-
-    if (biologyClear) return "consciousness_ready";
-    return "gateway_ready"; // lease held but biology not confirmed
+    if (v3.dispatchers != null && v3.dispatchers.count > 0) return "consciousness_ready";
+    return "gateway_ready"; // lease held but no consciousness dispatcher registered
   }
 
   // No v3 — auth ok (and lease held when enabled)

@@ -32,7 +32,10 @@ export function registerPreActionHooks(program: Command, programVersion: string)
       return;
     }
     const commandPath = getCommandPath(argv, 2);
+    // `kurahi legacy mcp` speaks MCP on stdout and needs no gateway config.
+    const isLegacyMcp = commandPath[0] === "legacy" && commandPath[1] === "mcp";
     const hideBanner =
+      isLegacyMcp ||
       isTruthyEnvValue(process.env.KOLO_HIDE_BANNER) ||
       commandPath[0] === "update" ||
       commandPath[0] === "completion" ||
@@ -45,7 +48,7 @@ export function registerPreActionHooks(program: Command, programVersion: string)
     if (!verbose) {
       process.env.NODE_NO_WARNINGS ??= "1";
     }
-    if (commandPath[0] === "doctor" || commandPath[0] === "completion") {
+    if (commandPath[0] === "doctor" || commandPath[0] === "completion" || isLegacyMcp) {
       return;
     }
     await ensureConfigReady({ runtime: defaultRuntime, commandPath });

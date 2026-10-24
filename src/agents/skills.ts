@@ -10,6 +10,7 @@ export {
   resolveRuntimePlatform,
   resolveSkillConfig,
 } from "./skills/config.js";
+export { resolveSkillsConfigKey } from "./skills/config-key.js";
 export {
   applySkillEnvOverrides,
   applySkillEnvOverridesFromSnapshot,

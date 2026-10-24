@@ -19,6 +19,9 @@ export type SkillsProps = {
   onInstall: (skillKey: string, name: string, installId: string) => void;
 };
 
+// TODO(enterprise v0.3): add "risk level" and "approval required" columns once skills carry that
+// metadata. `skills.status` (SkillStatusEntry) has no risk or approval fields today, so the
+// columns are left out rather than filled with invented values.
 export function renderSkills(props: SkillsProps) {
   const skills = props.report?.skills ?? [];
   const filter = props.filter.trim().toLowerCase();

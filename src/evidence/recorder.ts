@@ -13,9 +13,13 @@ import type { AuditEntry } from "../audit/audit-log.js";
 import type { KoLoConfig } from "../config/config.js";
 import type { SigningKey } from "../continuity-suite/manifest.js";
 import type { EvidenceEvent, EvidenceEventType, EvidenceUsage, EvidenceManifest } from "./types.js";
+import { inventoryConfigDigest } from "../inventory/inventory.js";
+import { getPolicyEngine } from "../policy/engine.js";
 import { emitEvidenceSignal, subscribeEvidenceSignals, type EvidenceSignal } from "./bus.js";
+import { costSnapshot } from "./cost.js";
 import { pruneEvidence } from "./prune.js";
 import { boundedText, boundedValue, digestOf, resultText } from "./redact.js";
+import { evidenceProcessOwner, sealInterruptedEvidence } from "./seal.js";
 import {
   EVENTS_FILE,
   EVIDENCE_GENESIS,
@@ -40,6 +44,8 @@ export type RecorderOptions = {
   gatewayVersion?: string;
   /** Where write failures are reported (default: stderr, once). */
   onError?: (message: string) => void;
+  /** Defaults for `job.start`'s policy and inventory digests (startEvidence fills these). */
+  startDigests?: { policyDigest?: string | null; inventoryDigest?: string | null };
 };
 
 export type ModelTurnInput = {
@@ -64,6 +70,15 @@ export class EvidenceRecorder {
   private readonly gatewayVersion?: string;
   private readonly onError: (message: string) => void;
   private readonly toolStarts = new Map<string, number>();
+  private readonly usageByModel = new Map<
+    string,
+    { provider: string; model: string; input: number; output: number }
+  >();
+  private readonly outputs = new Map<
+    string,
+    { path: string; sha256: string | null; size: number | null }
+  >();
+  private readonly startDigests: { policyDigest?: string | null; inventoryDigest?: string | null };
   private readonly unsubscribe: () => void;
   private seq = 0;
   private prev = EVIDENCE_GENESIS;
@@ -86,6 +101,7 @@ export class EvidenceRecorder {
     this.now = opts.now ?? (() => new Date());
     this.key = opts.key;
     this.gatewayVersion = opts.gatewayVersion;
+    this.startDigests = opts.startDigests ?? {};
     let reported = false;
     this.onError =
       opts.onError ??
@@ -177,6 +193,10 @@ export class EvidenceRecorder {
     runId?: string;
     workspaceDir?: string;
     parentJobId?: string;
+    /** SHA-256 of the policy in force when the job started (null: no policy loaded). */
+    policyDigest?: string | null;
+    /** Configuration digest of the AI inventory when the job started. */
+    inventoryDigest?: string | null;
   }): void {
     const prompt = input.prompt ?? "";
     const data: Record<string, unknown> = {
@@ -184,11 +204,15 @@ export class EvidenceRecorder {
       sessionKey: this.job.sessionKey,
       kind: this.job.kind,
       startedAt: this.job.startedAt,
+      // Which process is writing this log: the seal never closes a log whose owner is alive.
+      owner: evidenceProcessOwner(),
       runId: input.runId ?? null,
       provider: input.provider ?? null,
       model: input.model ?? null,
       workspaceDir: input.workspaceDir ?? null,
       parentJobId: input.parentJobId ?? null,
+      policyDigest: input.policyDigest ?? this.startDigests.policyDigest ?? null,
+      inventoryDigest: input.inventoryDigest ?? this.startDigests.inventoryDigest ?? null,
       promptDigest: digestOf(prompt),
       promptChars: prompt.length,
       includePrompts: this.limits.includePrompts,
@@ -209,6 +233,18 @@ export class EvidenceRecorder {
   modelTurn(input: ModelTurnInput): void {
     this.turns += 1;
     const text = input.text ?? "";
+    if (input.usage && (input.provider || input.model)) {
+      const k = `${input.provider ?? ""}/${input.model ?? ""}`;
+      const acc = this.usageByModel.get(k) ?? {
+        provider: input.provider ?? "",
+        model: input.model ?? "",
+        input: 0,
+        output: 0,
+      };
+      acc.input += input.usage.input ?? 0;
+      acc.output += input.usage.output ?? 0;
+      this.usageByModel.set(k, acc);
+    }
     const data: Record<string, unknown> = {
       index: this.turns,
       provider: input.provider ?? null,
@@ -279,6 +315,25 @@ export class EvidenceRecorder {
     });
   }
 
+  /**
+   * Declare a deliverable of this job (a file the job produced). Recorded in `job.end` with its
+   * SHA-256 so an evaluator never has to guess which file is the result. Relative paths resolve
+   * against `baseDir` (default: the process cwd). A missing file is recorded with sha256 null.
+   */
+  declareOutput(name: string, filePath: string, baseDir?: string): void {
+    const abs = path.resolve(baseDir ?? process.cwd(), filePath);
+    let sha256: string | null = null;
+    let size: number | null = null;
+    try {
+      const entry = fileEntryOf(abs);
+      sha256 = entry.sha256;
+      size = entry.size;
+    } catch {
+      // recorded as missing
+    }
+    this.outputs.set(name, { path: filePath, sha256, size });
+  }
+
   loopStop(
     verdict: Extract<LoopVerdict, { stop: true }>,
     extra: { steps: number; limits: LoopLimits },
@@ -317,6 +372,17 @@ export class EvidenceRecorder {
         rule: signal.rule ?? null,
         reason: signal.reason ? boundedText(signal.reason, 1024).text : null,
         auditSeq: signal.auditSeq ?? null,
+      });
+      return;
+    }
+    if (signal.kind === "approval") {
+      this.append("approval", {
+        tool: signal.tool,
+        decision: signal.decision,
+        ruleId: signal.ruleId ?? null,
+        approvalId: signal.approvalId ?? null,
+        approver: signal.approver ?? null,
+        argsDigest: signal.argsDigest ?? null,
       });
       return;
     }
@@ -362,6 +428,8 @@ export class EvidenceRecorder {
       durationMs: Number.isFinite(durationMs) ? durationMs : null,
       error: job.error ? boundedText(job.error, 1024).text : null,
       summary: job.summary ? boundedText(job.summary, 1024).text : null,
+      outputs: Object.fromEntries(this.outputs),
+      cost: costSnapshot([...this.usageByModel.values()]),
     });
     this.finished = true;
     if (this.failed) {
@@ -403,7 +471,60 @@ export class EvidenceRecorder {
 // ── process-wide registry: the runner starts a recorder per job and finishes it ─────────────
 
 const recorders = new Map<string, EvidenceRecorder>();
+const digestCache = new WeakMap<object, { at: number; inventoryDigest: string | null }>();
+const DIGEST_TTL_MS = 30_000;
+
+/** Policy and inventory digests for `job.start`. Best effort: a failure records null. */
+function startDigestsFor(
+  config: KoLoConfig | undefined,
+  env?: NodeJS.ProcessEnv,
+): { policyDigest: string | null; inventoryDigest: string | null } {
+  let policyDigest: string | null = null;
+  try {
+    policyDigest = getPolicyEngine().status().sha256 ?? null;
+  } catch {
+    policyDigest = null;
+  }
+  let inventoryDigest: string | null = null;
+  if (config) {
+    const cached = digestCache.get(config);
+    if (cached && Date.now() - cached.at < DIGEST_TTL_MS) {
+      inventoryDigest = cached.inventoryDigest;
+    } else {
+      try {
+        inventoryDigest = inventoryConfigDigest(config, { env });
+      } catch {
+        inventoryDigest = null;
+      }
+      digestCache.set(config, { at: Date.now(), inventoryDigest });
+    }
+  }
+  return { policyDigest, inventoryDigest };
+}
 let autoPruned = false;
+/** When the last seal pass left a log it may close later (recent writes, owner alive, locked). */
+let sealRetryAt: number | null = null;
+
+/** Retry interval for logs a seal pass skipped; a retry is a directory listing, not a scan. */
+export const SEAL_RETRY_MS = 60_000;
+
+/** Seal interrupted logs on the first job, then again on later jobs while some were skipped. */
+function sealInterruptedPass(env: NodeJS.ProcessEnv | undefined, first: boolean): void {
+  const at = Date.now();
+  if (!first && (sealRetryAt === null || at < sealRetryAt)) {
+    return;
+  }
+  const { skipped } = sealInterruptedEvidence({ env, isLive: (id) => recorders.has(id) });
+  sealRetryAt = skipped.some((s) => RETRYABLE_SEAL_SKIPS.has(s.reason)) ? at + SEAL_RETRY_MS : null;
+}
+
+/** Skips that can change while this process runs; broken or foreign logs never become sealable. */
+const RETRYABLE_SEAL_SKIPS = new Set([
+  "recent writes",
+  "owner process alive",
+  "seal in progress elsewhere",
+  "changed while sealing",
+]);
 
 /** Start recording a job. Returns null when evidence is disabled. Never throws. */
 export function startEvidence(
@@ -415,15 +536,20 @@ export function startEvidence(
     return null;
   }
   try {
-    if (!autoPruned) {
+    const first = !autoPruned;
+    if (first) {
       autoPruned = true;
       // Once per process, best effort: retention is enforced without an operator in the loop.
       pruneEvidence({ days: limits.retentionDays, env: opts.env });
     }
+    // Logs left open by a previous process are closed as interrupted and signed; one skipped for
+    // now (written to recently, owner still alive) is retried on a later job.
+    sealInterruptedPass(opts.env, first);
     const recorder = new EvidenceRecorder(job, {
       limits,
       gatewayVersion: opts.gatewayVersion,
       env: opts.env,
+      startDigests: startDigestsFor(opts.config, opts.env),
     });
     recorders.set(job.id, recorder);
     return recorder;
@@ -464,4 +590,5 @@ export function __resetEvidenceForTest(): void {
   }
   recorders.clear();
   autoPruned = false;
+  sealRetryAt = null;
 }

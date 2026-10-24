@@ -20,9 +20,12 @@ const ENTRY = path.join(ROOT, "src", "entry.ts");
 // Resolved here: the child runs from a directory with no node_modules, so a bare "tsx" would
 // not be found.
 const TSX_LOADER = import.meta.resolve("tsx");
-// Compiling the gateway with tsx on a cold cache takes over a minute on a slow host.
-const BOOT_DEADLINE_MS = 200_000;
-const TEST_TIMEOUT_MS = 240_000;
+// The tsx cache lives under the temp dir, and the temp dir must start empty, so every run
+// compiles the whole gateway cold: about two minutes on an idle 10-core host and well over
+// 200 s when the rest of the gateway suite runs beside it. The deadline is generous on purpose;
+// a gateway that really hangs still fails, it just takes longer to say so.
+const BOOT_DEADLINE_MS = 420_000;
+const TEST_TIMEOUT_MS = 480_000;
 // Caches the TypeScript loaders keep under the temp dir; not the product's doing.
 const LOADER_TMP = /^(tsx-[^/\\]+|jiti)([/\\]|$)/; // tsx-<uid> on POSIX, tsx-<username> on Windows
 

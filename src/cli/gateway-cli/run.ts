@@ -359,7 +359,37 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option("--compact", 'Alias for "--ws-log compact"', false)
     .option("--raw-stream", "Log raw model stream events to jsonl", false)
     .option("--raw-stream-path <path>", "Raw stream jsonl path")
+    .option(
+      "--profile-startup <file>",
+      "Write a CPU profile of startup (process start to serving) to <file> (.cpuprofile) and <file>.pb.gz (pprof)",
+    )
     .action(async (opts) => {
       await runGatewayCommand(opts);
     });
+}
+
+/**
+ * `kurahi gateway` declares the run options (`--port`, `--bind`, `--token`, `--force`, …) and its
+ * subcommands declare some of the same names. Commander lets a parent command consume its
+ * options wherever they appear, so in `kurahi gateway run --port N` (or `gateway install --port
+ * N`, `gateway status --token T`) the value landed on `gateway` and the subcommand ran with its
+ * default: the port from the config. Installed as a preAction hook on `gateway`: every option
+ * the user gave (command line or environment) that the subcommand also declares, and did not get
+ * itself, is handed to the subcommand.
+ */
+export function forwardGatewayOptionsToSubcommand(gateway: Command, action: Command): void {
+  if (action === gateway || action.parent !== gateway) {
+    return;
+  }
+  const given = (cmd: Command, key: string) => {
+    const source = cmd.getOptionValueSource(key);
+    return source === "cli" || source === "env";
+  };
+  const parentOpts = gateway.opts() as Record<string, unknown>;
+  for (const option of action.options) {
+    const key = option.attributeName();
+    if (given(gateway, key) && !given(action, key)) {
+      action.setOptionValueWithSource(key, parentOpts[key], "cli");
+    }
+  }
 }

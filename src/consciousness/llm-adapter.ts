@@ -40,7 +40,7 @@ export function createConsciousnessLLMAdapter(params: {
 }): LLMCallFn {
   // v3 path — per-agent dispatcher (gateway.v3.enabled). Routes through the
   // dispatcher state machine for idempotency, per-agent circuit isolation,
-  // memory budget enforcement, and biology-aware scoring.
+  // and memory budget enforcement.
   // Falls through to v2 getReplyFromConfig path if no dispatcher registered.
   const v3Dispatcher = getV3AgentDispatcher(params.userId);
   if (v3Dispatcher) {

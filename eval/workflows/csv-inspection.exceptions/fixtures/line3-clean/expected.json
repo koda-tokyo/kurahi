@@ -1,0 +1,9 @@
+{
+  "fixture": "line3-clean",
+  "line": "L3",
+  "date": "2026-10-15",
+  "rows": 200,
+  "fictional": true,
+  "exceptionCount": 0,
+  "exceptions": []
+}

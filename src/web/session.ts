@@ -1,10 +1,3 @@
-import {
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-  makeWASocket,
-  useMultiFileAuthState,
-} from "@whiskeysockets/baileys";
 import { randomUUID } from "node:crypto";
 import fsSync from "node:fs";
 import qrcode from "qrcode-terminal";
@@ -19,6 +12,7 @@ import {
   resolveWebCredsBackupPath,
   resolveWebCredsPath,
 } from "./auth-store.js";
+import { type Baileys, baileys, loadBaileys } from "./baileys.js";
 
 export {
   getWebAuthAgeMs,
@@ -95,7 +89,7 @@ export async function createWaSocket(
   printQr: boolean,
   verbose: boolean,
   opts: { authDir?: string; onQr?: (qr: string) => void } = {},
-): Promise<ReturnType<typeof makeWASocket>> {
+): Promise<ReturnType<Baileys["makeWASocket"]>> {
   const baseLogger = getChildLogger(
     { module: "baileys" },
     {
@@ -107,12 +101,13 @@ export async function createWaSocket(
   await ensureDir(authDir);
   const sessionLogger = getChildLogger({ module: "web-session" });
   maybeRestoreCredsFromBackup(authDir);
-  const { state, saveCreds } = await useMultiFileAuthState(authDir);
-  const { version } = await fetchLatestBaileysVersion();
-  const sock = makeWASocket({
+  await loadBaileys();
+  const { state, saveCreds } = await baileys().useMultiFileAuthState(authDir);
+  const { version } = await baileys().fetchLatestBaileysVersion();
+  const sock = baileys().makeWASocket({
     auth: {
       creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, logger),
+      keys: baileys().makeCacheableSignalKeyStore(state.keys, logger),
     },
     version,
     logger,
@@ -137,7 +132,7 @@ export async function createWaSocket(
         }
         if (connection === "close") {
           const status = getStatusCode(lastDisconnect?.error);
-          if (status === DisconnectReason.loggedOut) {
+          if (status === baileys().DisconnectReason.loggedOut) {
             console.error(
               danger(
                 `WhatsApp session logged out. Run: ${formatCliCommand("kurahi channels login")}`,
@@ -164,7 +159,7 @@ export async function createWaSocket(
   return sock;
 }
 
-export async function waitForWaConnection(sock: ReturnType<typeof makeWASocket>) {
+export async function waitForWaConnection(sock: ReturnType<Baileys["makeWASocket"]>) {
   return new Promise<void>((resolve, reject) => {
     type OffCapable = {
       off?: (event: string, listener: (...args: unknown[]) => void) => void;

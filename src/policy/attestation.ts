@@ -16,6 +16,8 @@ import {
 
 export const SIGNATURE_VERSION = 1;
 const SIGNING_DOMAIN = "kolo-policy-v1";
+/** Domain for the supply-chain lock (src/integrity/supply-chain-lock.ts): never valid as a policy. */
+export const SUPPLY_CHAIN_SIGNING_DOMAIN = "kolo-supply-chain-v1";
 
 export type PolicySignature = {
   version: number;
@@ -48,8 +50,8 @@ export function sha256Hex(bytes: Buffer | string): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function signingInput(sha256: string, signedAt: string): string {
-  return `${SIGNING_DOMAIN}\n${sha256}\n${signedAt}`;
+function signingInput(sha256: string, signedAt: string, domain = SIGNING_DOMAIN): string {
+  return `${domain}\n${sha256}\n${signedAt}`;
 }
 
 /** The local owner signing key; created (0600) on first use. */
@@ -120,6 +122,8 @@ export function signPolicyFile(params: {
   signaturePath: string;
   key: OwnerKey;
   now?: Date;
+  /** Signing domain (default the policy domain); keeps one document's signature off another. */
+  domain?: string;
 }): PolicySignature {
   const bytes = fs.readFileSync(params.policyPath);
   const sha256 = sha256Hex(bytes);
@@ -131,7 +135,10 @@ export function signPolicyFile(params: {
     publicKey: params.key.publicKey,
     sha256,
     signedAt,
-    signature: signDevicePayload(params.key.privateKeyPem, signingInput(sha256, signedAt)),
+    signature: signDevicePayload(
+      params.key.privateKeyPem,
+      signingInput(sha256, signedAt, params.domain),
+    ),
   };
   writeJsonAtomic(params.signaturePath, signature, 0o600);
   return signature;
@@ -155,6 +162,7 @@ export function verifyPolicyAttestation(params: {
   signaturePath: string;
   ownersPath: string;
   owners?: PolicyOwners | null;
+  domain?: string;
 }): AttestationResult {
   if (!fs.existsSync(params.signaturePath)) {
     return { state: "unsigned", reason: "no signature file" };
@@ -176,7 +184,11 @@ export function verifyPolicyAttestation(params: {
     return { state: "invalid", keyId: sig.keyId, reason: "signer keyId does not match its key" };
   }
   if (
-    !verifyDeviceSignature(sig.publicKey, signingInput(sig.sha256, sig.signedAt), sig.signature)
+    !verifyDeviceSignature(
+      sig.publicKey,
+      signingInput(sig.sha256, sig.signedAt, params.domain),
+      sig.signature,
+    )
   ) {
     return {
       state: "invalid",

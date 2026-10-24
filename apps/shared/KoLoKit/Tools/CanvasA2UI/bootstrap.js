@@ -4,7 +4,7 @@ import { ContextProvider } from "@lit/context";
 
 import { v0_8 } from "@a2ui/lit";
 import "@a2ui/lit/ui";
-import { themeContext } from "@KoLo/a2ui-theme-context";
+import { themeContext } from "@kolo/a2ui-theme-context";
 
 const modalStyles = css`
   dialog {

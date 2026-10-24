@@ -43,6 +43,7 @@ import {
 import { getMachineDisplayName } from "../infra/machine-name.js";
 import { ensureKoLoCliOnPath } from "../infra/path-env.js";
 import { detectMime } from "../media/mime.js";
+import { checkExecCommand } from "../security/exec-guard.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
@@ -877,6 +878,32 @@ async function handleInvoke(
   const rawCommand = typeof params.rawCommand === "string" ? params.rawCommand.trim() : "";
   const cmdText = rawCommand || formatCommand(argv);
   const agentId = params.agentId?.trim() || undefined;
+  // Destructive-command floor (OWASP ASI05): before the macOS exec host, allowlists and
+  // approvals; an approval decision sent with the request does not override it.
+  const hardline = checkExecCommand(rawCommand || argv.join(" "), {
+    source: "node-host",
+    agentId,
+    sessionKey: params.sessionKey?.trim() || "node",
+    host: "node",
+  });
+  if (hardline) {
+    await sendNodeEvent(
+      client,
+      "exec.denied",
+      buildExecEventPayload({
+        sessionKey: params.sessionKey?.trim() || "node",
+        runId: params.runId?.trim() || crypto.randomUUID(),
+        host: "node",
+        command: cmdText,
+        reason: `hardline:${hardline.pattern}`,
+      }),
+    );
+    await sendInvokeResult(client, frame, {
+      ok: false,
+      error: { code: "UNAVAILABLE", message: `SYSTEM_RUN_DENIED: ${hardline.message}` },
+    });
+    return;
+  }
   const cfg = loadConfig();
   const agentExec = agentId ? resolveAgentConfig(cfg, agentId)?.tools?.exec : undefined;
   const configuredSecurity = resolveExecSecurity(agentExec?.security ?? cfg.tools?.exec?.security);

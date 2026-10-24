@@ -1,4 +1,4 @@
-import AjvPkg, { type ErrorObject } from "ajv";
+import AjvPkg, { type ErrorObject, type ValidateFunction } from "ajv";
 import {
   type AgentEvent,
   AgentEventSchema,
@@ -188,6 +188,32 @@ import {
   type CodeModeRunParams,
   CodeModeRunParamsSchema,
   type CodeModeRunResult,
+  type ConnectorsStatusParams,
+  ConnectorsStatusParamsSchema,
+  type ConnectorsStatusResult,
+  type ConnectorStatusEntry,
+  type TerminalAckResult,
+  type TerminalCancelParams,
+  TerminalCancelParamsSchema,
+  type TerminalDiffFile,
+  type TerminalDiffFileSummary,
+  type TerminalDiffResult,
+  type TerminalEvent,
+  type TerminalOpenResult,
+  type TerminalReplayResult,
+  type TerminalRiskPreview,
+  type TerminalCloseParams,
+  TerminalCloseParamsSchema,
+  type TerminalDiffParams,
+  TerminalDiffParamsSchema,
+  type TerminalInputParams,
+  TerminalInputParamsSchema,
+  type TerminalOpenParams,
+  TerminalOpenParamsSchema,
+  type TerminalReplayParams,
+  TerminalReplayParamsSchema,
+  type TerminalResizeParams,
+  TerminalResizeParamsSchema,
   type SessionAttachParams,
   SessionAttachParamsSchema,
   type SessionAttachResult,
@@ -245,6 +271,13 @@ import {
   JobsListParamsSchema,
   JobsListResultSchema,
 } from "./schema.js";
+import {
+  VoiceAudioParamsSchema,
+  VoiceCancelParamsSchema,
+  VoiceSpeakParamsSchema,
+  VoiceStartParamsSchema,
+  VoiceStopParamsSchema,
+} from "./schema/voice.js";
 
 const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").default)({
   allErrors: true,
@@ -252,152 +285,195 @@ const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").defau
   removeAdditional: false,
 });
 
-export const validateConnectParams = ajv.compile<ConnectParams>(ConnectParamsSchema);
-export const validateRequestFrame = ajv.compile<RequestFrame>(RequestFrameSchema);
-export const validateResponseFrame = ajv.compile<ResponseFrame>(ResponseFrameSchema);
-export const validateEventFrame = ajv.compile<EventFrame>(EventFrameSchema);
-export const validateSendParams = ajv.compile(SendParamsSchema);
-export const validatePollParams = ajv.compile<PollParams>(PollParamsSchema);
-export const validateAgentParams = ajv.compile(AgentParamsSchema);
+// Validators compile on first use: compiling all of them at import cost ~0.2-0.3 s of CPU in
+// every process that imports the protocol (each CLI command, each gateway start), most of which
+// use a handful. The wrapper is a drop-in ValidateFunction: callers invoke it and read `.errors`.
+function lazyCompile<T = unknown>(schema: object): ValidateFunction<T> {
+  let compiled: ValidateFunction<T> | null = null;
+  const get = (): ValidateFunction<T> => (compiled ??= ajv.compile<T>(schema));
+  const validate = ((data: unknown) => get()(data)) as ValidateFunction<T>;
+  for (const key of ["errors", "schema", "schemaEnv", "source", "evaluated"] as const) {
+    Object.defineProperty(validate, key, {
+      configurable: true,
+      enumerable: true,
+      get: () => (key === "errors" ? (compiled?.errors ?? null) : get()[key]),
+      set: (value: unknown) => {
+        (get() as unknown as Record<string, unknown>)[key] = value;
+      },
+    });
+  }
+  return validate;
+}
+
+export const validateConnectParams = lazyCompile<ConnectParams>(ConnectParamsSchema);
+export const validateRequestFrame = lazyCompile<RequestFrame>(RequestFrameSchema);
+export const validateResponseFrame = lazyCompile<ResponseFrame>(ResponseFrameSchema);
+export const validateEventFrame = lazyCompile<EventFrame>(EventFrameSchema);
+export const validateSendParams = lazyCompile(SendParamsSchema);
+export const validatePollParams = lazyCompile<PollParams>(PollParamsSchema);
+export const validateAgentParams = lazyCompile(AgentParamsSchema);
 export const validateAgentIdentityParams =
-  ajv.compile<AgentIdentityParams>(AgentIdentityParamsSchema);
-export const validateAgentWaitParams = ajv.compile<AgentWaitParams>(AgentWaitParamsSchema);
-export const validateWakeParams = ajv.compile<WakeParams>(WakeParamsSchema);
-export const validateAgentsListParams = ajv.compile<AgentsListParams>(AgentsListParamsSchema);
-export const validateNodePairRequestParams = ajv.compile<NodePairRequestParams>(
+  lazyCompile<AgentIdentityParams>(AgentIdentityParamsSchema);
+export const validateAgentWaitParams = lazyCompile<AgentWaitParams>(AgentWaitParamsSchema);
+export const validateWakeParams = lazyCompile<WakeParams>(WakeParamsSchema);
+export const validateAgentsListParams = lazyCompile<AgentsListParams>(AgentsListParamsSchema);
+export const validateNodePairRequestParams = lazyCompile<NodePairRequestParams>(
   NodePairRequestParamsSchema,
 );
-export const validateNodePairListParams = ajv.compile<NodePairListParams>(NodePairListParamsSchema);
-export const validateNodePairApproveParams = ajv.compile<NodePairApproveParams>(
+export const validateNodePairListParams = lazyCompile<NodePairListParams>(NodePairListParamsSchema);
+export const validateNodePairApproveParams = lazyCompile<NodePairApproveParams>(
   NodePairApproveParamsSchema,
 );
-export const validateNodePairRejectParams = ajv.compile<NodePairRejectParams>(
+export const validateNodePairRejectParams = lazyCompile<NodePairRejectParams>(
   NodePairRejectParamsSchema,
 );
-export const validateNodePairVerifyParams = ajv.compile<NodePairVerifyParams>(
+export const validateNodePairVerifyParams = lazyCompile<NodePairVerifyParams>(
   NodePairVerifyParamsSchema,
 );
-export const validateNodeRenameParams = ajv.compile<NodeRenameParams>(NodeRenameParamsSchema);
-export const validateNodeListParams = ajv.compile<NodeListParams>(NodeListParamsSchema);
-export const validateNodeDescribeParams = ajv.compile<NodeDescribeParams>(NodeDescribeParamsSchema);
-export const validateNodeInvokeParams = ajv.compile<NodeInvokeParams>(NodeInvokeParamsSchema);
-export const validateNodeInvokeResultParams = ajv.compile<NodeInvokeResultParams>(
+export const validateNodeRenameParams = lazyCompile<NodeRenameParams>(NodeRenameParamsSchema);
+export const validateNodeListParams = lazyCompile<NodeListParams>(NodeListParamsSchema);
+export const validateNodeDescribeParams = lazyCompile<NodeDescribeParams>(NodeDescribeParamsSchema);
+export const validateNodeInvokeParams = lazyCompile<NodeInvokeParams>(NodeInvokeParamsSchema);
+export const validateNodeInvokeResultParams = lazyCompile<NodeInvokeResultParams>(
   NodeInvokeResultParamsSchema,
 );
-export const validateNodeEventParams = ajv.compile<NodeEventParams>(NodeEventParamsSchema);
-export const validateSessionsListParams = ajv.compile<SessionsListParams>(SessionsListParamsSchema);
-export const validateSessionsPreviewParams = ajv.compile<SessionsPreviewParams>(
+export const validateNodeEventParams = lazyCompile<NodeEventParams>(NodeEventParamsSchema);
+export const validateSessionsListParams = lazyCompile<SessionsListParams>(SessionsListParamsSchema);
+export const validateSessionsPreviewParams = lazyCompile<SessionsPreviewParams>(
   SessionsPreviewParamsSchema,
 );
-export const validateSessionsResolveParams = ajv.compile<SessionsResolveParams>(
+export const validateSessionsResolveParams = lazyCompile<SessionsResolveParams>(
   SessionsResolveParamsSchema,
 );
 export const validateSessionsPatchParams =
-  ajv.compile<SessionsPatchParams>(SessionsPatchParamsSchema);
+  lazyCompile<SessionsPatchParams>(SessionsPatchParamsSchema);
 export const validateSessionsResetParams =
-  ajv.compile<SessionsResetParams>(SessionsResetParamsSchema);
-export const validateSessionsDeleteParams = ajv.compile<SessionsDeleteParams>(
+  lazyCompile<SessionsResetParams>(SessionsResetParamsSchema);
+export const validateSessionsDeleteParams = lazyCompile<SessionsDeleteParams>(
   SessionsDeleteParamsSchema,
 );
-export const validateSessionsCompactParams = ajv.compile<SessionsCompactParams>(
+export const validateSessionsCompactParams = lazyCompile<SessionsCompactParams>(
   SessionsCompactParamsSchema,
 );
-export const validateSessionsDiscoverParams = ajv.compile<SessionsDiscoverParams>(
+export const validateSessionsDiscoverParams = lazyCompile<SessionsDiscoverParams>(
   SessionsDiscoverParamsSchema,
 );
-export const validateCodeModeRunParams = ajv.compile<CodeModeRunParams>(CodeModeRunParamsSchema);
+export const validateCodeModeRunParams = lazyCompile<CodeModeRunParams>(CodeModeRunParamsSchema);
+export const validateConnectorsStatusParams = lazyCompile<ConnectorsStatusParams>(
+  ConnectorsStatusParamsSchema,
+);
+export const validateVoiceStartParams = lazyCompile(VoiceStartParamsSchema);
+export const validateVoiceAudioParams = lazyCompile(VoiceAudioParamsSchema);
+export const validateVoiceStopParams = lazyCompile(VoiceStopParamsSchema);
+export const validateVoiceSpeakParams = lazyCompile(VoiceSpeakParamsSchema);
+export const validateVoiceCancelParams = lazyCompile(VoiceCancelParamsSchema);
+export const validateTerminalOpenParams = lazyCompile<TerminalOpenParams>(TerminalOpenParamsSchema);
+export const validateTerminalInputParams =
+  lazyCompile<TerminalInputParams>(TerminalInputParamsSchema);
+export const validateTerminalResizeParams = lazyCompile<TerminalResizeParams>(
+  TerminalResizeParamsSchema,
+);
+export const validateTerminalCancelParams = lazyCompile<TerminalCancelParams>(
+  TerminalCancelParamsSchema,
+);
+export const validateTerminalCloseParams =
+  lazyCompile<TerminalCloseParams>(TerminalCloseParamsSchema);
+export const validateTerminalReplayParams = lazyCompile<TerminalReplayParams>(
+  TerminalReplayParamsSchema,
+);
+export const validateTerminalDiffParams = lazyCompile<TerminalDiffParams>(TerminalDiffParamsSchema);
 export const validateSessionAttachParams =
-  ajv.compile<SessionAttachParams>(SessionAttachParamsSchema);
+  lazyCompile<SessionAttachParams>(SessionAttachParamsSchema);
 export const validateSessionDetachParams =
-  ajv.compile<SessionDetachParams>(SessionDetachParamsSchema);
-export const validateConfigGetParams = ajv.compile<ConfigGetParams>(ConfigGetParamsSchema);
-export const validateConfigSetParams = ajv.compile<ConfigSetParams>(ConfigSetParamsSchema);
-export const validateConfigApplyParams = ajv.compile<ConfigApplyParams>(ConfigApplyParamsSchema);
-export const validateConfigPatchParams = ajv.compile<ConfigPatchParams>(ConfigPatchParamsSchema);
-export const validateConfigSchemaParams = ajv.compile<ConfigSchemaParams>(ConfigSchemaParamsSchema);
-export const validateWizardStartParams = ajv.compile<WizardStartParams>(WizardStartParamsSchema);
-export const validateWizardNextParams = ajv.compile<WizardNextParams>(WizardNextParamsSchema);
-export const validateWizardCancelParams = ajv.compile<WizardCancelParams>(WizardCancelParamsSchema);
-export const validateWizardStatusParams = ajv.compile<WizardStatusParams>(WizardStatusParamsSchema);
-export const validateTalkModeParams = ajv.compile<TalkModeParams>(TalkModeParamsSchema);
-export const validateChannelsStatusParams = ajv.compile<ChannelsStatusParams>(
+  lazyCompile<SessionDetachParams>(SessionDetachParamsSchema);
+export const validateConfigGetParams = lazyCompile<ConfigGetParams>(ConfigGetParamsSchema);
+export const validateConfigSetParams = lazyCompile<ConfigSetParams>(ConfigSetParamsSchema);
+export const validateConfigApplyParams = lazyCompile<ConfigApplyParams>(ConfigApplyParamsSchema);
+export const validateConfigPatchParams = lazyCompile<ConfigPatchParams>(ConfigPatchParamsSchema);
+export const validateConfigSchemaParams = lazyCompile<ConfigSchemaParams>(ConfigSchemaParamsSchema);
+export const validateWizardStartParams = lazyCompile<WizardStartParams>(WizardStartParamsSchema);
+export const validateWizardNextParams = lazyCompile<WizardNextParams>(WizardNextParamsSchema);
+export const validateWizardCancelParams = lazyCompile<WizardCancelParams>(WizardCancelParamsSchema);
+export const validateWizardStatusParams = lazyCompile<WizardStatusParams>(WizardStatusParamsSchema);
+export const validateTalkModeParams = lazyCompile<TalkModeParams>(TalkModeParamsSchema);
+export const validateChannelsStatusParams = lazyCompile<ChannelsStatusParams>(
   ChannelsStatusParamsSchema,
 );
-export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
+export const validateChannelsLogoutParams = lazyCompile<ChannelsLogoutParams>(
   ChannelsLogoutParamsSchema,
 );
-export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
-export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
-export const validateSkillsBinsParams = ajv.compile<SkillsBinsParams>(SkillsBinsParamsSchema);
+export const validateModelsListParams = lazyCompile<ModelsListParams>(ModelsListParamsSchema);
+export const validateSkillsStatusParams = lazyCompile<SkillsStatusParams>(SkillsStatusParamsSchema);
+export const validateSkillsBinsParams = lazyCompile<SkillsBinsParams>(SkillsBinsParamsSchema);
 export const validateSkillsInstallParams =
-  ajv.compile<SkillsInstallParams>(SkillsInstallParamsSchema);
-export const validateSkillsUpdateParams = ajv.compile<SkillsUpdateParams>(SkillsUpdateParamsSchema);
-export const validateCronListParams = ajv.compile<CronListParams>(CronListParamsSchema);
-export const validateCronStatusParams = ajv.compile<CronStatusParams>(CronStatusParamsSchema);
-export const validateCronAddParams = ajv.compile<CronAddParams>(CronAddParamsSchema);
-export const validateCronUpdateParams = ajv.compile<CronUpdateParams>(CronUpdateParamsSchema);
-export const validateCronRemoveParams = ajv.compile<CronRemoveParams>(CronRemoveParamsSchema);
-export const validateCronRunParams = ajv.compile<CronRunParams>(CronRunParamsSchema);
-export const validateCronRunsParams = ajv.compile<CronRunsParams>(CronRunsParamsSchema);
-export const validateJobsListParams = ajv.compile(JobsListParamsSchema);
-export const validateJobsGetParams = ajv.compile(JobsGetParamsSchema);
-export const validateJobsCancelParams = ajv.compile(JobsCancelParamsSchema);
-export const validateDevicePairListParams = ajv.compile<DevicePairListParams>(
+  lazyCompile<SkillsInstallParams>(SkillsInstallParamsSchema);
+export const validateSkillsUpdateParams = lazyCompile<SkillsUpdateParams>(SkillsUpdateParamsSchema);
+export const validateCronListParams = lazyCompile<CronListParams>(CronListParamsSchema);
+export const validateCronStatusParams = lazyCompile<CronStatusParams>(CronStatusParamsSchema);
+export const validateCronAddParams = lazyCompile<CronAddParams>(CronAddParamsSchema);
+export const validateCronUpdateParams = lazyCompile<CronUpdateParams>(CronUpdateParamsSchema);
+export const validateCronRemoveParams = lazyCompile<CronRemoveParams>(CronRemoveParamsSchema);
+export const validateCronRunParams = lazyCompile<CronRunParams>(CronRunParamsSchema);
+export const validateCronRunsParams = lazyCompile<CronRunsParams>(CronRunsParamsSchema);
+export const validateJobsListParams = lazyCompile(JobsListParamsSchema);
+export const validateJobsGetParams = lazyCompile(JobsGetParamsSchema);
+export const validateJobsCancelParams = lazyCompile(JobsCancelParamsSchema);
+export const validateDevicePairListParams = lazyCompile<DevicePairListParams>(
   DevicePairListParamsSchema,
 );
-export const validatePairNonceParams = ajv.compile<PairNonceParams>(PairNonceParamsSchema);
-export const validatePairRedeemParams = ajv.compile<PairRedeemParams>(PairRedeemParamsSchema);
-export const validatePairRefreshParams = ajv.compile<PairRefreshParams>(PairRefreshParamsSchema);
-export const validatePairMeParams = ajv.compile<PairMeParams>(PairMeParamsSchema);
-export const validatePairInviteParams = ajv.compile<PairInviteParams>(PairInviteParamsSchema);
-export const validatePairListParams = ajv.compile<PairListParams>(PairListParamsSchema);
-export const validatePairDevicesParams = ajv.compile<PairDevicesParams>(PairDevicesParamsSchema);
-export const validatePairApproveParams = ajv.compile<PairApproveParams>(PairApproveParamsSchema);
-export const validatePairRevokeParams = ajv.compile<PairRevokeParams>(PairRevokeParamsSchema);
-export const validateDevicePairApproveParams = ajv.compile<DevicePairApproveParams>(
+export const validatePairNonceParams = lazyCompile<PairNonceParams>(PairNonceParamsSchema);
+export const validatePairRedeemParams = lazyCompile<PairRedeemParams>(PairRedeemParamsSchema);
+export const validatePairRefreshParams = lazyCompile<PairRefreshParams>(PairRefreshParamsSchema);
+export const validatePairMeParams = lazyCompile<PairMeParams>(PairMeParamsSchema);
+export const validatePairInviteParams = lazyCompile<PairInviteParams>(PairInviteParamsSchema);
+export const validatePairListParams = lazyCompile<PairListParams>(PairListParamsSchema);
+export const validatePairDevicesParams = lazyCompile<PairDevicesParams>(PairDevicesParamsSchema);
+export const validatePairApproveParams = lazyCompile<PairApproveParams>(PairApproveParamsSchema);
+export const validatePairRevokeParams = lazyCompile<PairRevokeParams>(PairRevokeParamsSchema);
+export const validateDevicePairApproveParams = lazyCompile<DevicePairApproveParams>(
   DevicePairApproveParamsSchema,
 );
-export const validateDevicePairRejectParams = ajv.compile<DevicePairRejectParams>(
+export const validateDevicePairRejectParams = lazyCompile<DevicePairRejectParams>(
   DevicePairRejectParamsSchema,
 );
-export const validateDeviceTokenRotateParams = ajv.compile<DeviceTokenRotateParams>(
+export const validateDeviceTokenRotateParams = lazyCompile<DeviceTokenRotateParams>(
   DeviceTokenRotateParamsSchema,
 );
-export const validateDeviceTokenRevokeParams = ajv.compile<DeviceTokenRevokeParams>(
+export const validateDeviceTokenRevokeParams = lazyCompile<DeviceTokenRevokeParams>(
   DeviceTokenRevokeParamsSchema,
 );
-export const validateExecApprovalsGetParams = ajv.compile<ExecApprovalsGetParams>(
+export const validateExecApprovalsGetParams = lazyCompile<ExecApprovalsGetParams>(
   ExecApprovalsGetParamsSchema,
 );
-export const validateExecApprovalsSetParams = ajv.compile<ExecApprovalsSetParams>(
+export const validateExecApprovalsSetParams = lazyCompile<ExecApprovalsSetParams>(
   ExecApprovalsSetParamsSchema,
 );
-export const validateExecApprovalRequestParams = ajv.compile<ExecApprovalRequestParams>(
+export const validateExecApprovalRequestParams = lazyCompile<ExecApprovalRequestParams>(
   ExecApprovalRequestParamsSchema,
 );
-export const validateExecApprovalResolveParams = ajv.compile<ExecApprovalResolveParams>(
+export const validateExecApprovalResolveParams = lazyCompile<ExecApprovalResolveParams>(
   ExecApprovalResolveParamsSchema,
 );
-export const validateExecApprovalsNodeGetParams = ajv.compile<ExecApprovalsNodeGetParams>(
+export const validateExecApprovalsNodeGetParams = lazyCompile<ExecApprovalsNodeGetParams>(
   ExecApprovalsNodeGetParamsSchema,
 );
-export const validateExecApprovalsNodeSetParams = ajv.compile<ExecApprovalsNodeSetParams>(
+export const validateExecApprovalsNodeSetParams = lazyCompile<ExecApprovalsNodeSetParams>(
   ExecApprovalsNodeSetParamsSchema,
 );
-export const validateLogsTailParams = ajv.compile<LogsTailParams>(LogsTailParamsSchema);
-export const validateChatHistoryParams = ajv.compile(ChatHistoryParamsSchema);
-export const validateChatSendParams = ajv.compile(ChatSendParamsSchema);
-export const validateChatAbortParams = ajv.compile<ChatAbortParams>(ChatAbortParamsSchema);
-export const validateChatInjectParams = ajv.compile<ChatInjectParams>(ChatInjectParamsSchema);
-export const validateChatEvent = ajv.compile(ChatEventSchema);
-export const validateUpdateRunParams = ajv.compile<UpdateRunParams>(UpdateRunParamsSchema);
+export const validateLogsTailParams = lazyCompile<LogsTailParams>(LogsTailParamsSchema);
+export const validateChatHistoryParams = lazyCompile(ChatHistoryParamsSchema);
+export const validateChatSendParams = lazyCompile(ChatSendParamsSchema);
+export const validateChatAbortParams = lazyCompile<ChatAbortParams>(ChatAbortParamsSchema);
+export const validateChatInjectParams = lazyCompile<ChatInjectParams>(ChatInjectParamsSchema);
+export const validateChatEvent = lazyCompile(ChatEventSchema);
+export const validateUpdateRunParams = lazyCompile<UpdateRunParams>(UpdateRunParamsSchema);
 export const validateWebLoginStartParams =
-  ajv.compile<WebLoginStartParams>(WebLoginStartParamsSchema);
-export const validateWebLoginWaitParams = ajv.compile<WebLoginWaitParams>(WebLoginWaitParamsSchema);
-export const validateSiblingSendParams = ajv.compile(SiblingSendParamsSchema);
-export const validateSiblingSubscribeParams = ajv.compile(SiblingSubscribeParamsSchema);
-export const validateSiblingHistoryParams = ajv.compile(SiblingHistoryParamsSchema);
-export const validateSiblingReadParams = ajv.compile(SiblingReadParamsSchema);
+  lazyCompile<WebLoginStartParams>(WebLoginStartParamsSchema);
+export const validateWebLoginWaitParams = lazyCompile<WebLoginWaitParams>(WebLoginWaitParamsSchema);
+export const validateSiblingSendParams = lazyCompile(SiblingSendParamsSchema);
+export const validateSiblingSubscribeParams = lazyCompile(SiblingSubscribeParamsSchema);
+export const validateSiblingHistoryParams = lazyCompile(SiblingHistoryParamsSchema);
+export const validateSiblingReadParams = lazyCompile(SiblingReadParamsSchema);
 
 export function formatValidationErrors(errors: ErrorObject[] | null | undefined) {
   if (!errors?.length) {
@@ -526,6 +602,21 @@ export {
 };
 
 export type {
+  TerminalAckResult,
+  TerminalCancelParams,
+  TerminalCloseParams,
+  TerminalDiffFile,
+  TerminalDiffFileSummary,
+  TerminalDiffParams,
+  TerminalDiffResult,
+  TerminalEvent,
+  TerminalInputParams,
+  TerminalOpenParams,
+  TerminalOpenResult,
+  TerminalReplayParams,
+  TerminalReplayResult,
+  TerminalResizeParams,
+  TerminalRiskPreview,
   GatewayFrame,
   ConnectParams,
   HelloOk,
@@ -604,6 +695,9 @@ export type {
   SessionsDiscoverResult,
   CodeModeRunParams,
   CodeModeRunResult,
+  ConnectorsStatusParams,
+  ConnectorsStatusResult,
+  ConnectorStatusEntry,
   SessionAttachParams,
   SessionAttachResult,
   SessionDetachParams,
@@ -635,3 +729,19 @@ export type {
   SiblingEventMessage,
   SiblingDeliveryAck,
 };
+export type {
+  VoiceStartParams,
+  VoiceStartResult,
+  VoiceAudioParams,
+  VoiceAudioResult,
+  VoiceStopParams,
+  VoiceStopResult,
+  VoiceSpeakParams,
+  VoiceSpeakResult,
+  VoiceCancelParams,
+  VoiceCancelResult,
+  VoiceTranscriptPartialEvent,
+  VoiceTranscriptFinalEvent,
+  VoiceAudioOutEvent,
+  VoiceSessionEndedEvent,
+} from "./schema/types.js";

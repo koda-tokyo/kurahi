@@ -20,6 +20,7 @@ import { getDeterministicFreePortBlock } from "../test-utils/ports.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { buildDeviceAuthPayload } from "./device-auth.js";
 import { PROTOCOL_VERSION } from "./protocol/index.js";
+import { resetRateLimiters } from "./rate-limiter.js";
 import {
   agentCommand,
   cronIsolatedRun,
@@ -130,6 +131,9 @@ async function resetGatewayTestState(options: { uniqueConfigRoot: boolean }) {
   testIsNixMode.value = false;
   cronIsolatedRun.mockClear();
   agentCommand.mockClear();
+  // The per-IP connection limit counts loopback too; a suite opens far more than 10 sockets a
+  // minute, so each test starts with empty windows.
+  resetRateLimiters();
   embeddedRunMock.activeIds.clear();
   embeddedRunMock.abortCalls = [];
   embeddedRunMock.waitCalls = [];
@@ -198,10 +202,13 @@ async function cleanupGatewayTestHome(options: { restoreEnv: boolean }) {
 export function installGatewayTestHooks(options?: { scope?: "test" | "suite" }) {
   const scope = options?.scope ?? "test";
   if (scope === "suite") {
+    // Same budget as the per-test hooks: the first reset awaits the gateway server module, whose
+    // first import (transform + evaluation) can exceed vitest's 10 s default under load (the e2e
+    // config does not raise hookTimeout).
     beforeAll(async () => {
       await setupGatewayTestHome();
       await resetGatewayTestState({ uniqueConfigRoot: true });
-    });
+    }, 60_000);
     beforeEach(async () => {
       await resetGatewayTestState({ uniqueConfigRoot: true });
     }, 60_000);

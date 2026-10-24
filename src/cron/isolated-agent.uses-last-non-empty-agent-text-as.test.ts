@@ -52,11 +52,7 @@ async function readSessionEntry(storePath: string, key: string) {
   return store[key];
 }
 
-function makeCfg(
-  home: string,
-  storePath: string,
-  overrides: Partial<KoLoConfig> = {},
-): KoLoConfig {
+function makeCfg(home: string, storePath: string, overrides: Partial<KoLoConfig> = {}): KoLoConfig {
   const base: KoLoConfig = {
     agents: {
       defaults: {
@@ -120,6 +116,75 @@ describe("runCronIsolatedAgentTurn", () => {
 
       expect(res.status).toBe("ok");
       expect(res.summary).toBe("last");
+    });
+  });
+
+  it("reports a turn that hit its timeout as an error, not ok", async () => {
+    await withTempHome(async (home) => {
+      const storePath = await writeSessionStore(home);
+      const deps: CliDeps = {
+        sendMessageWhatsApp: vi.fn(),
+        sendMessageTelegram: vi.fn(),
+        sendMessageDiscord: vi.fn(),
+        sendMessageSignal: vi.fn(),
+        sendMessageIMessage: vi.fn(),
+      };
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: undefined,
+        meta: {
+          durationMs: 300_000,
+          aborted: true,
+          timedOut: true,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
+
+      const res = await runCronIsolatedAgentTurn({
+        cfg: makeCfg(home, storePath),
+        deps,
+        job: makeJob({ kind: "agentTurn", message: "do it", deliver: true, timeoutSeconds: 300 }),
+        message: "do it",
+        sessionKey: "cron:job-1",
+        lane: "cron",
+      });
+
+      expect(res.status).toBe("error");
+      expect(res.error).toBe("agent turn timed out after 300s");
+      expect(deps.sendMessageWhatsApp).not.toHaveBeenCalled();
+    });
+  });
+
+  it("reports an aborted turn as an error", async () => {
+    await withTempHome(async (home) => {
+      const storePath = await writeSessionStore(home);
+      const deps: CliDeps = {
+        sendMessageWhatsApp: vi.fn(),
+        sendMessageTelegram: vi.fn(),
+        sendMessageDiscord: vi.fn(),
+        sendMessageSignal: vi.fn(),
+        sendMessageIMessage: vi.fn(),
+      };
+      vi.mocked(runEmbeddedPiAgent).mockResolvedValue({
+        payloads: [{ text: "partial" }],
+        meta: {
+          durationMs: 5,
+          aborted: true,
+          agentMeta: { sessionId: "s", provider: "p", model: "m" },
+        },
+      });
+
+      const res = await runCronIsolatedAgentTurn({
+        cfg: makeCfg(home, storePath),
+        deps,
+        job: makeJob({ kind: "agentTurn", message: "do it", deliver: false }),
+        message: "do it",
+        sessionKey: "cron:job-1",
+        lane: "cron",
+      });
+
+      expect(res.status).toBe("error");
+      expect(res.error).toBe("agent turn aborted before completion");
+      expect(res.summary).toBe("partial");
     });
   });
 

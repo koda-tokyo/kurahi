@@ -17,6 +17,7 @@ import {
 } from "../../cli/nodes-screen.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import { imageMimeFromFormat } from "../../media/mime.js";
+import { enforceExecGuard } from "../../security/exec-guard.js";
 import { resolveSessionAgentId } from "../agent-scope.js";
 import { optionalStringEnum, stringEnum } from "../schema/typebox.js";
 import { sanitizeToolResultImages } from "../tool-images.js";
@@ -412,6 +413,13 @@ export function createNodesTool(options?: {
             if (command.length === 0) {
               throw new Error("command must not be empty");
             }
+            // Destructive-command floor (OWASP ASI05), before the request leaves the gateway.
+            enforceExecGuard(command.join(" "), {
+              source: "nodes.run",
+              agentId,
+              sessionKey,
+              host: "node",
+            });
             const cwd =
               typeof params.cwd === "string" && params.cwd.trim() ? params.cwd.trim() : undefined;
             const env = parseEnvPairs(params.env);

@@ -1,10 +1,10 @@
-import { DisconnectReason } from "@whiskeysockets/baileys";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config/config.js";
 import { danger, info, success } from "../globals.js";
 import { logInfo } from "../logger.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { resolveWhatsAppAccount } from "./accounts.js";
+import { baileys, loadBaileys } from "./baileys.js";
 import { renderQrPngBase64 } from "./qr-image.js";
 import {
   createWaSocket,
@@ -114,6 +114,7 @@ export async function startWebLoginWithQr(
     runtime?: RuntimeEnv;
   } = {},
 ): Promise<{ qrDataUrl?: string; message: string }> {
+  await loadBaileys();
   const runtime = opts.runtime ?? defaultRuntime;
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({ cfg, accountId: opts.accountId });
@@ -216,6 +217,7 @@ export async function startWebLoginWithQr(
 export async function waitForWebLogin(
   opts: { timeoutMs?: number; runtime?: RuntimeEnv; accountId?: string } = {},
 ): Promise<{ connected: boolean; message: string }> {
+  await loadBaileys();
   const runtime = opts.runtime ?? defaultRuntime;
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({ cfg, accountId: opts.accountId });
@@ -259,7 +261,7 @@ export async function waitForWebLogin(
     }
 
     if (login.error) {
-      if (login.errorStatus === DisconnectReason.loggedOut) {
+      if (login.errorStatus === baileys().DisconnectReason.loggedOut) {
         await logoutWeb({
           authDir: login.authDir,
           isLegacyAuthDir: login.isLegacyAuthDir,

@@ -43,6 +43,20 @@ export type ToolPermissionSet = {
   rules: ParsedPermissionRule[];
   /** Human-readable problems for rules that could not be parsed (logged by caller). */
   problems: string[];
+  /**
+   * Classes denied when no rule matches. Default: write and exec (read stays open). A project
+   * scope (src/projects/scope.ts) denies read too, so only the project folder is reachable.
+   */
+  denyByDefault?: string[];
+  /** Normalised path targets matching any of these are denied before the rules are consulted. */
+  denyPaths?: RegExp[];
+  /** Short label for denial messages ("project Payroll"); defaults to "this agent". */
+  label?: string;
+  /**
+   * When set, only these tools (normalized names) may run at all; anything else is denied
+   * before classification. Used by project permission modes (参照 Read / 計画 Plan).
+   */
+  allowTools?: string[];
 };
 
 export type ToolPermissionDecision =
@@ -206,16 +220,32 @@ export function classifyToolCall(
 ): { toolClass: string; targets: string[] } {
   const name = normalizeToolName(toolName);
   const params = args ?? {};
+  // The file tools also accept Claude-style `file_path` (normalised to `path` inside the tool,
+  // after this guard has run), so classify by the same key the tool will use.
+  const filePath = asString(params.path) || asString(params.file_path);
   switch (name) {
     case "read":
-      return { toolClass: "read", targets: [asString(params.path) || ""] };
+      return { toolClass: "read", targets: [filePath] };
     case "write":
     case "edit":
-      return { toolClass: "write", targets: [asString(params.path) || ""] };
+      return { toolClass: "write", targets: [filePath] };
     case "apply_patch": {
       const patchPaths = extractPatchPaths(params.patch);
       return { toolClass: "write", targets: patchPaths.length > 0 ? patchPaths : [""] };
     }
+    case "legacy_index":
+    case "legacy_query":
+    case "legacy_rules":
+    case "legacy_dictionary":
+    case "legacy_impact":
+    case "legacy_design_doc":
+    case "legacy_wave_plan":
+    case "modernise_plan":
+    case "modernise_crud":
+    case "modernise_impact":
+    case "modernise_inventory":
+      // The legacy analyser reads every source file under `path`: guard it as a read of that folder.
+      return { toolClass: "read", targets: [asString(params.path) || ""] };
     case "exec":
     case "bash":
       return { toolClass: "exec", targets: [asString(params.command) || ""] };
@@ -270,6 +300,18 @@ export function checkToolPermission(params: {
   if (!permissionSet.active) {
     return { ok: true };
   }
+  if (
+    permissionSet.allowTools &&
+    !permissionSet.allowTools.includes(normalizeToolName(params.toolName))
+  ) {
+    return {
+      ok: false,
+      toolClass: normalizeToolName(params.toolName),
+      target: "",
+      rule: "mode:tool-not-allowed",
+      reason: `Permission denied: the tool "${params.toolName}" is not available in the current mode of ${permissionSet.label ?? "this agent"}.`,
+    };
+  }
   const { toolClass, targets } = classifyToolCall(params.toolName, params.args);
   const isPathClass = toolClass === "read" || toolClass === "write";
   const normalizedTargets = targets.map((target) =>
@@ -278,13 +320,24 @@ export function checkToolPermission(params: {
 
   // Every target of a call must be allowed (apply_patch can touch many files).
   for (const target of normalizedTargets) {
+    if (isPathClass && permissionSet.denyPaths?.some((re) => re.test(target))) {
+      return {
+        ok: false,
+        toolClass,
+        target,
+        rule: `deny-path:${toolClass}`,
+        reason: `Permission denied: "${displayTarget(target, workspaceDir)}" is outside what ${permissionSet.label ?? "this agent"} may reach.`,
+      };
+    }
     const matched = permissionSet.rules.some(
       (rule) => rule.ruleClass === toolClass && rule.regex.test(target),
     );
     if (matched) {
       continue;
     }
-    const defaultDeny = DENY_BY_DEFAULT_CLASSES.has(toolClass);
+    const defaultDeny = permissionSet.denyByDefault
+      ? permissionSet.denyByDefault.includes(toolClass)
+      : DENY_BY_DEFAULT_CLASSES.has(toolClass);
     if (!defaultDeny) {
       continue; // read + unclassified tools are allow-by-default
     }
@@ -295,7 +348,7 @@ export function checkToolPermission(params: {
       target,
       rule: `default-deny:${toolClass}`,
       reason:
-        `Permission denied: ${toolClass} on "${shown}" is not covered by this agent's permission rules ` +
+        `Permission denied: ${toolClass} on "${shown}" is not covered by ${permissionSet.label ? `the rules of ${permissionSet.label}` : "this agent's permission rules"} ` +
         `(${toolClass} is deny-by-default). An operator can allow it by adding a rule like ` +
         `"${toolClass}:<pattern>" to agents.list[].permissions.`,
     };

@@ -1,4 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import * as chatDb from "../sibling-chat-db.js";
@@ -77,6 +79,33 @@ describe("sibling.send handler", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  test("keeps the file inbox write inside sibling-chat and the front matter intact", async () => {
+    const handler = siblingHandlers["sibling.send"];
+    const idempotencyKey = "/../../x\nfrom: atlas";
+    const params = { to: "orion", text: "hello", idempotencyKey };
+    await handler!({
+      req: { type: "req", id: "test-traversal", method: "sibling.send", params },
+      params,
+      client: makeMockClient("nova"),
+      isWebchatConnect: vi.fn(),
+      respond,
+      context,
+    });
+
+    const payload = respond.mock.calls[0]?.[1] as { inboxPath?: string } | undefined;
+    expect(respond.mock.calls[0]?.[0]).toBe(true);
+    const inboxPath = payload?.inboxPath ?? "";
+    expect(path.basename(path.dirname(inboxPath))).toBe("sibling-chat");
+    expect(path.basename(inboxPath)).toMatch(/^from_nova_[\w-]+_xfromatl\.md$/);
+    const content = fs.readFileSync(inboxPath, "utf8");
+    const frontMatter = content.split("---")[1] ?? "";
+    expect(frontMatter.match(/^from: /gm)).toHaveLength(1);
+    expect(frontMatter).toContain("from: nova");
+    expect(frontMatter).toContain(`runId: ${JSON.stringify(idempotencyKey)}`);
+    expect(frontMatter).toContain("verified: false");
+    fs.rmSync(inboxPath, { force: true });
   });
 
   test("sends message successfully to known sibling", async () => {

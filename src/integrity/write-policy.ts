@@ -28,6 +28,10 @@ const PATCH_MARKERS = ["*** Add File: ", "*** Delete File: ", "*** Update File: 
 const MUTATING_CMD_RE =
   /(^|[\s;&|(])(rm|mv|cp|truncate|dd|chmod|chown|chattr|ln|install|touch|unlink|shred|rsync|sed\s+(-[a-zA-Z]*\s+)*-[a-zA-Z]*i|perl\s+(-[a-zA-Z]*\s+)*-[a-zA-Z]*i|ed|ex|vi|vim|nvim|nano|emacs|code|python3?|node|ruby|bun|deno|git\s+(checkout|restore|reset|apply|mv|rm|stash))(?=$|[\s;&|)])/;
 const OPERATOR_CMD_RE = /\bintegrity\s+(init|update)\b/;
+/** Approving a skill or plugin into the supply-chain lock (ASI04) is an operator action too. */
+const PIN_CMD_RE = /\b(skills|plugins)\s+pin\b/;
+/** Memory quarantine decisions are operator review (src/memory/quarantine.ts, ASI06). */
+const MEMORY_REVIEW_CMD_RE = /\bmemory\s+quarantine\s+(approve|reject)\b/;
 
 function realish(p: string): string {
   const abs = path.resolve(p);
@@ -117,6 +121,20 @@ function redirectTargets(command: string): string[] {
   return out;
 }
 
+/** Paths an `apply_patch` input adds, deletes, updates or moves to. */
+export function patchTargetPaths(input: string): string[] {
+  return patchPaths(input);
+}
+
+/** Best-effort paths a shell command writes (redirects, tee, and names given to mutating commands). */
+export function execWriteTargets(command: string): string[] {
+  const out = redirectTargets(command);
+  if (MUTATING_CMD_RE.test(command)) {
+    out.push(...shellTokens(command));
+  }
+  return out;
+}
+
 export type WriteDecision = { blocked: false } | { blocked: true; path: string; reason: string };
 
 /** Pure decision for one tool call. */
@@ -170,6 +188,22 @@ export function evaluateWritePolicy(params: {
         path: "kurahi integrity",
         reason:
           "exec refused: `kurahi integrity init|update` is an operator action and cannot run from an agent tool.",
+      };
+    }
+    if (PIN_CMD_RE.test(command)) {
+      return {
+        blocked: true,
+        path: "kurahi pin",
+        reason:
+          "exec refused: `kurahi skills|plugins pin` approves code into the supply-chain lock; it is an operator action and cannot run from an agent tool.",
+      };
+    }
+    if (MEMORY_REVIEW_CMD_RE.test(command)) {
+      return {
+        blocked: true,
+        path: "kurahi memory quarantine",
+        reason:
+          "exec refused: `kurahi memory quarantine approve|reject` is operator review and cannot run from an agent tool.",
       };
     }
     const cwd =

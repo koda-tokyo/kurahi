@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { KoLoPluginApi } from "../../../src/plugins/types.js";
+import { enforceExecGuard } from "../../../src/security/exec-guard.js";
 
 type LobsterEnvelope =
   | {
@@ -284,8 +285,10 @@ export function createLobsterTool(api: KoLoPluginApi) {
           if (!pipeline.trim()) {
             throw new Error("pipeline required");
           }
-          const argv = ["run", "--mode", "tool", pipeline];
           const argsJson = typeof params.argsJson === "string" ? params.argsJson : "";
+          // A pipeline can run shell steps: same destructive-command floor as exec.
+          enforceExecGuard(`${pipeline}\n${argsJson}`, { source: "lobster.run" });
+          const argv = ["run", "--mode", "tool", pipeline];
           if (argsJson.trim()) {
             argv.push("--args-json", argsJson);
           }

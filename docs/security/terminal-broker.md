@@ -41,8 +41,9 @@ admin connections. The policy kill switch (`kurahi policy kill`) refuses `termin
 **Where.** A session is bound to one project. The working directory starts at the project root
 and the shell's `HOME` is the root, so `~` and a bare `cd` stay inside it. Opening is refused when
 the project is in read mode (参照). Every path a command line names is resolved (lexically, then
-through symlinks for whatever exists) and must stay inside the root; `cd` is tracked through the
-line, and a `cd` that might or might not run is checked both ways. Paths with `$` expansions,
+through symlinks for whatever exists, applying `..` after a link the way the kernel does) and
+must stay inside the root; `cd` is tracked through the line, and a `cd` that might or might not
+run is checked both ways. Paths with `$` expansions,
 `~user`, and the projects' excluded folders are refused. When the project's terminal profile is
 client-isolated or `sandbox` is `"required"`, the session runs in the container sandbox with only
 the project folder mounted; if the container cannot start the session is refused, it never falls
@@ -58,7 +59,9 @@ shell until Enter. Each submitted line is then, in order:
    substitution, here-documents, dynamic program names, and interactive programs (editors, pagers,
    REPLs, shells without a script) unless `allowInteractive` names them;
 4. checked by the path guard;
-5. decided by mode:
+5. checked by the read-only folder guard (see below); a match is refused in every mode, never
+   queued for approval;
+6. decided by mode:
    - 計画 plan: read-only lines run; everything else waits for an approval;
    - 実行 act, `actApprovals: "always"`: the same;
    - 実行 act, `actApprovals: "policy"`: the exec-approvals file of the default agent decides
@@ -74,6 +77,44 @@ the line is checked again (mode, paths, guard) before it runs. Each approved lin
 environment built from an allowlist (the gateway's tokens and API keys are not inherited; pagers
 are `cat`, editors are `false`, git never prompts). Cancel and close signal the command's whole
 process group (SIGTERM, then SIGKILL after 1.5 s; immediately on gateway shutdown).
+
+**Read-only folders.** The Project's `rules.readOnly` folders (from its template, for example
+`"readOnly": ["source", "data", "docs"]` in `templates/projects/industry-legacy-modernisation.json`;
+the same list from which agent file tools get no write rule, `src/projects/scope.ts`
+`effectiveWritable`) are untouchable from the terminal. A line that would write, create, delete,
+move or change permissions of anything inside one is refused in plan and act mode alike, with the
+notice `read-only-path` (`{folder}`) and the risk code `read-only-path` first in the audited risks;
+no approval is offered, so no approver can let it through. Reads are unaffected. The list is
+re-read for every line (and again after an approval), so an operator unlocks a folder by removing
+it from the Project's read-only list; there is no per-line override.
+
+The guard (`src/console/terminal/readonly-guard.ts`, targets from `write-targets.ts`) knows the
+write targets of each program on the line: output redirections; `rm`, `rmdir`, `unlink`, `shred`;
+`touch`, `mkdir`, `tee`, `truncate`, `dd of=`; `cp`, `install`, `mv`, `ln`, `rsync`, `scp`
+(destination, the entry each source lands as, `-t`, moved sources, and hard links _from_ a read-only
+file, which would be writable aliases); `chmod`, `chown`, `chgrp`, `chattr`, `setfacl`; `sed -i`,
+`perl -i`, `awk -i inplace`; `sort -o`; archive extraction (`tar -x`, `unzip`, into `-C`/`-d` or the
+working directory) and creation (the archive file); compressors; `patch`; `split`; `curl -o/-O`,
+`wget`; `javac` without `-d`; compilers' `-o`; build and package tools (the directory they run in);
+`find -delete`, `find -exec` with a writing command; `xargs` feeding a writing command (every path
+the line names, or the working directory when it names none); `git` subcommands that rewrite the
+working tree (`checkout`, `switch`, `restore`, `reset --hard`, `stash`, `merge`, `rebase`, `pull`,
+`clean`, `rm`, `mv`, `apply`, …: their pathspecs, or the whole tree without one); and the same
+programs behind wrappers (`env`, `timeout`, `nice`, …), `sh -c` and `eval`. Recursive operations
+(`rm -r`, `chmod -R`, `mv`, extraction, a git checkout) also conflict when a read-only folder lies
+_inside_ their target, so `rm -rf *` or `git checkout main` at the Project root is refused while
+`source/` exists. Each target is checked lexically and as the kernel would open it (symlinks
+followed, dangling links too, `..` applied after the link), against the folder and its real path,
+case-insensitively on macOS and Windows; a working directory inside a read-only folder makes every
+relative write target land there. Globs are expanded.
+
+A write the guard cannot see (a script, a build tool's own outputs, an interpreter) is reported
+after the fact: files changed inside read-only folders are marked `violation: "read-only-path"`
+in the `file.diff` summary and in `terminal.diff`, listed first, counted in the event's
+`violations`, announced by the notice `read-only-violation` (`{files, folder}`), and written to the
+audit log as `terminal.violation` (outcome `denied`, the folders and up to 50 `status:path` entries)
+with `violations` in the exit entry's diff summary. Detection is not prevention: the change has
+happened by then.
 
 **What is shown and kept.** Output is redacted before it is stored or sent: the secret patterns
 used by the logs and the audit log, the exact values of the gateway's secret-named environment
@@ -122,6 +163,16 @@ Read this before enabling the terminal on the gateway host without the sandbox.
 - **Shell state does not persist.** Only the working directory carries over between lines (a line
   that is only `cd <dir>`). Variables, `export`, functions and aliases last for one line. This is
   deliberate (nothing earlier can redefine what a later word means) but differs from a normal shell.
+- **Read-only folders are a line rule, not a file-system lock.** The read-only folder guard reads
+  the words of the line like the classifier. A script, a Makefile, an interpreter, a program that
+  writes paths it computes, or a file that already is a hard link of a read-only file can still
+  change a read-only folder on the host; the diff then reports it as a violation, after the fact.
+  Changes that are not content (a `chmod` by a script, a timestamp) and changes beyond the snapshot
+  bounds or in hidden directories are not seen by the diff either. Only the container sandbox (or
+  operating-system permissions on the folder) truly confines. The guard is deliberately
+  conservative: recursive operations at or above a read-only folder (`rm -rf *` at the root, a git
+  checkout of the whole tree, extracting an archive into the root) are refused even if they would
+  not have touched it; run them in a writable folder (`-C output`) or unlock the folder.
 - **Check-then-run races and hard links.** Paths are checked when the line is submitted and again
   after an approval, not while the command runs: a symlink swapped in between (for example by an
   agent working in the same project) is followed. A hard link inside the project to a file outside
@@ -168,8 +219,11 @@ program names); the UI owns all Japanese and English text:
 
 - `approval.requested`: `approvalId`, `command` (redacted), `cwd`, `risk` (most severe) and
   `risks`, each `{code, params?}`, for example `{code: "deletes-files", params: {count: 12}}`.
-- `notice`: `code` such as `ready`, `path-escape`, `interactive-refused`, `approval-denied`,
+- `notice`: `code` such as `ready`, `path-escape`, `read-only-path` (`{folder}`),
+  `read-only-violation` (`{files, folder}`), `interactive-refused`, `approval-denied`,
   `output-rate-limited` (`{droppedBytes}`), `idle-timeout`.
+- `file.diff`: `diffId`, `files` (at most 200; `violation: "read-only-path"` on files inside a
+  read-only folder), `totals`, `truncated`, and `violations` (count) when any.
 - One `runId` (UUID) per submitted line, carried by the approval, the exit, the diff and the
   audit entries.
 

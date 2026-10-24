@@ -1,4 +1,4 @@
-import { html } from "lit";
+import { html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import type { AppViewState } from "./app-view-state";
 import type { ThemeMode } from "./theme";
@@ -7,34 +7,83 @@ import type { SessionsListResult } from "./types";
 import { refreshChat } from "./app-chat";
 import { syncUrlWithSessionKey } from "./app-settings";
 import { loadChatHistory } from "./controllers/chat";
+import { t } from "./i18n";
 import { icons } from "./icons";
-import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation";
+import {
+  iconForPage,
+  pageForTab,
+  pathForPage,
+  pathForTab,
+  tabLabelKey,
+  titleKeyForPage,
+  tabsForPage,
+  type Page,
+  type Tab,
+} from "./navigation";
 
-export function renderTab(state: AppViewState, tab: Tab) {
-  const href = pathForTab(tab, state.basePath);
+function isPlainClick(event: MouseEvent) {
+  return !(
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
+}
+
+/** One sidebar entry. `badge` is a count shown next to the label (for example Approvals). */
+export function renderNavPage(state: AppViewState, page: Page, badge?: number) {
+  const href = pathForPage(page, state.basePath);
+  const active = pageForTab(state.tab) === page;
+  const label = t(titleKeyForPage(page));
+  const badgeLabel = badge ? t("nav.badge.approvals", { count: badge }) : "";
   return html`
     <a
       href=${href}
-      class="nav-item ${state.tab === tab ? "active" : ""}"
+      class="nav-item ${active ? "active" : ""}"
+      aria-current=${active ? "page" : "false"}
       @click=${(event: MouseEvent) => {
-        if (
-          event.defaultPrevented ||
-          event.button !== 0 ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        ) {
+        if (!isPlainClick(event)) {
           return;
         }
         event.preventDefault();
-        state.setTab(tab);
+        state.setTab(tabsForPage(page)[0]);
       }}
-      title=${titleForTab(tab)}
+      title=${badge ? `${label} (${badgeLabel})` : label}
     >
-      <span class="nav-item__icon" aria-hidden="true">${icons[iconForTab(tab)]}</span>
-      <span class="nav-item__text">${titleForTab(tab)}</span>
+      <span class="nav-item__icon" aria-hidden="true">${icons[iconForPage(page)]}</span>
+      <span class="nav-item__text">${label}</span>
+      ${badge ? html`<span class="nav-badge" aria-label=${badgeLabel}>${badge > 99 ? "99+" : badge}</span>` : nothing}
     </a>
+  `;
+}
+
+/** Sub-tabs for pages with several views (Agents, Connections, Devices, Settings). */
+export function renderSubTabs(state: AppViewState) {
+  const tabs = tabsForPage(pageForTab(state.tab));
+  if (tabs.length < 2) {
+    return nothing;
+  }
+  return html`
+    <nav class="ent-subtabs" role="tablist">
+      ${tabs.map(
+        (tab: Tab) => html`<a
+          role="tab"
+          aria-selected=${state.tab === tab}
+          class="ent-subtabs__tab ${state.tab === tab ? "active" : ""}"
+          href=${pathForTab(tab, state.basePath)}
+          @click=${(event: MouseEvent) => {
+            if (!isPlainClick(event)) {
+              return;
+            }
+            event.preventDefault();
+            state.setTab(tab);
+          }}
+          >${t(tabLabelKey(tab))}</a
+        >`,
+      )}
+    </nav>
   `;
 }
 
@@ -85,7 +134,7 @@ export function renderChatControls(state: AppViewState) {
   `;
   return html`
     <div class="chat-controls">
-      <label class="field chat-controls__session">
+      <label class="field chat-controls__session" ?hidden=${state.chatHistory?.open}>
         <select
           .value=${state.sessionKey}
           ?disabled=${!state.connected}
@@ -221,7 +270,9 @@ function resolveSessionOptions(
   const seen = new Set<string>();
   const options: Array<{ key: string; displayName?: string }> = [];
 
-  const resolvedMain = mainSessionKey && sessions?.sessions?.find((s) => s.key === mainSessionKey);
+  const resolvedMain = mainSessionKey
+    ? sessions?.sessions?.find((s) => s.key === mainSessionKey)
+    : undefined;
   const resolvedCurrent = sessions?.sessions?.find((s) => s.key === sessionKey);
 
   // Add main session key first

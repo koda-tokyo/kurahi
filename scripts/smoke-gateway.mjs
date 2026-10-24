@@ -407,12 +407,21 @@ function runCli(entry, args, env, timeoutMs = 60_000, keepChars = 4000) {
   });
 }
 
+// stdout and stderr are captured together, so the JSON document can follow log lines, and a
+// log line such as "[supply-chain] warning: …" also starts with "[". Take the first line start
+// from which the rest of the output parses.
 function parseJsonOutput(out) {
-  const start = out.search(/^[{[]/m);
-  if (start < 0) {
-    throw new Error(`no JSON in output: ${out.slice(-300)}`);
+  let lastError = null;
+  for (const match of out.matchAll(/^[{[]/gm)) {
+    try {
+      return JSON.parse(out.slice(match.index));
+    } catch (err) {
+      lastError = err;
+    }
   }
-  return JSON.parse(out.slice(start));
+  throw new Error(
+    `no JSON in output${lastError ? ` (${lastError.message})` : ""}: ${out.slice(-300)}`,
+  );
 }
 
 async function checkApiCli(entry, home, port, token) {
