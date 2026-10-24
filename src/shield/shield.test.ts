@@ -206,8 +206,21 @@ describe("gateway wiring", () => {
     expect(w).not.toBeNull();
     watchers.push(w!);
     await w!.ready;
-    fs.writeFileSync(path.join(dir, "HOW_TO_DECRYPT_FILES.txt"), "pay us");
-    expect(await until(() => engine.status().kill.fleet !== null)).toBe(true);
+    // macOS FSEvents can start delivering a moment after the watcher reports ready, and may drop
+    // the very first event; touch the note again each second (still a real file event each time).
+    const note = path.join(dir, "HOW_TO_DECRYPT_FILES.txt");
+    fs.writeFileSync(note, "pay us");
+    let touches = 0;
+    const retouch = setInterval(() => {
+      if (touches++ < 14) {
+        fs.writeFileSync(note, `pay us ${touches}`);
+      }
+    }, 1000);
+    try {
+      expect(await until(() => engine.status().kill.fleet !== null, 15_000)).toBe(true);
+    } finally {
+      clearInterval(retouch);
+    }
     expect(engine.status().kill.fleet).toMatchObject({ by: "shield" });
     expect(engine.status().kill.fleet?.reason).toContain("shield: note");
     expect(logs.join("\n")).toContain("stopping every agent");

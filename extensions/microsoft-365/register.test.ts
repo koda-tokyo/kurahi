@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { KoLoPluginApi, KoLoPluginService } from "../../src/plugins/types.js";
 import {
@@ -46,7 +47,7 @@ function fakeApi(pluginConfig: Record<string, unknown> | undefined) {
 describe("business connector plugins", () => {
   it("ship valid manifests with the catalogue ids", () => {
     for (const dir of ["microsoft-365", "gmail", "entra"]) {
-      const res = loadPluginManifest(new URL(`../${dir}`, import.meta.url).pathname);
+      const res = loadPluginManifest(fileURLToPath(new URL(`../${dir}`, import.meta.url)));
       expect(res.ok).toBe(true);
       if (res.ok) {
         expect(res.manifest.id).toBe(dir);
