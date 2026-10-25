@@ -119,7 +119,8 @@ describe("KOLO_HOME isolation", () => {
   });
 
   afterAll(() => {
-    fs.rmSync(base, { recursive: true, force: true });
+    // Windows: the gateway child can still hold its cwd for a moment after it exits (EBUSY).
+    fs.rmSync(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   });
 
   it(
