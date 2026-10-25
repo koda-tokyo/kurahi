@@ -84,14 +84,26 @@ export function resolveProjectFile(folder: string, input: unknown): string {
   // otherwise look outside the resolved root. Symlink escapes are still caught on the real path.
   const given = path.resolve(folder);
   const lexical = path.isAbsolute(text) ? path.resolve(text) : path.resolve(root, text);
+  let real: string | null = null;
   if (!isInside(root, lexical) && !isInside(given, lexical)) {
-    throw new Error("the path is outside the project folder");
+    // A path that only looks outside because it is spelled through a symlinked parent (the
+    // folder stored resolved, the path given as /var/...): accept it when its real path is
+    // inside the real root. A real path outside is refused as before.
+    try {
+      real = fs.realpathSync(lexical);
+    } catch {
+      real = null;
+    }
+    if (!real || !isInside(root, real)) {
+      throw new Error("the path is outside the project folder");
+    }
   }
-  let real: string;
-  try {
-    real = fs.realpathSync(lexical);
-  } catch {
-    throw new Error("the file does not exist in the project folder");
+  if (real === null) {
+    try {
+      real = fs.realpathSync(lexical);
+    } catch {
+      throw new Error("the file does not exist in the project folder");
+    }
   }
   if (!isInside(root, real)) {
     throw new Error("the path leads outside the project folder through a symbolic link");

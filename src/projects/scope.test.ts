@@ -23,6 +23,11 @@ describe("resolveProjectFile with a symlinked project folder", () => {
     expect(resolveProjectFile(link, "docs/a.pdf")).toBe(expected);
   });
 
+  it("accepts the symlinked spelling when the folder is stored resolved (macOS /var → /private/var)", () => {
+    const expected = fs.realpathSync(path.join(real, "docs", "a.pdf"));
+    expect(resolveProjectFile(real, path.join(link, "docs", "a.pdf"))).toBe(expected);
+  });
+
   it("still refuses paths outside the folder and symlink escapes", () => {
     expect(() => resolveProjectFile(link, path.join(tmp, "outside.txt"))).toThrow(/outside/);
     expect(() => resolveProjectFile(link, "../outside.txt")).toThrow(/outside/);
