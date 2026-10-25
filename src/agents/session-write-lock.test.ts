@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { __testing, acquireSessionWriteLock } from "./session-write-lock.js";
 
 describe("acquireSessionWriteLock", () => {
@@ -85,7 +85,14 @@ describe("acquireSessionWriteLock", () => {
           process.on(signal, keepAlive);
         }
 
-        __testing.handleTerminationSignal(signal);
+        // With no other listener the handler re-raises the signal; on Windows that ends the test
+        // worker outright (its tests then silently never run), so the re-raise is stubbed.
+        const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+        try {
+          __testing.handleTerminationSignal(signal);
+        } finally {
+          kill.mockRestore();
+        }
 
         await expect(fs.stat(lockPath)).rejects.toThrow();
         if (signal === "SIGINT") {

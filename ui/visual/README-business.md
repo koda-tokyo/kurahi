@@ -21,7 +21,7 @@ captures under `apps/desktop/screenshots/business-*.png`, checking page errors a
   170 diagnostics as the base, compared by file and diagnostic text after removing line/column offsets.
 - Six screenshot captures pass without horizontal overflow. Dark/light desktop captures were visually
   inspected and the dark text-token inheritance corrected.
-- Independent Astra correctness review approved after the queue-selector regression was fixed.
+- Correctness review approved after the queue-selector regression was fixed.
 
 This slice reads queue config/list/item only. Drafts show pinned metadata, not content; evidence
 references are not a signature verification result. Item creation, agent assignment, decisions, and
@@ -49,5 +49,5 @@ remain separate work.
 
 Validation: full Chromium suite 408/408, UI typecheck, production build, changed-file lint/format,
 and 22 screenshot overflow checks pass. English mobile submission and Japanese desktop editing
-captures were visually reviewed; independent review approved after a keyboard-focus fix.
+captures were visually reviewed; review approved after a keyboard-focus fix.
 The build retains its existing bundle-size and mixed-import warnings.

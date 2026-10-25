@@ -30,13 +30,14 @@ import { loadAllow, scanPath, scanSource, sourcePathOf } from "./family-internal
 import { classifyLicence, normaliseNpmLicence, sniffLicenceFile } from "./sbom.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const PROFILE_FILE = path.join("src", "packaging", "profiles", "enterprise.json");
+// Forward slashes on every OS: the value appears in messages; path.join is used when reading it.
+export const PROFILE_FILE = "src/packaging/profiles/enterprise.json";
 const TEXT_EXT = /\.(?:js|mjs|cjs|ts|mts|cts|d\.ts|json|md)$/;
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /** The profile manifest of a repository checkout. */
 export function loadProfile(root = ROOT) {
-  return JSON.parse(fs.readFileSync(path.join(root, PROFILE_FILE), "utf8"));
+  return JSON.parse(fs.readFileSync(path.join(root, ...PROFILE_FILE.split("/")), "utf8"));
 }
 
 /** Extension ids of one tier, sorted. */

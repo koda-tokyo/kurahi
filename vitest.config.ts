@@ -42,8 +42,9 @@ export default defineConfig({
       "packages/legacy-analyzer/src/**/*.test.ts",
       "test/format-error.test.ts",
       "test/privacy-check.test.ts",
+      "test/isolate-home.test.ts",
     ],
-    setupFiles: ["test/setup.ts"],
+    setupFiles: ["test/isolate-home.ts", "test/setup.ts"],
     exclude: [
       "dist/**",
       "apps/macos/**",

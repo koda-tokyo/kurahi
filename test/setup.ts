@@ -22,7 +22,10 @@ import { withIsolatedTestHome } from "./test-env";
 
 installProcessWarningFilter();
 
-const testEnv = withIsolatedTestHome();
+// test/isolate-home.ts (the first setup file) installs the isolated home before any module loads.
+const testEnv =
+  (globalThis as { __kurahiTestHome?: ReturnType<typeof withIsolatedTestHome> }).__kurahiTestHome ??
+  withIsolatedTestHome();
 afterAll(() => testEnv.cleanup());
 const pickSendFn = (id: ChannelId, deps?: OutboundSendDeps) => {
   switch (id) {

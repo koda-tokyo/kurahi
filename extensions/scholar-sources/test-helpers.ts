@@ -2,12 +2,13 @@
 // keyless APIs) behind a fake fetch, and a fake clock for the rate limiters.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { FetchLike } from "../../src/connectors/business/index.js";
 import { readSettings } from "./src/config.js";
 import { createLimiters, ScholarHttp } from "./src/http.js";
 import { createScholarTools, type ScholarToolDeps } from "./src/tools.js";
 
-const FIXTURES = path.join(path.dirname(new URL(import.meta.url).pathname), "test-fixtures");
+const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "test-fixtures");
 export const fixture = (name: string) => fs.readFileSync(path.join(FIXTURES, name), "utf8");
 
 export type Call = { url: URL; at: number; headers: Record<string, string> };

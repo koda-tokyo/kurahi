@@ -18,7 +18,7 @@ export default defineConfig({
     pool: "forks",
     maxWorkers: e2eWorkers,
     include: ["test/**/*.e2e.test.ts", "src/**/*.e2e.test.ts"],
-    setupFiles: ["test/setup.ts"],
+    setupFiles: ["test/isolate-home.ts", "test/setup.ts"],
     exclude: [
       "dist/**",
       "apps/macos/**",

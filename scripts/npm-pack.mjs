@@ -126,13 +126,20 @@ export function packEnterprise(outDir) {
   fs.mkdirSync(outDir, { recursive: true });
   const versions = workspaceVersions();
   const profile = loadProfile(ROOT);
-  const tarball = npmPack(ROOT, outDir);
-  patchTarball(tarball, (pkg) => rewriteWorkspaceSpecs(pkg, versions), {
-    drop: (present) => extensionsToDrop(present, profile),
-  });
-  const target = tarball.replace(/\.tgz$/, "-enterprise.tgz");
-  fs.renameSync(tarball, target);
-  return target;
+  // Pack into a scratch folder: npm pack names the tarball kurahi-<version>.tgz, which would
+  // otherwise overwrite (and then rename away) a standard tarball already in outDir.
+  const scratch = fs.mkdtempSync(path.join(outDir, ".enterprise-pack-"));
+  try {
+    const tarball = npmPack(ROOT, scratch);
+    patchTarball(tarball, (pkg) => rewriteWorkspaceSpecs(pkg, versions), {
+      drop: (present) => extensionsToDrop(present, profile),
+    });
+    const target = path.join(outDir, path.basename(tarball).replace(/\.tgz$/, "-enterprise.tgz"));
+    fs.renameSync(tarball, target);
+    return target;
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 export function packAll(outDir) {

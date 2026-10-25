@@ -190,8 +190,9 @@ describe("exec tool backgrounding", () => {
   it("does not default to elevated when not allowed", async () => {
     const customBash = createExecTool({
       elevated: { enabled: true, allowed: false, defaultLevel: "on" },
-      backgroundMs: 1000,
-      timeoutSec: 5,
+      // PowerShell can take over a second to start on Windows; a short window backgrounds `echo`.
+      backgroundMs: process.platform === "win32" ? 8000 : 1000,
+      timeoutSec: 10,
     });
 
     const result = await customBash.execute("call1", {

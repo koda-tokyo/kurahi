@@ -79,8 +79,12 @@ export function resolveProjectFile(folder: string, input: unknown): string {
   } catch {
     throw new Error("the project folder is not available");
   }
-  const lexical = path.resolve(root, text);
-  if (!isInside(root, lexical)) {
+  // The lexical check accepts either spelling of the folder: as configured and as resolved. On
+  // macOS /var and /tmp are symlinks, so an absolute path under the configured spelling would
+  // otherwise look outside the resolved root. Symlink escapes are still caught on the real path.
+  const given = path.resolve(folder);
+  const lexical = path.isAbsolute(text) ? path.resolve(text) : path.resolve(root, text);
+  if (!isInside(root, lexical) && !isInside(given, lexical)) {
     throw new Error("the path is outside the project folder");
   }
   let real: string;

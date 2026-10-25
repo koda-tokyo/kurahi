@@ -129,8 +129,8 @@ npm test                                # vitest: web/*.test.ts
 npx tauri build --bundles deb,appimage  # runs `npm run build:web` first
 ```
 
-Artifacts: `src-tauri/target/release/bundle/deb/Kurahi_0.4.0_amd64.deb` and
-`src-tauri/target/release/bundle/appimage/Kurahi_0.4.0_amd64.AppImage`.
+Artifacts: `src-tauri/target/release/bundle/deb/Kurahi_0.5.0_amd64.deb` and
+`src-tauri/target/release/bundle/appimage/Kurahi_0.5.0_amd64.AppImage`.
 
 Windows: see [WINDOWS_BUILD.md](WINDOWS_BUILD.md); Microsoft Store (MSIX, cross-built on Linux): `scripts/build-msix.sh`. macOS: `npx tauri build --bundles app,dmg` on
 a Mac (not yet tried).

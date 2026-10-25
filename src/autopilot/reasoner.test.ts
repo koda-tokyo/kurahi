@@ -18,7 +18,7 @@ function fakeRun(stdout: string, seen: Seen[], code = 0) {
 const req = {
   prompt: "PROMPT",
   backend: null,
-  model: "gpt-6-luna",
+  model: "example-model",
   timeoutMs: 1000,
   runId: "rtest",
   routineId: "r1",

@@ -5,7 +5,7 @@ export default defineConfig({
     pool: "forks",
     maxWorkers: 1,
     include: ["src/**/*.live.test.ts"],
-    setupFiles: ["test/setup.ts"],
+    setupFiles: ["test/isolate-home.ts", "test/setup.ts"],
     exclude: [
       "dist/**",
       "apps/macos/**",
