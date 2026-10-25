@@ -8,7 +8,7 @@ title: "Capabilities in this release"
 
 # Capabilities in this release
 
-Release **Kurahi 2.2.0**, stable channel, published 25 October 2026
+Release **Kurahi 2.2.0**, stable channel, release date 25 October 2026
 ([release notes](/releases/2.2.0), [downloads](https://kurahi.kodasoken.com/download/)). Platforms:
 Linux x64, macOS arm64 and Windows x64. Verify downloads with `SHA256SUMS.txt`; builds are not
 code-signed or notarised.
@@ -50,7 +50,7 @@ Status means:
 | [Enterprise identity](/security/identity): OIDC and SAML sign-in for people, SCIM 2.0, departments and roles                          | Preview             | Off by default. Included in every plan, Free included ([Licensing](https://github.com/koda-tokyo/kurahi/blob/main/LICENSING.md))                   |
 | [Attachment intake](/security/attachment-intake): quarantine, file policy, malware scan, isolated extraction                          | Available           | Needs ClamAV or Microsoft Defender on the host; with the default `requireScan`, attachments are refused when no scanner answers                    |
 | [Enterprise profile](/security/enterprise-profile): enterprise package without consumer channels, runtime refusal of excluded plugins | Available           | Consumer channel modules built into the core still compile into the package; they stay inert without their plugins                                 |
-| Audit export to external systems, SSO, air-gapped installation                                                                        | Licensed separately |                                                                                                                                                    |
+| Audit export to external systems, air-gapped installation                                                                             | Licensed separately |                                                                                                                                                    |
 
 ## Integration
 

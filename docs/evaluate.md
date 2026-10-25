@@ -1,7 +1,7 @@
 ---
 summary: "The Kurahi evaluation pack: prerequisites, install, a sample policy, a business workflow exercise, failure drills, success measures and support scope"
 read_when:
-  - You are starting a 90-day evaluation of Kurahi
+  - You are starting an evaluation of Kurahi
   - You need a test plan an evaluator can run and sign off
 title: "Evaluate Kurahi"
 ---
@@ -9,8 +9,10 @@ title: "Evaluate Kurahi"
 # Evaluate Kurahi
 
 This pack is what an evaluator needs to decide, on evidence, whether Kurahi fits. It takes about
-half a day for the core exercises; the rest of the evaluation is your own workflow. Organisations
-can run it under the free [90-day evaluation licence](/EVALUATION_LICENSE).
+half a day for the core exercises; the rest of the evaluation is your own workflow. Everything in
+the pack runs on the Free plan, which has no time limit. For an evaluation that needs Enterprise
+features (digital staff at L2 and L3, governance, air-gap), contact us for written evaluation
+terms.
 
 ## 1. Prerequisites
 
@@ -40,7 +42,7 @@ Save as `evaluation.yaml`, then `kurahi policy apply evaluation.yaml --sign`.
 ```yaml
 version: 1
 name: evaluation
-description: Starter policy for a 90-day Kurahi evaluation. Tighten it before production.
+description: Starter policy for a Kurahi evaluation. Tighten it before production.
 agents:
   "*":
     tools:
