@@ -37,8 +37,8 @@ Edition cannot weaken them:
 
 An Edition's manifest describes presentation and capability needs only. It has no fields for
 permissions, Project isolation, security, approval or audit policy. Routes and permissions come
-from capabilities, not from hiding things on screen; a connector that is missing, disabled or
-unverified stays visible with its real status.
+from capabilities, not from hiding things on screen; a connector that is missing or disabled stays
+visible with its current status.
 
 Japanese and English are the launch languages for every Edition.
 
@@ -46,17 +46,17 @@ Japanese and English are the launch languages for every Edition.
 
 Inside an Edition, domain lanes are capability packs. A pack adds agents, tools, templates and
 views; it does not add new global navigation and cannot change Edition policy. Each pack shows
-its readiness honestly: active, configured but not verified, disabled, or planned.
+its readiness in the console: active, configured, disabled or planned.
 
 The Industrial Edition has five packs today:
 
-| Pack          | Readiness                | What it covers                                                                |
-| ------------- | ------------------------ | ----------------------------------------------------------------------------- |
-| Analysis      | Active                   | Deterministic legacy analysis (COBOL/JCL, Java, SQL DDL) with path:line facts |
-| Modernisation | Configured, not verified | Target design, transformation plan, equivalence evidence                      |
-| Maintenance   | Configured, not verified | Work orders, manuals and condition data, once those connections are verified  |
-| Controls      | Disabled                 | Offline PLC review; stays off until an approved offline export is connected   |
-| Cybersecurity | Planned                  | Authorised-scope inventory and finding review; no scanner connection claimed  |
+| Pack          | Readiness  | What it covers                                                                |
+| ------------- | ---------- | ----------------------------------------------------------------------------- |
+| Analysis      | Active     | Deterministic legacy analysis (COBOL/JCL, Java, SQL DDL) with path:line facts |
+| Modernisation | Configured | Target design, transformation plan, equivalence evidence                      |
+| Maintenance   | Configured | Work orders, manuals and condition data, once those connections are set up    |
+| Controls      | Disabled   | Offline PLC review; stays off until an approved offline export is connected   |
+| Cybersecurity | Planned    | Authorised-scope inventory and finding review; no scanner connection claimed  |
 
 ### Research pack (planned)
 
@@ -78,7 +78,7 @@ planned.
 | Business Edition                            | Preview: work queue with approval routes (稟議), expense requests, decisions, draft previews and evidence checks in the console, and 15 department workspaces; see [Work queue](/business/work-queue)                                                                                     |
 | Autopilot (all Editions)                    | Built: routines per Project at autonomy levels L0 to L3, with standing approvals, triggers, a watchdog, a global stop and a morning brief; routines run only in Projects that define them (the templates include starter routines), see [Autopilot](/autopilot)                           |
 | Enterprise identity and enterprise package  | Built: OIDC and SAML sign-in, SCIM and roles (off by default), and an enterprise package without consumer channels; see [Enterprise identity](/security/identity) and [Enterprise profile](/security/enterprise-profile)                                                                  |
-| Business connectors                         | Built, off by default: [Microsoft 365](/connectors/microsoft-365), [Gmail](/connectors/gmail), [Entra ID](/connectors/entra) and six Japanese SaaS connectors (see [Business connectors](/connectors)); tested against recorded responses, not yet on a live tenant                       |
+| Business connectors                         | Preview, off by default: [Microsoft 365](/connectors/microsoft-365), [Gmail](/connectors/gmail), [Entra ID](/connectors/entra) and six Japanese SaaS connectors (see [Business connectors](/connectors))                                                                                  |
 | Scholars Edition (Research, then Education) | Planned: navigation is defined; the Research and Education screens are not built. Available now through the Research & academic Project template: literature watch, citation check and grant reminders ([Scholar sources](/connectors/scholar-sources), [Autopilot](/autopilot#scholars)) |
 | Core Edition                                | Planned: assembled last from the shared parts already proven in the other Editions                                                                                                                                                                                                        |
 | Research pack                               | Planned                                                                                                                                                                                                                                                                                   |

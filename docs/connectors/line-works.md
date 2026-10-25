@@ -18,7 +18,7 @@ title: "LINE WORKS"
 | Opt-in access  | Send a text message to a configured channel or user (`bot.message`), every send approved |
 | Sign-in        | Service account: a JWT (RS256) signed with the app's private key, exchanged for a token  |
 | Secrets        | `connector.line-works.privateKey`, `connector.line-works.clientSecret`, cached token     |
-| Status         | Built and tested against recorded responses; **not yet verified on a live domain**       |
+| Status         | Preview                                                                                  |
 
 ## Reading messages is not possible
 
@@ -92,9 +92,9 @@ The gateway probes the first configured channel (or `GET /bots`). `kurahi linewo
 deletes the cached token; to cut access, regenerate or delete the private key or client secret in
 the Developer Console.
 
-## Verified and not verified
+## References
 
-Verified (2026-10-25): JWT claims, token endpoint, lifetimes and service-account scope limits
+Official LINE WORKS documentation: JWT claims, token endpoint, lifetimes and service-account scope limits
 ([auth-jwt](https://developers.worksmobile.com/jp/docs/auth-jwt)); send endpoints
 ([user](https://developers.worksmobile.com/jp/docs/bot-user-message-send),
 [channel](https://developers.worksmobile.com/jp/docs/bot-channel-message-send)); text limit
@@ -105,5 +105,5 @@ Verified (2026-10-25): JWT claims, token endpoint, lifetimes and service-account
 [callback](https://developers.worksmobile.com/jp/docs/bot-callback)); rate limits
 ([rate-limits](https://developers.worksmobile.com/jp/docs/rate-limits)).
 
-Not verified: whether `bot.read` alone is enough for the channel endpoints (the docs list
-`bot`, `bot.message` and `bot.read`); the error body shape other than for 429.
+Setup note: the channel endpoints use the `bot.read` scope; if your domain requires more for
+them, add `bot` as well (the documentation lists `bot`, `bot.message` and `bot.read`).

@@ -10,7 +10,8 @@ title: "Capabilities in this release"
 
 Release **Kurahi 2.2.0**, stable channel, published 25 October 2026
 ([release notes](/releases/2.2.0), [downloads](https://kurahi.kodasoken.com/download/)). Platforms:
-Linux x64, macOS arm64 and Windows x64. Builds are not yet code-signed or notarised.
+Linux x64, macOS arm64 and Windows x64. Verify downloads with `SHA256SUMS.txt`; builds are not
+code-signed or notarised.
 
 Status means:
 
@@ -28,7 +29,7 @@ Status means:
 | Runs as an OS service (systemd, launchd, Task Scheduler)                                     | Available | Unsigned builds; macOS asks for confirmation on first run                                                                                                                            |
 | Residents keep sessions, schedules and memory between client connections and across restarts | Available | Work continues only while the host machine is running. A job that was running when the gateway stopped is marked interrupted, not resumed automatically                              |
 | [Runtime continuity conformance](/continuity) (C0 to C9)                                     | Available | Checks retained state, files, permissions and transcripts. It does **not** claim equivalent reasoning, tone or judgement across models, and interrupted jobs need not resume to pass |
-| Model choice from the [provider registry](/providers/support)                                | Available | 18 curated providers; 192 catalogue entries are listed, not tested                                                                                                                   |
+| Model choice from the [provider registry](/providers/support)                                | Available | 18 curated providers, plus 192 catalogue entries with best-effort support                                                                                                            |
 | [KODA tested benchmark](/providers/koda-tested)                                              | Preview   | One model benchmarked so far; ten more pending                                                                                                                                       |
 | Terminal UI with live reasoning view, web control UI                                         | Available |                                                                                                                                                                                      |
 
@@ -53,17 +54,17 @@ Status means:
 
 ## Integration
 
-| Capability                                                                                                                  | Status    | Known limits                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------- |
-| [Channels](/channels): LINE, Slack, Teams, Telegram, WhatsApp, Discord, Signal, webhook and more                            | Available | Each channel needs its own account or bot set up by you                                             |
-| [MCP servers](/cli/mcp) under the same policy                                                                               | Available |                                                                                                     |
-| [Autopilot](/autopilot): routines at autonomy levels L0 to L3 with standing approvals, triggers and a watchdog              | Preview   | The reasoner runs on a tool-less command-line model backend                                         |
-| [Business work queue](/business/work-queue): approval routes (稟議), email intake, risk flags                               | Preview   | See the page's limitations; approvals are workflow records, not legal signatures                    |
-| [Business connectors](/connectors): Microsoft 365, Gmail, Entra ID, kintone, freee, Money Forward, SmartHR, LINE WORKS, Box | Preview   | Off by default; the newer connectors are tested against recorded responses, not yet on live tenants |
-| [Office documents](/tools/office): PowerPoint, Word and Excel files from structured specs                                   | Available | Off by default; writes only into the Project in act mode                                            |
-| [IBM watsonx](/integrations/ibm-watsonx): Orchestrate, watsonx.ai, governance traces, watsonx.data and Db2                  | Preview   | Unverified: tested against recorded responses, not yet against a live IBM service                   |
-| HTTP API (88 operations) and WebSocket methods with a typed client                                                          | Available |                                                                                                     |
-| [Factory](/factory): spec to card to job to reviewed pull request                                                           | Preview   |                                                                                                     |
+| Capability                                                                                                                  | Status    | Known limits                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------- |
+| [Channels](/channels): LINE, Slack, Teams, Telegram, WhatsApp, Discord, Signal, webhook and more                            | Available | Each channel needs its own account or bot set up by you                          |
+| [MCP servers](/cli/mcp) under the same policy                                                                               | Available |                                                                                  |
+| [Autopilot](/autopilot): routines at autonomy levels L0 to L3 with standing approvals, triggers and a watchdog              | Preview   | The reasoner runs on a tool-less command-line model backend                      |
+| [Business work queue](/business/work-queue): approval routes (稟議), email intake, risk flags                               | Preview   | See the page's limitations; approvals are workflow records, not legal signatures |
+| [Business connectors](/connectors): Microsoft 365, Gmail, Entra ID, kintone, freee, Money Forward, SmartHR, LINE WORKS, Box | Preview   | Off by default; an administrator turns each one on                               |
+| [Office documents](/tools/office): PowerPoint, Word and Excel files from structured specs                                   | Available | Off by default; writes only into the Project in act mode                         |
+| [IBM watsonx](/integrations/ibm-watsonx): Orchestrate, watsonx.ai, governance traces, watsonx.data and Db2                  | Preview   | Off by default; built on IBM's published APIs                                    |
+| HTTP API (88 operations) and WebSocket methods with a typed client                                                          | Available |                                                                                  |
+| [Factory](/factory): spec to card to job to reviewed pull request                                                           | Preview   |                                                                                  |
 
 ## Licensed separately
 

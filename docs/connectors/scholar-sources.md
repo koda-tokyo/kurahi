@@ -17,7 +17,7 @@ title: "Scholar sources"
 | Access    | Read-only toward every provider. No account, no API key, no credential                                                        |
 | Writes    | One: an open-access PDF into the Project's `corpus-inbox/`, only through the [attachment intake](/security/attachment-intake) |
 | Providers | arXiv API, OpenAlex, Crossref REST API, NCBI E-utilities (PubMed), doi.org content negotiation                                |
-| Status    | Built and tested against responses recorded from the live APIs on 25 October 2026                                             |
+| Status    | Available                                                                                                                     |
 
 ## Tools
 

@@ -18,7 +18,7 @@ title: "マネーフォワード クラウド"
 | Access        | **Read-only, always.** Only `mfc/invoice/data.read` is requested                       |
 | Sign-in       | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store |
 | Token storage | Kurahi secret store (`connector.money-forward.token`)                                  |
-| Status        | Built and tested against recorded API responses; **not yet verified live**             |
+| Status        | Preview                                                                                |
 
 ## Which products have a public API
 
@@ -89,9 +89,9 @@ kurahi moneyforward probe
 The gateway probes `GET /office`. `kurahi moneyforward logout` revokes the token at `/revoke`
 (access and refresh token) and deletes it locally.
 
-## Verified and not verified
+## References
 
-Verified (2026-10-25): OAuth endpoints and lifetimes
+Official Money Forward documentation: OAuth endpoints and lifetimes
 ([oauth overview](https://developers.biz.moneyforward.com/docs/common/oauth/overview)), client
 authentication methods
 ([create-token](https://developers.biz.moneyforward.com/docs/api/auth/create-token)), revocation
@@ -100,7 +100,6 @@ authentication methods
 parameters and response shapes
 ([iv_web_api.yaml](https://invoice.moneyforward.com/docs/api/v3/reference/iv_web_api.yaml)).
 
-Not documented, implemented conservatively: PKCE (sent; ignored if unsupported), the exact
-revocation parameter names (`token` plus client credentials, RFC 7009), read-endpoint rate limits
-(only six write endpoints are documented at 3 requests per second; the connector stays at 3 per
-second for everything).
+Setup notes: sign-in sends PKCE (ignored where unsupported); revocation sends `token` with the
+client credentials (RFC 7009). Kurahi keeps every request at 3 per second, the documented limit
+for write endpoints.

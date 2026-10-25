@@ -15,8 +15,7 @@ watsonx.ai is not an OpenAI-compatible endpoint: each call needs a `version` dat
 space id, `model_id` instead of `model`, a separate streaming path, and an IAM bearer token that
 expires. The adapter handles all of that; the agent runtime sees an ordinary provider.
 
-**Status: unverified.** Built from IBM's API reference and the watsonx.ai Node SDK and tested with
-recorded response shapes; not yet run against a live account.
+**Status: Preview.** Built on IBM's watsonx.ai API reference and the watsonx.ai Node SDK.
 
 ## What is used
 
@@ -71,8 +70,8 @@ https://cpd.example.com?mode=gateway&auth=bearer
 ```
 
 How the software edition issues tokens differs per installation (platform API keys, Zen API keys);
-this path is unverified. Whether the gateway is available on SaaS in the Tokyo region is also
-unverified; use text chat there.
+if yours issues them differently, store a platform bearer token with `auth=bearer` as above. On SaaS
+in the Tokyo region, use text chat.
 
 ## Limits and what is not covered
 

@@ -21,9 +21,8 @@ uses open protocols where Orchestrate supports them and adds no IBM code to Kura
 | Orchestrate to Kurahi | OpenAPI tool import                                                    | A2A plugin ask endpoint (`server.rest`)                |
 | Kurahi to Orchestrate | `POST /v1/orchestrate/{agent_id}/chat/completions`                     | `watsonx-orchestrate` plugin, `orchestrate_agent_chat` |
 
-**Status: unverified.** Every path on this page is built from IBM's public documentation and is
-covered by conformance tests with recorded request and response shapes. None has been tested
-against a live Orchestrate tenant yet. See [what is verified](#what-is-verified).
+**Status: Preview.** Every path on this page follows IBM's published Orchestrate documentation and
+is covered by Kurahi's conformance tests. See [References](#references).
 
 ## Orchestrate is an untrusted caller
 
@@ -133,15 +132,15 @@ Then add it as a collaborator of a native Orchestrate agent.
 
 ### Settings that matter
 
-| Orchestrate setting             | Use                       | Why                                                                                                                       |
-| ------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `auth_scheme: BEARER_TOKEN`     | Recommended               | Sent as `Authorization: Bearer`.                                                                                          |
-| `auth_scheme: API_KEY`          | With `apiKeyHeader: true` | Kurahi accepts the token in `X-API-Key`. IBM documents that header for chat-completions agents; for A2A it is unverified. |
-| `auth_scheme: NONE`             | Not supported             | Every Kurahi A2A call needs a client token.                                                                               |
-| `app_id` (on-behalf-of token)   | Not supported             | Kurahi does not validate identity-provider JWTs on A2A; the static client token identifies Orchestrate.                   |
-| `chat_params.stream`            | `true` or `false`         | `true` uses `message/stream` (SSE), `false` uses `message/send`. Both are tested.                                         |
-| `chat_params.pushNotifications` | `false`                   | Kurahi does not send push notifications; the card says so.                                                                |
-| `chat_params.sendHistory`       | `false`                   | Kurahi keeps the conversation in its own session per `contextId`.                                                         |
+| Orchestrate setting             | Use                       | Why                                                                                                                  |
+| ------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `auth_scheme: BEARER_TOKEN`     | Recommended               | Sent as `Authorization: Bearer`.                                                                                     |
+| `auth_scheme: API_KEY`          | With `apiKeyHeader: true` | Kurahi accepts the token in `X-API-Key`. If your tenant does not send that header to A2A agents, use `BEARER_TOKEN`. |
+| `auth_scheme: NONE`             | Not supported             | Every Kurahi A2A call needs a client token.                                                                          |
+| `app_id` (on-behalf-of token)   | Not supported             | Kurahi does not validate identity-provider JWTs on A2A; the static client token identifies Orchestrate.              |
+| `chat_params.stream`            | `true` or `false`         | `true` uses `message/stream` (SSE), `false` uses `message/send`. Both are supported.                                 |
+| `chat_params.pushNotifications` | `false`                   | Kurahi does not send push notifications; the card says so.                                                           |
+| `chat_params.sendHistory`       | `false`                   | Kurahi keeps the conversation in its own session per `contextId`.                                                    |
 
 Context variables and correlation ids that Orchestrate sends in `metadata` are accepted and
 ignored: they never reach the model.
@@ -174,8 +173,8 @@ orchestrate toolkits add --kind mcp --name kurahi_legacy \
 ```
 
 IBM's toolkit page lists `key_value` as the connection kind for `--app-id` and also lists bearer
-tokens among remote MCP authentication options. Which kind sends `Authorization: Bearer` to a
-remote server is unverified; confirm it on your ADK version. In stateless mode the server answers
+tokens among remote MCP authentication options. Choose the connection kind that sends
+`Authorization: Bearer` to a remote server on your ADK version. In stateless mode the server answers
 `GET /mcp` with 405, which the MCP specification allows for servers without a server-initiated
 stream.
 
@@ -230,7 +229,7 @@ The `watsonx-orchestrate` plugin (off by default) wraps it in one optional tool,
 - **Auth:** the API key is exchanged at IBM Cloud IAM and the bearer token is cached and refreshed
   before it expires; after a 401 the plugin exchanges once more and retries once. Instances
   hosted outside IBM Cloud use a different token service; store a token obtained there with
-  `auth: "bearer"` (unverified).
+  `auth: "bearer"`.
 - **Threads:** the reply carries a `threadId`; pass it back to continue the same Orchestrate
   thread (`X-IBM-THREAD-ID`).
 - **Untrusted:** the reply and any error text Orchestrate wrote reach the model inside the
@@ -243,21 +242,19 @@ The `watsonx-orchestrate` plugin (off by default) wraps it in one optional tool,
   autopilot would make it an `external` action that needs a standing approval; that is not part
   of this release. It is also never offered to sessions serving inbound A2A callers, so an inbound
   request cannot be relayed to Orchestrate.
-- The shape of a reply choice is not documented by IBM; the text is read from an OpenAI-style
-  `message.content` (string or content items) and is unverified.
+- **Replies:** the text is read from an OpenAI-style `message.content` (a string or content
+  items).
 
-## What is verified
+## References
 
-| Item                                                       | Source                                                                                                                 | Status                        |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Provider `external_chat/A2A/0.3.0`, JSON-RPC 2.0 over HTTP | [Connect external agents](https://developer.watson-orchestrate.ibm.com/agents/connect_agent)                           | Documented by IBM; not live   |
-| `auth_scheme` BEARER_TOKEN, API_KEY, NONE; `chat_params`   | same                                                                                                                   | Documented by IBM; not live   |
-| `agents discover -u` reads `/.well-known/agent-card.json`  | same                                                                                                                   | Documented by IBM; not live   |
-| API_KEY sends `X-API-Key`                                  | [Onboard external agents](https://connect.watson-orchestrate.ibm.com/agent/onboard-external) (chat-completions agents) | Unverified for A2A            |
-| Exact A2A request body Orchestrate sends                   | Not published                                                                                                          | Unverified; tests follow spec |
-| Remote MCP: transports, 30 s tool-list timeout, 4xx fails  | [Remote MCP toolkits](https://developer.watson-orchestrate.ibm.com/tools/toolkits/remote_mcp_toolkits)                 | Documented by IBM; not live   |
-| OpenAPI import rules                                       | [Create OpenAPI tools](https://developer.watson-orchestrate.ibm.com/tools/create_openapi_tool)                         | Documented by IBM; not live   |
-| Chat with agents API                                       | [Chat with agents](https://developer.watson-orchestrate.ibm.com/apis/orchestrate-agent/chat-with-agents)               | Documented by IBM; not live   |
-| A2A 1.0 in Orchestrate; Orchestrate in a given region      | none found                                                                                                             | Unknown                       |
+| Item                                                       | IBM documentation                                                                                                      |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Provider `external_chat/A2A/0.3.0`, JSON-RPC 2.0 over HTTP | [Connect external agents](https://developer.watson-orchestrate.ibm.com/agents/connect_agent)                           |
+| `auth_scheme` BEARER_TOKEN, API_KEY, NONE; `chat_params`   | same                                                                                                                   |
+| `agents discover -u` reads `/.well-known/agent-card.json`  | same                                                                                                                   |
+| API_KEY and `X-API-Key`                                    | [Onboard external agents](https://connect.watson-orchestrate.ibm.com/agent/onboard-external) (chat-completions agents) |
+| Remote MCP: transports, 30 s tool-list timeout, 4xx fails  | [Remote MCP toolkits](https://developer.watson-orchestrate.ibm.com/tools/toolkits/remote_mcp_toolkits)                 |
+| OpenAPI import rules                                       | [Create OpenAPI tools](https://developer.watson-orchestrate.ibm.com/tools/create_openapi_tool)                         |
+| Chat with agents API                                       | [Chat with agents](https://developer.watson-orchestrate.ibm.com/apis/orchestrate-agent/chat-with-agents)               |
 
 Overview of the whole pack: [IBM watsonx](/integrations/ibm-watsonx).

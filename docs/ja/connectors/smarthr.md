@@ -17,7 +17,7 @@ English: [SmartHR connector](/connectors/smarthr)
 | アクセス         | **常に読み取り専用**。書き込みツールはありません                                        |
 | 認証             | SmartHR の管理者が発行するアクセストークン（`kurahi smarthr login` の非表示プロンプト） |
 | トークンの保存先 | Kurahi のシークレット ストア（`connector.smarthr.token`）                               |
-| 状態             | 実装済み。記録済みの SmartHR API 応答でテスト済み。**実環境での検証はまだです**         |
+| 状態             | プレビュー                                                                              |
 
 ## 項目の許可リスト
 
@@ -84,11 +84,11 @@ kurahi smarthr probe
 ゲートウェイは `GET /v1/crews?fields=id&per_page=1` でプローブします。`kurahi smarthr logout` は
 保存したトークンを削除します。取り消すには管理者が SmartHR でトークンを削除します。
 
-## 確認済みと未確認
+## 参考資料
 
-確認済み（2026-10-25）：ベース URL、Bearer 認証、ページング、レート制限、サンドボックスのドメイン、
+SmartHR 公式ドキュメント：ベース URL、Bearer 認証、ページング、レート制限、サンドボックスのドメイン、
 `fields`・`q`・各エンドポイント、Crew の 144 項目。出典 URL は
-[英語版](/connectors/smarthr#verified-and-not-verified) にあります。
+[英語版](/connectors/smarthr#references) にあります。
 
-未確認：トークンの項目・リソース単位の権限設定（ヘルプ記事はログインが必要）、`/v1/departments` で
-`per_page` 10 超が受け付けられるか（一般的な上限 100 を使います）。
+設定のメモ：アクセストークンには、コネクターが読む従業員の項目とリソースの読み取り権限を付けてください
+（SmartHR のトークン権限は項目・リソース単位で設定します）。部署の一覧は一般的なページサイズの上限 100 を使います。

@@ -15,8 +15,8 @@ their results as untrusted content, and audit ids and counts only (a hash of the
 parameter names, outcome; never SQL text, parameter values or rows). Neither is in the autopilot's
 read-tool catalogue, so a routine cannot use them to gather until that is decided separately.
 
-**Status: unverified.** Built from the Presto/Trino client protocol and IBM's Db2 REST
-documentation, tested with recorded response shapes; not run against a live engine or subsystem.
+**Status: Preview.** Built on the Presto/Trino client protocol and IBM's Db2 REST
+documentation; see [References](#references).
 
 ## watsonx_data_query
 
@@ -143,15 +143,17 @@ numbers, booleans and null. The LUW token is cached per connection for 50 minute
 again after a 401. No native Db2 driver (`ibm_db`) is used; for LUW workloads that need ad hoc SQL
 rather than services, a driver-based tool is a separate decision.
 
-## What is verified
+## References
 
-| Item                                                                                      | Source                                                                                                                                                                                                                                                                                                            | Status                                          |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Presto/Trino HTTP client protocol (`/v1/statement`, `nextUri`, `X-*-User/Catalog/Schema`) | Presto and Trino client protocol documentation                                                                                                                                                                                                                                                                    | Public protocol; not run against watsonx.data   |
-| SaaS credentials `ibmlhapikey_<email>` + API key                                          | [watsonx.data connection](https://www.ibm.com/docs/en/DSXDOC/wsj/manage-data/conn-watsonxd.html)                                                                                                                                                                                                                  | Documented by IBM (legacy form); not live       |
-| Basic auth over HTTPS to the engine                                                       | none found for SaaS                                                                                                                                                                                                                                                                                               | Unverified                                      |
-| Db2 for z/OS service URL and `ResultSet Output` shape                                     | [Db2 13 REST services](https://www.ibm.com/docs/SSEPEK_13.0.0/restserv/src/tpc/db2z_restservices.html), [testing the sample services](https://www.ibm.com/support/knowledgecenter/zh-CN/SS4SVW_3.0.0/tutorials/testing_db2_native_rest_services.html), [APAR PH07557](https://ibm.com/support/pages/apar/PH07557) | Documented by IBM; not live                     |
-| Db2 LUW `/v1/auth` with `dbParms` and `token`                                             | [Authenticating REST commands](https://www.ibm.com/docs/en/SSQNUZ_4.8.x/svc-db2/db2-rest-authenticate.html) (Cloud Pak for Data page)                                                                                                                                                                             | Documented for Cloud Pak; standalone unverified |
-| Db2 LUW service path, `authorization` header, `{ parameters, sync }`, `resultSet`         | community write-ups only                                                                                                                                                                                                                                                                                          | Unverified                                      |
+| Item                                                                                      | Source                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Presto/Trino HTTP client protocol (`/v1/statement`, `nextUri`, `X-*-User/Catalog/Schema`) | Presto and Trino client protocol documentation                                                                                                                                                                                                                                                                    |
+| SaaS credentials `ibmlhapikey_<email>` + API key                                          | [watsonx.data connection](https://www.ibm.com/docs/en/DSXDOC/wsj/manage-data/conn-watsonxd.html)                                                                                                                                                                                                                  |
+| Db2 for z/OS service URL and `ResultSet Output` shape                                     | [Db2 13 REST services](https://www.ibm.com/docs/SSEPEK_13.0.0/restserv/src/tpc/db2z_restservices.html), [testing the sample services](https://www.ibm.com/support/knowledgecenter/zh-CN/SS4SVW_3.0.0/tutorials/testing_db2_native_rest_services.html), [APAR PH07557](https://ibm.com/support/pages/apar/PH07557) |
+| Db2 LUW `/v1/auth` with `dbParms` and `token`                                             | [Authenticating REST commands](https://www.ibm.com/docs/en/SSQNUZ_4.8.x/svc-db2/db2-rest-authenticate.html) (Cloud Pak for Data page)                                                                                                                                                                             |
+
+Setup notes: on SaaS, sign in to the engine with the `ibmlhapikey` user (or `ibmlhapikey_<email>`)
+and an API key, as in the example above. Db2 LUW REST services use the request shape in the table
+above: the `authorization` header, a `{ parameters, sync: true }` body and `resultSet` rows.
 
 Overview of the pack: [IBM watsonx](/integrations/ibm-watsonx).

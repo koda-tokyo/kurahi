@@ -194,5 +194,5 @@ path of the executable as `command`.
 - **Pagination is one level deep.** It windows the top-level lists of a result; nested lists come
   whole and fall under the size cap.
 - **HTTP is stateless.** No server-initiated messages, no sessions; each request is independent.
-- Client compatibility was tested with the protocol's reference client (stdio, in-memory and HTTP),
-  not with every editor or IDE.
+- Client compatibility is checked with the protocol's reference client (stdio, in-memory and
+  HTTP).

@@ -18,8 +18,8 @@ with the attribute names Langfuse maps, through the existing `diagnostics-otel` 
 - to a Langfuse (or Arize, or any OTLP) endpoint that the governance integration reads, and
 - optionally, to the Orchestrate trace intake, so runs appear next to Orchestrate's own traces.
 
-**Status: unverified.** Attribute names follow the Langfuse OpenTelemetry documentation and the
-Orchestrate trace-intake page; tested with an in-memory exporter, not against live services.
+**Status: Preview.** Attribute names follow the Langfuse OpenTelemetry documentation and the
+Orchestrate trace-intake documentation; see [References](#references).
 
 ## What is exported
 
@@ -106,16 +106,15 @@ project to watsonx.governance as IBM describes for its Langfuse integration.
 - The URL must be https and of the documented shape; anything else turns the push off with a
   warning in the gateway log.
 
-## What is verified
+## References
 
-| Item                                                                                                                                         | Source                                                                                                                                                                | Status                       |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Langfuse and Arize integrations in watsonx.governance                                                                                        | [IBM announcement](https://www.ibm.com/new/announcements/new-in-ibm-watsonx-governance-govern-ai-agents-as-you-build-expand-accountability-and-streamline-compliance) | Documented by IBM; not live  |
-| No native OTel intake for external agents                                                                                                    | [IBM idea WGOV-I-268](https://ibm-data-and-ai.ideas.ibm.com/ideas/WGOV-I-268)                                                                                         | Open idea                    |
-| Langfuse attribute names, OTLP endpoint, Basic auth                                                                                          | [Langfuse OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)                                                                                      | Documented; not live         |
-| Orchestrate trace intake URL, IAM or x-api-key, `tenant.id`, `deployment.environment`, `agent.id`, `langfuse.session.id`, `langfuse.user.id` | [Orchestrate OTel export](https://developer.watson-orchestrate.ibm.com/traces/otel-export)                                                                            | Documented by IBM; not live  |
-| Orchestrate intake size limits, regional hosts                                                                                               | none found                                                                                                                                                            | Unknown                      |
-| External models evaluated through detached prompt templates                                                                                  | [Detached prompt evaluation](https://www.ibm.com/docs/en/DSXDOC/wsj/model/wos-eval-detached-prompt-projects.html)                                                     | Not built; register manually |
+| Item                                                                                                                                         | Source                                                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Langfuse and Arize integrations in watsonx.governance                                                                                        | [IBM announcement](https://www.ibm.com/new/announcements/new-in-ibm-watsonx-governance-govern-ai-agents-as-you-build-expand-accountability-and-streamline-compliance) |
+| No native OTel intake for external agents                                                                                                    | [IBM idea WGOV-I-268](https://ibm-data-and-ai.ideas.ibm.com/ideas/WGOV-I-268)                                                                                         |
+| Langfuse attribute names, OTLP endpoint, Basic auth                                                                                          | [Langfuse OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)                                                                                      |
+| Orchestrate trace intake URL, IAM or x-api-key, `tenant.id`, `deployment.environment`, `agent.id`, `langfuse.session.id`, `langfuse.user.id` | [Orchestrate OTel export](https://developer.watson-orchestrate.ibm.com/traces/otel-export)                                                                            |
+| External models evaluated through detached prompt templates (register Kurahi agents manually)                                                | [Detached prompt evaluation](https://www.ibm.com/docs/en/DSXDOC/wsj/model/wos-eval-detached-prompt-projects.html)                                                     |
 
 Overview of the pack: [IBM watsonx](/integrations/ibm-watsonx). Other span and metric names:
 [Logging](/logging#export-to-opentelemetry).

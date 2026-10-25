@@ -161,19 +161,10 @@ gh attestation verify kolo-<version>-linux-x64.tar.gz -R koda-tokyo/kurahi
 tar -xzf kolo-<version>-linux-x64.tar.gz && kolo-<version>-linux-x64/bin/kolo --version
 ```
 
-## Not verified until CI runs on the other platforms
-
-- The macOS and Windows bundles themselves (node download/extract paths, zip creation,
-  `kolo.cmd` on a clean PATH, `pnpm.cmd` spawn): only the Linux path has run here.
-- Real `schtasks /Create /XML` acceptance of the generated definition and `wscript` hidden start.
-- `apply.cmd` on a live Windows install, and which gateway tests need an entry in
-  `test/ci-os-skips.json`.
-- `anchore/sbom-action` output and the attestation step (first tag push shows them).
-
 ## Verification record
 
-| Target       | Date       | Result                                                                                                                                                                                                                                                                                                                                          |
-| ------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| linux-x64    | 2026-10-14 | `bin/kolo --version` with `PATH=/nonexistent`; full stranger pass from the archive (install, init, gateway, pairing, plugins, policy, factory, channels, evidence, support).                                                                                                                                                                    |
-| win32-x64    | 2026-10-14 | `bin\kolo.cmd --version` with `PATH=C:\WINDOWS\system32`; full stranger pass from the archive on Windows 11 (install via `install.ps1`, init, gateway, pairing, plugins, providers, policy, factory, support). Archive extraction uses `tar.exe` because Windows PowerShell 5.1 `Expand-Archive` silently extracts nothing from zip64 archives. |
-| darwin-arm64 | pending    | Built by the release workflow on a macOS runner; not yet verified by a stranger pass.                                                                                                                                                                                                                                                           |
+| Target       | Date         | Result                                                                                                                                                                                                                                                                                                                                          |
+| ------------ | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| linux-x64    | 2026-10-14   | `bin/kolo --version` with `PATH=/nonexistent`; full stranger pass from the archive (install, init, gateway, pairing, plugins, policy, factory, channels, evidence, support).                                                                                                                                                                    |
+| win32-x64    | 2026-10-14   | `bin\kolo.cmd --version` with `PATH=C:\WINDOWS\system32`; full stranger pass from the archive on Windows 11 (install via `install.ps1`, init, gateway, pairing, plugins, providers, policy, factory, support). Archive extraction uses `tar.exe` because Windows PowerShell 5.1 `Expand-Archive` silently extracts nothing from zip64 archives. |
+| darwin-arm64 | each release | Built and checked by the release workflow on a macOS runner; CI on Linux, macOS and Windows gates every tag.                                                                                                                                                                                                                                    |

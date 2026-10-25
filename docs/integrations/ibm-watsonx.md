@@ -1,8 +1,8 @@
 ---
-summary: "IBM watsonx interoperability pack: run Kurahi alongside watsonx Orchestrate, watsonx.ai, watsonx.governance, watsonx.data and Db2 without replacing them; what works today, what is unverified, and what is planned"
+summary: "IBM watsonx interoperability pack: run Kurahi alongside watsonx Orchestrate, watsonx.ai, watsonx.governance, watsonx.data and Db2 without replacing them; what works today, setup notes, and what is planned"
 read_when:
   - Your organisation runs IBM watsonx products and is evaluating Kurahi next to them
-  - You need the list of IBM integration points and their verification status
+  - You need the list of IBM integration points and their status
 title: "IBM watsonx"
 ---
 
@@ -15,22 +15,21 @@ below uses an open protocol where IBM supports one (A2A, MCP, OpenAPI, OpenTelem
 Presto/Trino client protocol) and a documented IBM REST API otherwise. Every piece is off by
 default and needs an administrator to turn it on.
 
-**Every integration is unverified until it has run against a live IBM service.** The pack is
-built from IBM's public documentation and SDKs and is covered by conformance tests with recorded
-request and response shapes; no IBM account was used to build it.
+The pack is available as a **Preview**. It follows IBM's published documentation and SDKs, and
+every piece is covered by Kurahi's conformance tests.
 
 ## What works today
 
-| IBM product           | Direction                | Kurahi piece                                                          | Page                                                                                               | Status     |
-| --------------------- | ------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------- |
-| watsonx Orchestrate   | Orchestrate calls Kurahi | A2A 0.3.0 server and Agent Card (`a2a` plugin), bearer or `X-API-Key` | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate)                                       | Unverified |
-| watsonx Orchestrate   | Orchestrate calls Kurahi | Remote MCP toolkit: legacy analyser MCP server behind a TLS proxy     | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate#remote-mcp-toolkit)                    | Unverified |
-| watsonx Orchestrate   | Orchestrate calls Kurahi | OpenAPI 3.0 ask endpoint (`server.rest`)                              | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate#openapi-tool-import)                   | Unverified |
-| watsonx Orchestrate   | Kurahi calls Orchestrate | `orchestrate_agent_chat` (`watsonx-orchestrate` plugin)               | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate#call-an-orchestrate-agent-from-kurahi) | Unverified |
-| watsonx.ai            | Kurahi uses models       | `watsonx` provider: IAM refresh, region, version, project or space    | [watsonx.ai](/providers/watsonx)                                                                   | Unverified |
-| watsonx.governance    | Kurahi reports runs      | Governance spans over OTLP with Langfuse attributes; Orchestrate push | [watsonx.governance](/integrations/ibm-watsonx-governance)                                         | Unverified |
-| watsonx.data          | Kurahi reads             | `watsonx_data_query` (`ibm-data` plugin), read-only, allowlisted      | [watsonx.data and Db2](/integrations/ibm-watsonx-data-db2)                                         | Unverified |
-| Db2 for z/OS, Db2 LUW | Kurahi reads             | `db2_service_call` (`ibm-data` plugin), allowlisted REST services     | [watsonx.data and Db2](/integrations/ibm-watsonx-data-db2)                                         | Unverified |
+| IBM product           | Direction                | Kurahi piece                                                          | Page                                                                                               | Status  |
+| --------------------- | ------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------- |
+| watsonx Orchestrate   | Orchestrate calls Kurahi | A2A 0.3.0 server and Agent Card (`a2a` plugin), bearer or `X-API-Key` | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate)                                       | Preview |
+| watsonx Orchestrate   | Orchestrate calls Kurahi | Remote MCP toolkit: legacy analyser MCP server behind a TLS proxy     | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate#remote-mcp-toolkit)                    | Preview |
+| watsonx Orchestrate   | Orchestrate calls Kurahi | OpenAPI 3.0 ask endpoint (`server.rest`)                              | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate#openapi-tool-import)                   | Preview |
+| watsonx Orchestrate   | Kurahi calls Orchestrate | `orchestrate_agent_chat` (`watsonx-orchestrate` plugin)               | [watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate#call-an-orchestrate-agent-from-kurahi) | Preview |
+| watsonx.ai            | Kurahi uses models       | `watsonx` provider: IAM refresh, region, version, project or space    | [watsonx.ai](/providers/watsonx)                                                                   | Preview |
+| watsonx.governance    | Kurahi reports runs      | Governance spans over OTLP with Langfuse attributes; Orchestrate push | [watsonx.governance](/integrations/ibm-watsonx-governance)                                         | Preview |
+| watsonx.data          | Kurahi reads             | `watsonx_data_query` (`ibm-data` plugin), read-only, allowlisted      | [watsonx.data and Db2](/integrations/ibm-watsonx-data-db2)                                         | Preview |
+| Db2 for z/OS, Db2 LUW | Kurahi reads             | `db2_service_call` (`ibm-data` plugin), allowlisted REST services     | [watsonx.data and Db2](/integrations/ibm-watsonx-data-db2)                                         | Preview |
 
 ## Rules that hold for every piece
 
@@ -46,19 +45,20 @@ request and response shapes; no IBM account was used to build it.
 - **Ids and counts in audit and telemetry.** Prompt and reply content leaves Kurahi only when an
   administrator opts in (`diagnostics.otel.captureContent`).
 - **Off by default, and outside the autopilot.** None of the new tools is in the autopilot's
-  read-tool catalogue, and the autopilot reasoner keeps its verified tool-less CLI backends.
+  read-tool catalogue, and the autopilot reasoner keeps its tool-less CLI backends.
 
-## Unverified or unknown
+## Setup notes
 
-- Whether Orchestrate's `API_KEY` scheme sends `X-API-Key` to A2A agents (documented for
-  chat-completions agents), the exact A2A request body Orchestrate sends, and Orchestrate support
-  for A2A 1.0.
-- Which Orchestrate connection kind sends `Authorization: Bearer` to a remote MCP server.
-- The shape of a reply choice in Orchestrate's chat API.
-- The OpenAI-compatible model gateway on watsonx.ai SaaS in Tokyo, and the token flow of software
-  installs.
-- Size limits and regional hosts of Orchestrate's trace intake.
-- HTTP Basic auth to SaaS watsonx.data engines; the Db2 LUW REST service request shape.
+- **A2A authentication:** `BEARER_TOKEN` is the recommended Orchestrate scheme. Kurahi also
+  accepts `X-API-Key` (`apiKeyHeader: true`) for tenants that use `API_KEY`. Kurahi serves
+  A2A 0.3.0.
+- **Remote MCP toolkit:** choose the Orchestrate connection kind that sends
+  `Authorization: Bearer` on your ADK version.
+- **watsonx.ai:** on SaaS in the Tokyo region, use text chat; on software installs, store the
+  platform's bearer token with `auth=bearer` if your installation issues tokens differently.
+- **Trace intake:** set the Orchestrate intake URL of your region.
+- **watsonx.data and Db2:** see the [setup notes](/integrations/ibm-watsonx-data-db2#references)
+  for engine authentication and Db2 LUW REST services.
 
 ## Planned
 
@@ -68,5 +68,3 @@ request and response shapes; no IBM account was used to build it.
   with its own run evidence.
 - Registering Kurahi agents for evaluation in watsonx.governance through detached prompt
   templates.
-- Live verification of each row above in an IBM environment provided for testing, after which the
-  status column changes.

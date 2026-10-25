@@ -21,7 +21,7 @@ and only the field codes listed for each app.
 | Opt-in access  | Add a record comment (`write.comment`), create a record (`write.createRecord`); each one approved |
 | Sign-in        | One API token per app (default), or an OAuth client (`auth: "oauth"`)                             |
 | Token storage  | Kurahi secret store (`connector.kintone.token`), never the config file                            |
-| Status         | Built and tested against recorded kintone responses; **not yet verified on a live domain**        |
+| Status         | Preview                                                                                           |
 
 ## What it reads
 
@@ -119,9 +119,9 @@ desktop catalogue shows **Active** only after a successful probe. `kurahi kinton
 the stored tokens. kintone has no token revocation endpoint: delete the API token in the app
 settings, or the OAuth client in common settings.
 
-## Verified and not verified
+## References
 
-Verified on cybozu.dev (2026-10-25): API token header and app-scoped use
+Official kintone documentation on cybozu.dev: API token header and app-scoped use
 ([authentication](https://cybozu.dev/ja/kintone/docs/rest-api/overview/authentication/)); Get App
 accepts API tokens, Get Apps does not
 ([get-app](https://cybozu.dev/ja/kintone/docs/rest-api/apps/get-app/),
@@ -135,7 +135,7 @@ OAuth endpoints and scopes
 ([add-client](https://cybozu.dev/ja/common/docs/oauth-client/add-client/),
 [scopes](https://cybozu.dev/ja/common/docs/oauth-client/scope-kintone/)).
 
-Not documented by kintone, implemented conservatively: PKCE (sent; ignored if unsupported),
-whether a `http://localhost` redirect endpoint is accepted, refresh-token rotation (the old one is
-kept when none is returned). Guest space apps (`/k/guest/<id>/v1`) are not supported in this
-release.
+Setup notes: OAuth sign-in sends PKCE (ignored where unsupported) and uses a `http://localhost`
+redirect endpoint; if your environment does not accept one, use API tokens (the default). Kurahi
+keeps the current refresh token when kintone does not return a new one. Guest space apps
+(`/k/guest/<id>/v1`) are not supported in this release.

@@ -18,13 +18,13 @@ The Entra connector does two things, in this order:
 2. **Directory read (opt-in).** Agents can look up users and, with the higher level, groups and
    memberships. Read-only.
 
-| Property         | Value                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------- |
-| Plugin id        | `entra` (bundled, **off by default**)                                                  |
-| Sign-in scopes   | `openid`, `profile`, `email`, `offline_access`, `User.Read`                            |
-| Directory scopes | `User.ReadBasic.All` (basic) or `Directory.Read.All` (full, admin consent)             |
-| Writes           | None. The connector never changes the directory.                                       |
-| Status           | Validator built and tested with a local signing key; not yet verified on a live tenant |
+| Property         | Value                                                                      |
+| ---------------- | -------------------------------------------------------------------------- |
+| Plugin id        | `entra` (bundled, **off by default**)                                      |
+| Sign-in scopes   | `openid`, `profile`, `email`, `offline_access`, `User.Read`                |
+| Directory scopes | `User.ReadBasic.All` (basic) or `Directory.Read.All` (full, admin consent) |
+| Writes           | None. The connector never changes the directory.                           |
+| Status           | Preview                                                                    |
 
 ## What the administrator sets up in Microsoft Entra
 
@@ -139,5 +139,3 @@ stored tokens; revoke consent or sessions in Microsoft Entra to cut access at th
 
 - Only the global Microsoft cloud.
 - Gateway and desktop sign-in are not wired to Entra yet (see above).
-- Not yet verified against a live tenant: tests use a locally generated signing key and recorded
-  responses.

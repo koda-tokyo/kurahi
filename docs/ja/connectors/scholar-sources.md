@@ -17,7 +17,7 @@ English: [Scholar sources](/connectors/scholar-sources)
 | アクセス      | すべての提供元に対して読み取りのみ。アカウント、API キー、認証情報は不要                                                               |
 | 書き込み      | 1 つだけ：オープンアクセス PDF をプロジェクトの `corpus-inbox/` へ。必ず[添付ファイルの受け入れ](/ja/security/attachment-intake)を経由 |
 | 提供元        | arXiv API、OpenAlex、Crossref REST API、NCBI E-utilities（PubMed）、doi.org のコンテントネゴシエーション                               |
-| 状況          | 実装済み。2026年10月25日に実 API から記録した応答でテスト済み                                                                          |
+| 状況          | 提供中                                                                                                                                 |
 
 ## ツール
 

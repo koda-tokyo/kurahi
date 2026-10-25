@@ -36,5 +36,5 @@ agent's data somewhere the policy does not allow.
 Check the region and retention terms of any hosted provider against your own obligations; the
 region notes in the registry quote each provider's documentation, not a contract.
 
-Release builds are not yet code-signed or notarised. Each release publishes `SHA256SUMS.txt` and a
-build provenance attestation; verify the download against them before installing on a managed host.
+Each release publishes `SHA256SUMS.txt` and a build provenance attestation; verify the download
+against them before installing on a managed host (builds are not code-signed or notarised).

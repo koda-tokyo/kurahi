@@ -13,7 +13,7 @@ The provider registry has **210 entries**. They are not all equal.
 | Level           | What it means                                                                                                                                                                 | Count in 2.2.0      |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | **Curated**     | Configuration written and maintained by KODA: endpoint, authentication, region note, defaults, list prices where published. Supported: we fix problems with these.            | 18                  |
-| **Catalogue**   | Imported from a public provider catalogue so you can try them. Listed, not tested; best effort only.                                                                          | 192                 |
+| **Catalogue**   | Imported from a public provider catalogue so you can try them. Best-effort support.                                                                                           | 192                 |
 | **KODA tested** | A curated provider and model that passed the [KODA tested benchmark](/providers/koda-tested) as a resident: tool use, policy adherence, continuity and Japanese instructions. | 1 model; 10 pending |
 
 ## Curated providers

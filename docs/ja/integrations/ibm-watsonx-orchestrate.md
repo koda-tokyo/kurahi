@@ -21,8 +21,7 @@ Kurahi は既存の watsonx Orchestrate と並べて使うもので、置き換�
 | Orchestrate → Kurahi | OpenAPIツールの取り込み                                                       | A2Aプラグインのaskエンドポイント（`server.rest`） |
 | Kurahi → Orchestrate | `POST /v1/orchestrate/{agent_id}/chat/completions`                            | `watsonx-orchestrate` プラグイン                  |
 
-**状態：未検証。** このページの経路はすべてIBMの公開資料に基づき、記録した要求と応答の形で適合テストをしています。
-実際の Orchestrate テナントでの確認はまだです。
+**状態：プレビュー。** このページの経路はすべてIBMが公開している Orchestrate の資料に沿って実装し、Kurahi の適合テストで確認しています。
 
 ## Orchestrate は信頼できない呼び出し元
 
@@ -48,15 +47,15 @@ A2A 0.3.0（JSON-RPC 2.0 over HTTP）に対応しています。Kurahi のA2Aサ
    の外部エージェント定義を `orchestrate agents import -f` で取り込みます。
 3. ネイティブのエージェントの協力エージェントに追加します。
 
-| Orchestrate の設定               | 使い方                      | 理由                                                                                               |
-| -------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------- |
-| `auth_scheme: BEARER_TOKEN`      | 推奨                        | `Authorization: Bearer` で送られる                                                                 |
-| `auth_scheme: API_KEY`           | `apiKeyHeader: true` と併用 | `X-API-Key` で受け付ける。IBMはチャット補完型の外部エージェントでこのヘッダーを記載。A2Aでは未検証 |
-| `auth_scheme: NONE`              | 非対応                      | Kurahi のA2Aは常にクライアントトークンが必要                                                       |
-| `app_id`（ユーザー代理トークン） | 非対応                      | Kurahi はA2AでIdPのJWTを検証しない。Orchestrate は固定のクライアントトークンで識別する             |
-| `chat_params.stream`             | `true` / `false`            | `true` は `message/stream`（SSE）、`false` は `message/send`。どちらもテスト済み                   |
-| `chat_params.pushNotifications`  | `false`                     | Kurahi はプッシュ通知を送らない                                                                    |
-| `chat_params.sendHistory`        | `false`                     | Kurahi は `contextId` ごとのセッションで会話を保持する                                             |
+| Orchestrate の設定               | 使い方                      | 理由                                                                                                    |
+| -------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `auth_scheme: BEARER_TOKEN`      | 推奨                        | `Authorization: Bearer` で送られる                                                                      |
+| `auth_scheme: API_KEY`           | `apiKeyHeader: true` と併用 | `X-API-Key` で受け付ける。テナントがA2Aエージェントにこのヘッダーを送らない場合は `BEARER_TOKEN` を使う |
+| `auth_scheme: NONE`              | 非対応                      | Kurahi のA2Aは常にクライアントトークンが必要                                                            |
+| `app_id`（ユーザー代理トークン） | 非対応                      | Kurahi はA2AでIdPのJWTを検証しない。Orchestrate は固定のクライアントトークンで識別する                  |
+| `chat_params.stream`             | `true` / `false`            | `true` は `message/stream`（SSE）、`false` は `message/send`。どちらにも対応                            |
+| `chat_params.pushNotifications`  | `false`                     | Kurahi はプッシュ通知を送らない                                                                         |
+| `chat_params.sendHistory`        | `false`                     | Kurahi は `contextId` ごとのセッションで会話を保持する                                                  |
 
 `metadata` で送られるコンテキスト変数や相関IDは受け付けますが、モデルには渡しません。
 
@@ -76,7 +75,7 @@ orchestrate toolkits add --kind mcp --name kurahi_legacy \
 ```
 
 IBMの資料は `--app-id` の接続種別に `key_value` を挙げる一方、リモートMCPの認証方式にベアラートークンも挙げています。
-どの種別でリモートサーバーに `Authorization: Bearer` が送られるかは未検証のため、お使いのADKで確認してください。
+お使いのADKで、リモートサーバーに `Authorization: Bearer` を送る接続の種類を選んでください。
 
 ## OpenAPIツールの取り込み
 

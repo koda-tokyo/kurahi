@@ -16,14 +16,14 @@ switch it on, OneDrive and SharePoint files. It talks to Microsoft Graph with yo
 registration and signs in as one user with delegated permissions: the agent sees what that user
 can see, no more.
 
-| Property       | Value                                                                                |
-| -------------- | ------------------------------------------------------------------------------------ |
-| Plugin id      | `microsoft-365` (bundled, **off by default**)                                        |
-| Default access | Read-only: mail and calendar                                                         |
-| Opt-in access  | Files, SharePoint sites, sending mail, drafts, events, uploads to the app folder     |
-| Sign-in        | Authorization code with PKCE on a loopback redirect, or device code                  |
-| Token storage  | Kurahi secret store (`connector.microsoft-365.token`), never the config file         |
-| Status         | Built and tested against recorded Graph responses; not yet verified on a live tenant |
+| Property       | Value                                                                            |
+| -------------- | -------------------------------------------------------------------------------- |
+| Plugin id      | `microsoft-365` (bundled, **off by default**)                                    |
+| Default access | Read-only: mail and calendar                                                     |
+| Opt-in access  | Files, SharePoint sites, sending mail, drafts, events, uploads to the app folder |
+| Sign-in        | Authorization code with PKCE on a loopback redirect, or device code              |
+| Token storage  | Kurahi secret store (`connector.microsoft-365.token`), never the config file     |
+| Status         | Preview                                                                          |
 
 ## What the administrator sets up in Microsoft Entra
 
@@ -268,4 +268,3 @@ consent) or **Users > the user > Revoke sessions**.
 - One signed-in user per gateway; no application (daemon) permissions.
 - Attachments are listed (yes/no) but not downloaded.
 - No upload sessions: attachments are limited to 3 MB and uploads to 4 MB.
-- Not yet verified against a live tenant: all tests use recorded Graph responses.

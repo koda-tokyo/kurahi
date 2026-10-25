@@ -15,14 +15,14 @@ The Gmail connector lets Kurahi agents list, search and read one mailbox through
 with an OAuth client the customer owns. It is separate from the Gmail Pub/Sub hook
 (`kurahi webhooks gmail`), which pushes new-mail events into a session.
 
-| Property       | Value                                                                                     |
-| -------------- | ----------------------------------------------------------------------------------------- |
-| Plugin id      | `gmail` (bundled, **off by default**)                                                     |
-| Default access | Read-only: `gmail.readonly`                                                               |
-| Opt-in access  | Sending mail: `gmail.send`, every send approved by a person                               |
-| Sign-in        | Authorization code with PKCE on a loopback redirect (`127.0.0.1`)                         |
-| Token storage  | Kurahi secret store (`connector.gmail.token`), never the config file                      |
-| Status         | Built and tested against recorded Gmail API responses; not yet verified on a live mailbox |
+| Property       | Value                                                                |
+| -------------- | -------------------------------------------------------------------- |
+| Plugin id      | `gmail` (bundled, **off by default**)                                |
+| Default access | Read-only: `gmail.readonly`                                          |
+| Opt-in access  | Sending mail: `gmail.send`, every send approved by a person          |
+| Sign-in        | Authorization code with PKCE on a loopback redirect (`127.0.0.1`)    |
+| Token storage  | Kurahi secret store (`connector.gmail.token`), never the config file |
+| Status         | Preview                                                              |
 
 ## What the administrator sets up in Google Cloud
 
@@ -115,4 +115,3 @@ administrator can also remove the app's access in the Google Admin console.
 
 - One mailbox per gateway; no domain-wide delegation (service account) mode.
 - Attachments are counted but not downloaded.
-- Not yet verified against a live mailbox: all tests use recorded Gmail API responses.

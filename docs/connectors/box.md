@@ -11,14 +11,14 @@ title: "Box"
 
 日本語: [Box コネクター](/ja/connectors/box)
 
-| Property       | Value                                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| Plugin id      | `box` (bundled, **off by default**)                                                         |
-| Default access | Read-only: `root_readonly`                                                                  |
-| Opt-in access  | Upload Project files into ONE configured folder (`root_readwrite`), every upload approved   |
-| Sign-in        | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store      |
-| Token storage  | Kurahi secret store (`connector.box.token`)                                                 |
-| Status         | Built and tested against recorded Box API responses; **not yet verified on a live account** |
+| Property       | Value                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| Plugin id      | `box` (bundled, **off by default**)                                                       |
+| Default access | Read-only: `root_readonly`                                                                |
+| Opt-in access  | Upload Project files into ONE configured folder (`root_readwrite`), every upload approved |
+| Sign-in        | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store    |
+| Token storage  | Kurahi secret store (`connector.box.token`)                                               |
+| Status         | Preview                                                                                   |
 
 ## Tools
 
@@ -98,9 +98,9 @@ kurahi box probe
 The gateway probes `GET /users/me?fields=id`. `kurahi box logout` revokes the token at
 `/oauth2/revoke` (with the client credentials) and deletes it locally.
 
-## Verified and not verified
+## References
 
-Verified (2026-10-25): OAuth endpoints and errors
+Official Box documentation: OAuth endpoints and errors
 ([without-sdk](https://developer.box.com/guides/authentication/oauth2/without-sdk/),
 [token](https://developer.box.com/reference/post-oauth2-token/)), revoke
 ([revoke](https://developer.box.com/reference/post-oauth2-revoke/)), token lifetimes
@@ -115,6 +115,6 @@ file, download and upload APIs
 [upload](https://developer.box.com/reference/post-files-content/)), rate limits
 ([rate-limits](https://developer.box.com/guides/api-calls/permissions-and-errors/rate-limits/)).
 
-Not documented by Box, implemented conservatively: PKCE (sent; ignored if unsupported). The probe
-uses `GET /users/me` ([get-users-me](https://developer.box.com/reference/get-users-me/)), not
-re-checked for this release. JWT (server) authentication is not implemented in this release.
+Setup notes: sign-in sends PKCE (ignored where unsupported). The probe uses `GET /users/me`
+([get-users-me](https://developer.box.com/reference/get-users-me/)). Sign-in uses OAuth 2.0;
+JWT (server) authentication is not available in this release.

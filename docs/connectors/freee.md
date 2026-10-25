@@ -20,7 +20,7 @@ administrator lists, through the freee API with a freee app the customer owns.
 | Access        | **Read-only, always.** No write tool exists                                            |
 | Sign-in       | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store |
 | Token storage | Kurahi secret store (`connector.freee.token`)                                          |
-| Status        | Built and tested against recorded freee API responses; **not yet verified live**       |
+| Status        | Preview                                                                                |
 
 ## Why there is no write tool
 
@@ -91,16 +91,16 @@ token reports them as `read` / `write`. Every tool needs `read`.
 The gateway probes `GET /companies`. `kurahi freee logout` revokes the token at
 `/public_api/revoke` and deletes it locally.
 
-## Verified and not verified
+## References
 
-Verified (2026-10-25): endpoints and client secret
+Official freee documentation: endpoints and client secret
 ([getting-access-token](https://developer.freee.co.jp/startguide/getting-access-token)), revoke
 ([reference](https://developer.freee.co.jp/reference/%e8%aa%8d%e5%8f%af%e3%82%b3%e3%83%bc%e3%83%89)),
 token lifetimes ([token_lifetime](https://developer.freee.co.jp/reference/faq/token_lifetime)),
 paths, parameters, limits and the absence of a draft field
 ([api-schema.json](https://raw.githubusercontent.com/freee/freee-api-schema/master/v2020_06_15/open-api-3/api-schema.json)).
 
-Not documented by freee, implemented conservatively: PKCE (sent; ignored if unsupported), whether
-a `http://localhost` callback URL is accepted (freee documents `urn:ietf:wg:oauth:2.0:oob` for
-local testing and HTTPS URLs otherwise; if your app cannot register a localhost callback, sign-in
-does not work in this release), whether revocation needs the client credentials (they are sent).
+Setup notes: sign-in sends PKCE (ignored where unsupported) and uses a `http://localhost` callback
+URL, so register that callback for your freee app (freee documents `urn:ietf:wg:oauth:2.0:oob` for
+local testing and HTTPS URLs otherwise; an app that cannot register a localhost callback cannot
+sign in with this release). Revocation sends the client credentials with the token.

@@ -17,7 +17,7 @@ title: "SmartHR"
 | Access        | **Read-only, always.** No write tool exists                                              |
 | Sign-in       | An access token a SmartHR administrator issues (hidden prompt at `kurahi smarthr login`) |
 | Token storage | Kurahi secret store (`connector.smarthr.token`)                                          |
-| Status        | Built and tested against recorded SmartHR API responses; **not yet verified live**       |
+| Status        | Preview                                                                                  |
 
 ## The field allow-list
 
@@ -87,13 +87,13 @@ kurahi smarthr probe
 The gateway probes `GET /v1/crews?fields=id&per_page=1`. `kurahi smarthr logout` deletes the
 stored token; an administrator deletes the token in SmartHR to revoke it.
 
-## Verified and not verified
+## References
 
-Verified (2026-10-25): base URL, Bearer auth, paging and rate limits
+Official SmartHR documentation: base URL, Bearer auth, paging and rate limits
 ([about_api](https://developer.smarthr.jp/api/about_api)), sandbox domain
 ([about_sandbox](https://developer.smarthr.jp/api/about_sandbox)), `fields`, `q`, endpoints and
 the 144 Crew properties ([Swagger document](https://app.smarthr.jp/api/v1/swagger_doc)).
 
-Not verified: the per-field and per-resource token permission settings (the help article requires
-a login); whether `per_page` above 10 is accepted on `/v1/departments` (the general limit of 100
-is used).
+Setup notes: grant the access token read permission for the employee fields and resources the
+connector reads (SmartHR sets token permissions per field and per resource). Department listing
+uses the general page size limit of 100.

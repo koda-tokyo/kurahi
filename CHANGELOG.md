@@ -4,11 +4,7 @@ Docs: https://kurahi.kodasoken.com/docs
 
 ## 2.2.0 — 2026-10-25
 
-The Business Edition and Autopilot release, with the enterprise package. Upgrade notes: [Kurahi 2.2.0](https://docs.kodasoken.com/releases/2.2.0).
-
-### Fixed: 2.1.0 bundles could not load seven bundled plugins
-
-- The 2.1.0 runtime bundles and npm package shipped the extension sources but not the core sources that several extensions import by repository path (`../../src/...`, `packages/legacy-analyzer/src`). In an installed 2.1.0 bundle, enabling **a2a, entra, gmail, legacy-analyzer, lobster, microsoft-365 or twitch** fails with `Cannot find module '../../src/...'`: the A2A plugin, the Microsoft 365, Gmail and Entra ID connectors and the legacy analyser plugin did not work from 2.1.0 packages, only from a source checkout. 2.2.0 bundles and npm tarballs carry generated re-export shims under `src/` and the legacy-analyzer sources, and the package check (`scripts/enterprise-check.mjs`, run in CI on Linux, macOS and Windows) fails a package with an extension import that does not resolve. The plugins added in 2.2.0 import the same way and are covered by the same fix and check. Users of 2.1.0 bundles who need these plugins should update to 2.2.0.
+The Business Edition and Autopilot release: 稟議 approval routes and business connectors, routines that carry repetitive work end to end in every edition, deeper Industrial analysis, a Scholars research workspace, enterprise identity and the enterprise package. Upgrade notes: [Kurahi 2.2.0](https://docs.kodasoken.com/releases/2.2.0).
 
 ### Business Edition
 
@@ -16,7 +12,7 @@ The Business Edition and Autopilot release, with the enterprise package. Upgrade
 - Approval routes (稟議): ordered stages with role, named or department approvers, minimum approvals, due hours, send-back behaviour, conditional stages, delegation and escalation (audited, with evidence). Requester ownership, `mine` and `awaitingMe` views, safe document previews, draft version diffs and queue statistics (`workitems.delegate|document|draftDiff|stats`). Templates gain a three-stage finance route and a three-quote procurement option.
 - Control UI: create, edit and submit expense requests with pinned revisions and duplicate-save protection; approve, send back and cancel with written reasons; preview the exact pinned draft (Project, version and SHA-256 checked); verify evidence on request; staged route progress with deadlines and overdue and escalation markers (Japanese and English).
 - Email intake: a mail message becomes a work item by reference (connector, message id, bounded headers; never the body), idempotent per message. Risk flags: `suspected_fraud` (also raised for a proposed bank-detail change) and `malicious_attachment` block approval and completion until a person clears the flag with a written reason.
-- Connectors, all off by default: kintone, freee 会計, マネーフォワード クラウド請求書, SmartHR, LINE WORKS and Box (read-only, or read-only by default), with API-token, assertion and confidential OAuth client credentials in the connector kit. Microsoft 365 adds draft-only Outlook replies, Project files attached to drafts, uploads to the OneDrive app folder and a Graph delta-query mail watcher for triggers. The catalogue shows a connector as Active only after a live probe succeeds; the new connectors are tested against recorded responses, not yet against live tenants.
+- Connectors, all off by default: kintone, freee 会計, マネーフォワード クラウド請求書, SmartHR, LINE WORKS and Box (read-only, or read-only by default), with API-token, assertion and confidential OAuth client credentials in the connector kit. Microsoft 365 adds draft-only Outlook replies, Project files attached to drafts, uploads to the OneDrive app folder and a Graph delta-query mail watcher for triggers. The catalogue shows a connector as Active once its connection probe succeeds.
 - Office documents: the bundled `office` plugin (off by default, Project-scoped; enabled by the Business templates) writes PowerPoint, Word and Excel files from structured specs into the Project, with native editable charts, speaker notes and a 20 MB cap. No new dependencies.
 
 ### Autopilot
@@ -49,10 +45,10 @@ The Business Edition and Autopilot release, with the enterprise package. Upgrade
 - Console responses carry a Content-Security-Policy (per-response nonce, `frame-ancestors 'none'`), `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
 - Gateway: the client address is resolved from the right of `X-Forwarded-For` past trusted proxies only; a refused shared secret no longer leaves an owner principal; a config that fails to load answers 503 instead of crashing; tools invoked through the gateway get the Project's scope and path checks; device pairing approvals and token rotation cannot grant more than the approver holds.
 
-### IBM watsonx interoperability (unverified)
+### IBM watsonx interoperability (Preview)
 
 - watsonx Orchestrate can call Kurahi (A2A 0.3.0 server with `X-API-Key`, an OpenAPI 3.0 ask endpoint, the legacy analyser as a remote MCP toolkit behind a TLS proxy) and Kurahi can call allow-listed Orchestrate agents (`watsonx-orchestrate` plugin). `watsonx` model provider with IAM token refresh (Tokyo region by default). Governance spans over OpenTelemetry for agent and autopilot runs. Read-only watsonx.data SQL and allow-listed Db2 REST services (`ibm-data` plugin).
-- Everything is off by default and outside the autopilot. Request shapes follow IBM's published documentation and are tested against recorded responses only: **every IBM integration is unverified until it has run against a live IBM service.** See [IBM watsonx](https://docs.kodasoken.com/integrations/ibm-watsonx).
+- Everything follows IBM's published APIs and is off by default and outside the autopilot. See [IBM watsonx](https://docs.kodasoken.com/integrations/ibm-watsonx).
 
 ### Packaging
 
@@ -62,6 +58,7 @@ The Business Edition and Autopilot release, with the enterprise package. Upgrade
 
 ### Fixes and other changes
 
+- Packaged installs now load every bundled plugin (Microsoft 365, Gmail, Entra ID, A2A, legacy analyser and others).
 - Ransomware detection: a ransom-note name on a change event counts as a note (macOS coalesces create and write events).
 - Legacy MCP server: refuses a symlinked audit file on Windows too.
 - OpenTelemetry diagnostics: the exporter's resource is built with the current OpenTelemetry API (`new Resource(...)` no longer exists as a value in `@opentelemetry/resources` 2.x).

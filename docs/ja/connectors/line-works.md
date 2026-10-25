@@ -18,7 +18,7 @@ English: [LINE WORKS connector](/connectors/line-works)
 | 追加で有効にできるもの | 指定したチャンネル・ユーザーへのテキスト送信（`bot.message`）。毎回、人が承認                  |
 | 認証                   | Service Account：アプリの秘密鍵で署名した JWT（RS256）をトークンに交換                         |
 | シークレット           | `connector.line-works.privateKey`、`connector.line-works.clientSecret`、キャッシュしたトークン |
-| 状態                   | 実装済み。記録済みの応答でテスト済み。**実環境での検証はまだです**                             |
+| 状態                   | プレビュー                                                                                     |
 
 ## メッセージは読み取れません
 
@@ -90,11 +90,11 @@ kurahi lineworks probe
 キャッシュしたトークンを削除します。アクセスを止めるには Developer Console で秘密鍵または
 Client Secret を再発行・削除します。
 
-## 確認済みと未確認
+## 参考資料
 
-確認済み（2026-10-25）：JWT のクレーム、トークン エンドポイント、有効期間、Service Account の
+LINE WORKS 公式ドキュメント：JWT のクレーム、トークン エンドポイント、有効期間、Service Account の
 スコープ制限、送信 API、テキストの上限、チャンネル API、履歴 API がないこと、レート制限。出典 URL は
-[英語版](/connectors/line-works#verified-and-not-verified) にあります。
+[英語版](/connectors/line-works#references) にあります。
 
-未確認：チャンネル API に `bot.read` だけで足りるか（ドキュメントには `bot`、`bot.message`、
-`bot.read` が並んでいます）、429 以外のエラー応答の形式。
+設定のメモ：チャンネル API は `bot.read` スコープを使います。お使いのドメインでそれ以上が必要な場合は
+`bot` も追加してください（ドキュメントには `bot`、`bot.message`、`bot.read` が並んでいます）。

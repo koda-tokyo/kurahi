@@ -14,7 +14,7 @@ English: [watsonx.data and Db2](/integrations/ibm-watsonx-data-db2)（設定例�
 監査ログにはID、SQLのハッシュ、行数、パラメーター名、結果だけを残します（SQL本文、パラメーターの値、行は残しません）。
 どちらもオートパイロットの読み取りツールには含めていません。
 
-**状態：未検証。** Presto/TrinoのクライアントプロトコルとIBMのDb2 RESTの資料に基づき、記録した応答の形でテストしています。
+**状態：プレビュー。** Presto/TrinoのクライアントプロトコルとIBMのDb2 RESTの資料に基づいて実装しています。
 
 ## watsonx_data_query
 
@@ -38,6 +38,6 @@ Db2のRESTサービスは、静的SQLを1文だけ含むパッケージで、Db2
 | `luw` | `POST <url>/v1/auth`（`dbParms`）のあと `POST <url>/v1/services/<service>/<version>`（`authorization` ヘッダー、`{ parameters, sync: true }`） | `resultSet` の行                          |
 
 パラメーターは設定した名前だけ、値は文字列（4000文字まで）、数値、真偽値、nullだけです。ネイティブのDb2ドライバー（`ibm_db`）は使いません。
-LUWのサービスのパス、ヘッダー、本文の形は公式資料で確認できておらず、未検証です。
+設定のメモ：SaaSでは `ibmlhapikey`（または `ibmlhapikey_<email>`）のユーザーとAPIキーでエンジンにサインインします。Db2 LUW のRESTサービスは上の表の形（`authorization` ヘッダー、`{ parameters, sync: true }` の本文、`resultSet` の行）で呼び出します。
 
 全体の概要：[IBM watsonx 連携](/ja/integrations/ibm-watsonx)
