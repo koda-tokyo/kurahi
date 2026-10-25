@@ -7,16 +7,20 @@ import type {
 import type { GatewayBrowserClient } from "../gateway";
 import {
   businessEvent,
+  beginBusinessDecision,
+  editBusinessDecision,
   emptyBusiness,
   loadBusiness,
   loadBusinessItem,
   resetBusiness,
   selectBusinessQueue,
+  submitBusinessDecision,
   type BusinessHost,
 } from "./business";
 import { DEFAULT_PROJECTS_STATE } from "./projects";
 
 const config: WorkitemsConfigResult = {
+  departments: [],
   queues: [],
   rules: [],
   timezone: "Asia/Tokyo",
@@ -24,6 +28,15 @@ const config: WorkitemsConfigResult = {
   source: { kind: "template", path: null },
   digest: "abc",
   error: null,
+  routes: [],
+  access: { fallback: "none", configured: false, roles: [], members: null },
+  viewer: {
+    principal: "owner",
+    privileged: true,
+    roles: ["requester"],
+    departments: [],
+    listed: false,
+  },
 };
 const list: WorkitemsListResult = { items: [], total: 0, counts: {}, nextCursor: null };
 function host() {
@@ -49,7 +62,31 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 function item(id: string, projectId = "p1") {
-  return { item: { id, projectId, title: id, revision: 1 } } as WorkitemsGetResult;
+  return {
+    item: {
+      id,
+      projectId,
+      title: id,
+      revision: 1,
+      status: "awaiting_review",
+      approvals: [],
+      requiredApprovals: 1,
+    },
+  } as unknown as WorkitemsGetResult;
+}
+async function reviewHost() {
+  const { h, request } = host();
+  await loadBusiness(h);
+  h.business.item = item("a").item;
+  h.business.selectedId = "a";
+  return { h, request };
+}
+function decided(
+  id = "a",
+  projectId = "p1",
+  status: "awaiting_review" | "approved" = "awaiting_review",
+) {
+  return { item: { ...item(id, projectId).item, status } };
 }
 describe("Business read-only queue", () => {
   it("loads real project config and paged list without writing", async () => {
@@ -168,6 +205,7 @@ describe("Business read-only queue", () => {
       ...item("a").item,
       source: { documents: 0, fields: [] },
       overdue: false,
+      currentStage: null,
     } as WorkitemsListResult["items"][number];
     request.mockImplementation(async (method) =>
       method === "workitems.config"
@@ -242,5 +280,251 @@ describe("Business read-only queue", () => {
     h.projects.view = "chat";
     await loadBusiness(h);
     expect(request).not.toHaveBeenCalled();
+  });
+});
+
+describe("Business person decisions", () => {
+  it("pins the revision at form start and trims comments and override reasons", async () => {
+    const { h, request } = await reviewHost();
+    h.business.item = { ...h.business.item!, revision: 7 };
+    beginBusinessDecision(h, "approve");
+    editBusinessDecision(h, {
+      comment: "  Looks good  ",
+      override: true,
+      overrideReason: "  exception approved  ",
+    });
+    request.mockImplementation(async (method: string) =>
+      method === "workitems.decide"
+        ? decided()
+        : method === "workitems.config"
+          ? config
+          : method === "workitems.get"
+            ? item("a")
+            : list,
+    );
+    await submitBusinessDecision(h);
+    expect(request.mock.calls.find(([method]) => method === "workitems.decide")).toEqual([
+      "workitems.decide",
+      {
+        projectId: "p1",
+        id: "a",
+        expectedRevision: 7,
+        decision: "approve",
+        comment: "Looks good",
+        override: { reason: "exception approved" },
+      },
+    ]);
+  });
+  it("requires a trimmed comment for send-back and cancel, and ten trimmed override characters", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "send_back");
+    editBusinessDecision(h, { comment: "   " });
+    await submitBusinessDecision(h);
+    expect(request.mock.calls.some(([method]) => method === "workitems.decide")).toBe(false);
+    editBusinessDecision(h, { comment: "  Please revise  " });
+    await submitBusinessDecision(h);
+    expect(request).toHaveBeenCalledWith(
+      "workitems.decide",
+      expect.objectContaining({ comment: "Please revise" }),
+    );
+
+    h.business.item = item("a").item;
+    beginBusinessDecision(h, "cancel");
+    editBusinessDecision(h, { comment: "   " });
+    await submitBusinessDecision(h);
+    expect(request.mock.calls.filter(([method]) => method === "workitems.decide")).toHaveLength(1);
+
+    const { h: h2, request: request2 } = await reviewHost();
+    beginBusinessDecision(h2, "approve");
+    editBusinessDecision(h2, { override: true, overrideReason: "  123456789  " });
+    await submitBusinessDecision(h2);
+    expect(request2.mock.calls.some(([method]) => method === "workitems.decide")).toBe(false);
+    editBusinessDecision(h2, { overrideReason: "  1234567890  " });
+    request2.mockImplementation(async (method: string) =>
+      method === "workitems.decide"
+        ? decided()
+        : method === "workitems.config"
+          ? config
+          : method === "workitems.get"
+            ? item("a")
+            : list,
+    );
+    await submitBusinessDecision(h2);
+    expect(
+      request2.mock.calls.filter(([method]) => method === "workitems.decide").at(-1)?.[1],
+    ).toEqual(expect.objectContaining({ override: { reason: "1234567890" } }));
+  });
+  it("prevents a second submit while pending and refreshes after success without assuming final approval", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    const wait = deferred<ReturnType<typeof decided>>();
+    request.mockImplementation(async (method: string) =>
+      method === "workitems.decide"
+        ? wait.promise
+        : method === "workitems.config"
+          ? config
+          : method === "workitems.get"
+            ? item("a")
+            : list,
+    );
+    const first = submitBusinessDecision(h);
+    await submitBusinessDecision(h);
+    expect(request.mock.calls.filter(([method]) => method === "workitems.decide")).toHaveLength(1);
+    wait.resolve(decided("a", "p1", "awaiting_review") as never);
+    await first;
+    expect(request.mock.calls.filter(([method]) => method === "workitems.list")).toHaveLength(2);
+    expect(h.business.item?.status).toBe("awaiting_review");
+    expect(h.business.decisionNotice).toBeTruthy();
+  });
+  it("keeps the decision lock through same-item refresh and reselect, then preserves the outcome", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    const wait = deferred<ReturnType<typeof decided>>();
+    request.mockImplementation(async (method: string) =>
+      method === "workitems.decide"
+        ? wait.promise
+        : method === "workitems.config"
+          ? config
+          : method === "workitems.get"
+            ? item("a")
+            : list,
+    );
+    const pending = submitBusinessDecision(h);
+    await loadBusiness(h);
+    await loadBusinessItem(h, "a");
+    expect(h.business.decisionPending).toBe(true);
+    await submitBusinessDecision(h);
+    expect(request.mock.calls.filter(([method]) => method === "workitems.decide")).toHaveLength(1);
+
+    wait.resolve(decided() as never);
+    await pending;
+    expect(h.business.decisionNotice).toContain("Decision recorded");
+    expect(request.mock.calls.filter(([method]) => method === "workitems.decide")).toHaveLength(1);
+  });
+  it("cannot resubmit after navigating away and back while the first RPC is unresolved", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    const wait = deferred<ReturnType<typeof decided>>();
+    request.mockImplementation(async (method: string) =>
+      method === "workitems.decide"
+        ? wait.promise
+        : method === "workitems.config"
+          ? config
+          : method === "workitems.get"
+            ? item("a")
+            : list,
+    );
+    const pending = submitBusinessDecision(h);
+    h.tab = "chat";
+    h.tab = "projects";
+    await submitBusinessDecision(h);
+    expect(request.mock.calls.filter(([method]) => method === "workitems.decide")).toHaveLength(1);
+    expect(h.business.decisionPending).toBe(true);
+    wait.resolve(decided() as never);
+    await pending;
+    expect(h.business.decisionNotice).toContain("Decision recorded");
+  });
+  it("localizes known refusals and unknown errors without exposing raw details or retrying", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "send_back");
+    editBusinessDecision(h, { comment: "Please revise" });
+    request.mockImplementation(async (method: string) => {
+      if (method === "workitems.decide") {
+        throw { details: { code: "separation_of_duties", secret: "/private/token" } };
+      }
+      return method === "workitems.config" ? config : method === "workitems.get" ? item("a") : list;
+    });
+    await submitBusinessDecision(h);
+    expect(h.business.decisionNotice).toContain("Separation of duties");
+    expect(h.business.decisionNotice).not.toContain("private");
+    expect(request.mock.calls.filter(([method]) => method === "workitems.decide")).toHaveLength(1);
+    expect(request.mock.calls.filter(([method]) => method === "workitems.list")).toHaveLength(2);
+
+    h.business.item = item("a").item;
+    beginBusinessDecision(h, "send_back");
+    editBusinessDecision(h, { comment: "Please revise" });
+    request.mockImplementation(async (method: string) => {
+      if (method === "workitems.decide") {
+        throw new Error("secret/private/token");
+      }
+      return method === "workitems.config" ? config : method === "workitems.get" ? item("a") : list;
+    });
+    await submitBusinessDecision(h);
+    expect(h.business.decisionNotice).not.toContain("secret");
+  });
+  it.each(["reset", "project", "client", "item", "queue"] as const)(
+    "discards a pending decision response after %s changes",
+    async (change) => {
+      const { h, request } = await reviewHost();
+      beginBusinessDecision(h, "approve");
+      const wait = deferred<ReturnType<typeof decided>>();
+      request.mockImplementation(async (method: string) =>
+        method === "workitems.decide"
+          ? wait.promise
+          : method === "workitems.config"
+            ? config
+            : method === "workitems.get"
+              ? item("a")
+              : list,
+      );
+      const pending = submitBusinessDecision(h);
+      if (change === "reset") {
+        resetBusiness(h);
+      }
+      if (change === "project") {
+        h.projects = { ...h.projects, selectedId: "p2" };
+        resetBusiness(h);
+      }
+      if (change === "client") {
+        h.client = {} as GatewayBrowserClient;
+        resetBusiness(h);
+      }
+      if (change === "item") {
+        h.business.selectedId = "b";
+      }
+      if (change === "queue") {
+        h.business.queue = "new";
+        h.business.selectedId = null;
+      }
+      expect(h.business.decisionPending).toBe(true);
+      wait.resolve(decided() as never);
+      await pending;
+      if (change === "item" || change === "queue") {
+        expect(request.mock.calls.filter(([method]) => method === "workitems.list")).toHaveLength(
+          1,
+        );
+      } else {
+        expect(h.business.decisionNotice).toBeNull();
+      }
+    },
+  );
+  it("invalidates an open form when a background read sees a newer revision", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    request.mockImplementation(async (method: string) =>
+      method === "workitems.get"
+        ? { item: { ...item("a").item, revision: 2 } }
+        : method === "workitems.config"
+          ? config
+          : list,
+    );
+    await loadBusinessItem(h, "a", true);
+    expect(h.business.decisionForm).toBeNull();
+    expect(h.business.decisionNotice).toBeTruthy();
+  });
+  it("guards disconnected, loading, and unavailable policy states", async () => {
+    const { h, request } = await reviewHost();
+    h.connected = false;
+    beginBusinessDecision(h, "approve");
+    expect(h.business.decisionForm).toBeNull();
+    h.connected = true;
+    h.business.loading = true;
+    beginBusinessDecision(h, "approve");
+    expect(h.business.decisionForm).toBeNull();
+    h.business.loading = false;
+    h.business.config = { ...config, error: "unavailable" };
+    beginBusinessDecision(h, "approve");
+    expect(h.business.decisionForm).toBeNull();
+    expect(request.mock.calls.some(([method]) => method === "workitems.decide")).toBe(false);
   });
 });

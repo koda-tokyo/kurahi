@@ -13,13 +13,19 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import type { Project } from "../projects/types.js";
-import type { WorkItemType } from "./types.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { projectDataDir } from "../projects/store.js";
 import { resolveTemplatesDir } from "../projects/templates.js";
-import { WORK_ITEM_TYPES } from "./types.js";
-
-type Text = { ja?: string; en?: string };
+import { parseAccess, type AccessDef } from "./access.js";
+import { FIELD_RE, ID_RE, num, strList, text, types, type Text } from "./parse-util.js";
+import { parseRoutes, type RouteDef } from "./routes.js";
+import {
+  DEPARTMENT_IDS,
+  isDepartmentId,
+  type DepartmentFilter,
+  type DepartmentId,
+  type WorkItemType,
+} from "./types.js";
 
 export type QueueDef = {
   id: string;
@@ -27,6 +33,8 @@ export type QueueDef = {
   types: WorkItemType[];
   slaHours: number | null;
   defaultAgent: string | null;
+  /** Department workspace the queue shows in (a view, not a permission); absent = unmapped. */
+  department?: DepartmentId;
 };
 
 type RuleBase = {
@@ -69,6 +77,10 @@ export type WorkQueuePolicy = {
   separationOfDuties: boolean;
   queues: QueueDef[];
   rules: PolicyRule[];
+  /** 稟議 staged approval routes (first matching route wins; none = single-stage review). */
+  routes: RouteDef[];
+  /** Principal → role / department mapping for routes and read access. */
+  access: AccessDef;
   /** Where the policy came from and its SHA-256 (recorded with every check). */
   source: { kind: "project" | "admin" | "template" | "none"; path: string | null };
   digest: string;
@@ -76,37 +88,8 @@ export type WorkQueuePolicy = {
   error: string | null;
 };
 
-const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,63}$/;
-const FIELD_RE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 const MAX_POLICY_BYTES = 256 * 1024;
 const NAMES = ["workqueue.yaml", "workqueue.yml", "workqueue.json"];
-
-function text(raw: unknown): Text {
-  if (typeof raw === "string") {
-    return { en: raw.slice(0, 200) };
-  }
-  const r = (raw ?? {}) as Record<string, unknown>;
-  return {
-    ...(typeof r.ja === "string" ? { ja: r.ja.slice(0, 200) } : {}),
-    ...(typeof r.en === "string" ? { en: r.en.slice(0, 200) } : {}),
-  };
-}
-
-function num(raw: unknown): number | null {
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-}
-
-function strList(raw: unknown, re: RegExp): string[] {
-  return Array.isArray(raw)
-    ? raw.filter((v): v is string => typeof v === "string" && re.test(v))
-    : [];
-}
-
-function types(raw: unknown): WorkItemType[] {
-  return Array.isArray(raw)
-    ? raw.filter((v): v is WorkItemType => (WORK_ITEM_TYPES as readonly unknown[]).includes(v))
-    : [];
-}
 
 function field(raw: unknown, ruleId: string): string {
   if (typeof raw !== "string" || !FIELD_RE.test(raw)) {
@@ -181,6 +164,11 @@ function parseQueue(raw: unknown, i: number): QueueDef {
     throw new Error(`queue ${i + 1}: id is required`);
   }
   const sla = num(q.slaHours);
+  if (q.department !== undefined && q.department !== null && !isDepartmentId(q.department)) {
+    throw new Error(
+      `queue ${q.id}: unknown department ${JSON.stringify(q.department)} (expected one of ${DEPARTMENT_IDS.join(", ")})`,
+    );
+  }
   return {
     id: q.id,
     name: text(q.name ?? q.id),
@@ -190,7 +178,22 @@ function parseQueue(raw: unknown, i: number): QueueDef {
       typeof q.defaultAgent === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(q.defaultAgent)
         ? q.defaultAgent
         : null,
+    ...(isDepartmentId(q.department) ? { department: q.department } : {}),
   };
+}
+
+/**
+ * Queue predicate for a department view: queues mapped to `department`, or (for `unmapped`) queues
+ * with no department, including queue ids the policy does not define. Apply after access filters.
+ */
+export function departmentQueueMatcher(
+  policy: Pick<WorkQueuePolicy, "queues">,
+  department: DepartmentFilter,
+): (queueId: string) => boolean {
+  const mapped = new Map(policy.queues.map((q) => [q.id, q.department]));
+  return department === "unmapped"
+    ? (queueId) => mapped.get(queueId) === undefined
+    : (queueId) => mapped.get(queueId) === department;
 }
 
 /** Parse a policy document (YAML or JSON text). Throws with a readable message. */
@@ -220,6 +223,8 @@ export function parsePolicy(rawText: string): Omit<WorkQueuePolicy, "source" | "
     separationOfDuties: doc.separationOfDuties === true,
     queues,
     rules,
+    routes: parseRoutes(doc.routes),
+    access: parseAccess(doc.access),
   };
 }
 
@@ -279,6 +284,8 @@ export function loadWorkQueuePolicy(
     separationOfDuties: false,
     queues: [],
     rules: [],
+    routes: [],
+    access: parseAccess(undefined),
     source: { kind: "none", path: null },
     digest: digestOf(""),
     error: null,
@@ -296,6 +303,8 @@ function failedPolicy(
     separationOfDuties: false,
     queues: [],
     rules: [],
+    routes: [],
+    access: parseAccess(undefined),
     source: c,
     digest: digestOf(raw),
     error,

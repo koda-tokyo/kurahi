@@ -1,5 +1,6 @@
 import type { CliDeps } from "../cli/deps.js";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { isAutopilotJob, runAutopilotCronJob } from "../autopilot/cron.js";
 import { loadConfig } from "../config/config.js";
 import { resolveAgentMainSessionKey } from "../config/sessions.js";
 import { runCronIsolatedAgentTurn } from "../cron/isolated-agent.js";
@@ -64,6 +65,10 @@ export function buildGatewayCronService(params: {
       });
     },
     runIsolatedAgentJob: async ({ job, message }) => {
+      // Autopilot routines are run by the engine itself: no model turn, no tools for a model.
+      if (isAutopilotJob(job)) {
+        return await runAutopilotCronJob(job);
+      }
       const { agentId, cfg: runtimeConfig } = resolveCronAgent(job.agentId);
       return await runCronIsolatedAgentTurn({
         cfg: runtimeConfig,

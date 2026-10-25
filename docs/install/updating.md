@@ -78,4 +78,7 @@ Package installs: `npm install -g kurahi@<version>`. Source checkouts: check out
 previous tag, build, restart.
 
 State in `KOLO_HOME` is not touched by updates or rollbacks. Config changes are merged, never
-rewritten, so a rollback never needs a config restore.
+rewritten, so a rollback never needs a config restore. An older version does not accept keys it
+does not know, though: if you turned on a setting that is new in the later release, remove it
+before you start the older version (for 2.2.0 back to 2.1.0, see
+[Kurahi 2.2.0](/releases/2.2.0#roll-back)).

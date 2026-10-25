@@ -8,6 +8,7 @@ import {
 } from "./app-polling";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll";
 import { loadArtifacts as loadArtifactsUi } from "./controllers/artifacts";
+import { loadAutopilot, resetAutopilot } from "./controllers/autopilot";
 import { loadBusiness } from "./controllers/business";
 import { loadChannels } from "./controllers/channels";
 import { loadChatHistoryPanel } from "./controllers/chat-history";
@@ -167,6 +168,7 @@ export function guardTab(host: SettingsHost, next: Tab): Tab {
 export function setTab(host: SettingsHost, requested: Tab) {
   const next = guardTab(host, requested);
   if (host.tab !== next) {
+    resetAutopilot(host as unknown as KoLoApp);
     host.tab = next;
   }
   if (next === "chat") {
@@ -210,6 +212,7 @@ export async function refreshActiveTab(host: SettingsHost) {
     await Promise.all([
       loadProjectsUi(app),
       loadBusiness(app),
+      loadAutopilot(app),
       loadSessions(app),
       loadArtifactsUi(app),
       loadChatHistoryPanel(app),
@@ -391,6 +394,7 @@ export function onPopState(host: SettingsHost) {
 export function setTabFromRoute(host: SettingsHost, requested: Tab) {
   const next = guardTab(host, requested);
   if (host.tab !== next) {
+    resetAutopilot(host as unknown as KoLoApp);
     host.tab = next;
   }
   if (next === "chat") {
@@ -481,7 +485,7 @@ async function loadConfigQuiet(app: KoLoApp) {
     return;
   }
   try {
-    const res = (await app.client.request("config.get", {})) as KoLoApp["configSnapshot"];
+    const res = await app.client.request<KoLoApp["configSnapshot"]>("config.get", {});
     if (!app.configSnapshot) {
       app.configSnapshot = res;
     }

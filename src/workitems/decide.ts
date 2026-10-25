@@ -6,14 +6,23 @@
 // every blocking check passing (checks are re-run now, against the pinned draft), or an explicit
 // override with a reason, which is recorded on the item, in the evidence and in the audit log;
 // and as many distinct approvers as the policy requires (e.g. a second approver above an amount).
+//
+// Decisions act on the CURRENT stage of the item's route (routes.ts): the person must be one of
+// the stage's approvers, an unexpired delegate of one, or an escalation target once the stage
+// has escalated. Approving the last stage approves the item; send back follows the stage's
+// onReturn (the requester, or the previous stage).
 
 import type { Project } from "../projects/types.js";
 import type { Actor, WorkItem, WorkItemStatus } from "./types.js";
 import { auditSafe } from "../audit/audit-log.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { getArtifact, isKnownIdentity, setArtifactStatus } from "../projects/artifacts.js";
+import { actedInStage, currentStage, deciderVia, isPrivileged } from "./access.js";
+import { WorkItemRefused } from "./errors.js";
+import { assertNoFraudFlag } from "./flags.js";
 import { applyTransition, checkSummary, recheck, type LifecycleOpts } from "./lifecycle.js";
-import { blockingFailures, loadWorkQueuePolicy } from "./policy.js";
+import { blockingFailures, loadWorkQueuePolicy, type WorkQueuePolicy } from "./policy.js";
+import { activateStage, resetStage, routeApprovals, startRoute } from "./routes.js";
 import { TERMINAL_STATUSES } from "./types.js";
 
 export type Decision = "approve" | "send_back" | "cancel";
@@ -26,15 +35,9 @@ export type DecideInput = {
   override?: { reason?: unknown } | null;
 };
 
-export class DecisionRefused extends Error {
-  readonly code: string;
-  readonly details: Record<string, unknown>;
-  constructor(code: string, message: string, details: Record<string, unknown> = {}) {
-    super(message);
-    this.code = code;
-    this.details = details;
-  }
-}
+/** Kept under its earlier name: every decision refusal is a WorkItemRefused with a code. */
+export const DecisionRefused = WorkItemRefused;
+export type DecisionRefused = WorkItemRefused;
 
 function cleanComment(raw: unknown): string | null {
   return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 2000) : null;
@@ -78,12 +81,13 @@ export function decideWorkItem(
       if (TERMINAL_STATUSES.has(cur.status)) {
         throw new DecisionRefused("terminal", `work item is already ${cur.status}`);
       }
-      const at = now.toISOString();
+      const policy = loadWorkQueuePolicy(project, home);
+      if (cur.status === "awaiting_review" && (!cur.route || cur.route.current === null)) {
+        // An item submitted before routes existed: give it its single-stage route now.
+        startRoute(cur, policy, now, true);
+      }
       if (decision === "cancel") {
-        if (!comment) {
-          throw new DecisionRefused("comment_required", "cancel needs a comment");
-        }
-        return { next: cur, spec: { action: "decide.cancel", actor, to: "cancelled", comment } };
+        return cancel(cur, actor, policy, comment, now);
       }
       if (cur.status !== "awaiting_review") {
         throw new DecisionRefused(
@@ -91,6 +95,9 @@ export function decideWorkItem(
           `only an item awaiting review can be ${decision === "approve" ? "approved" : "sent back"} (it is ${cur.status})`,
         );
       }
+      const stage = currentStage(cur)!;
+      const index = cur.route!.current!;
+      const via = deciderVia(cur, actor.id, policy, now);
       if (decision === "send_back") {
         if (!comment) {
           throw new DecisionRefused(
@@ -98,12 +105,37 @@ export function decideWorkItem(
             "send back needs a comment for the drafter",
           );
         }
-        cur.approvals = [];
+        if (!via) {
+          throw notApprover(stage.id);
+        }
         cur.override = null;
-        out.artifact = cur.draft ? "draft" : null;
-        return { next: cur, spec: { action: "decide.send_back", actor, to: "sent_back", comment } };
+        const toPrevious = stage.onReturn === "previous" && index > 0;
+        if (toPrevious) {
+          resetStage(stage);
+          activateStage(cur.route!, index - 1, now);
+          cur.approvals = routeApprovals(cur.route!);
+        } else {
+          startRoute(cur, policy, now, false);
+          out.artifact = cur.draft ? "draft" : null;
+        }
+        return {
+          next: cur,
+          spec: {
+            action: "decide.send_back",
+            actor,
+            to: toPrevious ? "awaiting_review" : "sent_back",
+            comment,
+            detail: {
+              stage: stage.id,
+              returnTo: toPrevious ? "previous" : "requester",
+              ...(toPrevious ? { toStage: cur.route!.stages[index - 1].id } : {}),
+              ...(via.onBehalfOf ? { onBehalfOf: via.onBehalfOf } : {}),
+            },
+          },
+        };
       }
-      // approve
+      // approve: never while suspected_fraud is set (only a person clears it, see clear-flag.ts).
+      assertNoFraudFlag(cur, "approved");
       if (cur.draft) {
         const latest = getArtifact(cur.draft.artifactId, null, { home }).version;
         if (latest !== cur.draft.version) {
@@ -114,23 +146,39 @@ export function decideWorkItem(
           );
         }
       }
-      if (cur.approvals.some((a) => a.by === actor.id)) {
+      if (actedInStage(stage, actor.id)) {
         throw new DecisionRefused("already_approved", "you have already approved this item");
       }
-      const policy = loadWorkQueuePolicy(project, home);
-      if (
-        policy.separationOfDuties &&
-        isKnownIdentity(actor.id) &&
-        isKnownIdentity(cur.createdBy) &&
-        actor.id === cur.createdBy
-      ) {
+      const staged = cur.route!.kind === "staged";
+      if (staged && cur.route!.stages.some((s) => s !== stage && actedInStage(s, actor.id))) {
+        throw new DecisionRefused(
+          "already_approved",
+          "you approved an earlier stage of this item; each stage needs a different person",
+        );
+      }
+      const known = isKnownIdentity(actor.id) && isKnownIdentity(cur.requestedBy);
+      if ((policy.separationOfDuties || staged) && known && actor.id === cur.requestedBy) {
         throw new DecisionRefused(
           "separation_of_duties",
           "the person who created this item cannot approve it",
         );
       }
+      if (!via) {
+        throw notApprover(stage.id);
+      }
+      if (
+        via.onBehalfOf &&
+        staged &&
+        cur.route!.stages.some((s) => s !== stage && actedInStage(s, via.onBehalfOf!))
+      ) {
+        throw new DecisionRefused(
+          "already_approved",
+          "the person you are delegated by approved an earlier stage of this item",
+        );
+      }
       recheck(project, cur, now, home);
       const failing = blockingFailures(cur.checks).map((c) => c.policyId);
+      const at = now.toISOString();
       if (failing.length > 0) {
         if (!overrideReason || overrideReason.length < MIN_OVERRIDE_REASON) {
           throw new DecisionRefused(
@@ -142,8 +190,27 @@ export function decideWorkItem(
         out.override = { reason: overrideReason, policyIds: failing };
         cur.override = { by: actor.id, at, reason: overrideReason, policyIds: failing };
       }
-      cur.approvals.push({ by: actor.id, at, comment });
-      const complete = cur.approvals.length >= cur.requiredApprovals;
+      stage.approvals.push({
+        by: actor.id,
+        at,
+        comment,
+        stageId: stage.id,
+        via: via.via,
+        ...(via.onBehalfOf ? { onBehalfOf: via.onBehalfOf } : {}),
+      });
+      const stageDone = stage.approvals.length >= stage.minApprovals;
+      const last = index === cur.route!.stages.length - 1;
+      if (stageDone) {
+        stage.status = "approved";
+        stage.completedAt = at;
+        if (last) {
+          cur.route!.current = null;
+        } else {
+          activateStage(cur.route!, index + 1, now);
+        }
+      }
+      cur.approvals = routeApprovals(cur.route!);
+      const complete = stageDone && last;
       const to: WorkItemStatus = complete ? "approved" : "awaiting_review";
       out.artifact = complete && cur.draft ? "approved" : null;
       return {
@@ -156,6 +223,11 @@ export function decideWorkItem(
           detail: {
             approvals: cur.approvals.length,
             requiredApprovals: cur.requiredApprovals,
+            stage: stage.id,
+            stageComplete: stageDone,
+            nextStage: stageDone && !last ? cur.route!.stages[index + 1].id : null,
+            via: via.via,
+            ...(via.onBehalfOf ? { onBehalfOf: via.onBehalfOf } : {}),
             checks: checkSummary(cur),
             draft: cur.draft
               ? {
@@ -187,6 +259,44 @@ export function decideWorkItem(
     syncArtifact(project, item, out.artifact, actor, home);
   }
   return item;
+}
+
+function notApprover(stageId: string): WorkItemRefused {
+  return new DecisionRefused(
+    "not_an_approver",
+    `you are not an approver of the current stage (${stageId})`,
+    { stage: stageId },
+  );
+}
+
+/** Cancel: the requester, a privileged operator, or a person who may decide the current stage. */
+function cancel(
+  cur: WorkItem,
+  actor: Actor,
+  policy: WorkQueuePolicy,
+  comment: string | null,
+  now: Date,
+) {
+  if (!comment) {
+    throw new DecisionRefused("comment_required", "cancel needs a comment");
+  }
+  const allowed =
+    cur.requestedBy === actor.id ||
+    isPrivileged(actor, policy, cur.projectId) ||
+    deciderVia(cur, actor.id, policy, now) !== null;
+  if (!allowed) {
+    throw new DecisionRefused(
+      "not_authorised",
+      "only the requester, an operator or a current approver may cancel this item",
+    );
+  }
+  if (cur.route) {
+    cur.route.current = null;
+  }
+  return {
+    next: cur,
+    spec: { action: "decide.cancel", actor, to: "cancelled" as const, comment },
+  };
 }
 
 /** Keep the draft artifact's review status in step with the decision (best effort, audited). */

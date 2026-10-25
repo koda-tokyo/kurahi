@@ -13,6 +13,10 @@ export type JavaAnnotation = Loc & {
   name: string;
   /** Element values as source text; a single unnamed value is `value`. String literals unquoted. */
   args: Record<string, string>;
+  /** Annotations written inside the element values (`@Container({ @Item(..), @Item(..) })`). */
+  nested?: JavaAnnotation[];
+  /** For a nested annotation: the named element it is the value of (`joinColumns`). */
+  element?: string;
 };
 
 export type JavaParam = { type: string; name: string };
@@ -33,8 +37,12 @@ export type SqlUse = Loc & {
   /** First keyword: SELECT, INSERT, UPDATE, DELETE, MERGE, ... */
   op: string;
   tables: string[];
-  /** jdbc: string literal in code; jpql / native: @Query; constant: a static String field. */
-  via: "jdbc" | "jpql" | "native" | "constant";
+  /**
+   * jdbc: string literal in code; jpql / native: @Query; constant: a static String field;
+   * mybatis: a statement of a MyBatis mapper XML; call: a stored-procedure API naming the routine
+   * (`createStoredProcedureQuery("NAME")`), its text written as `CALL NAME`.
+   */
+  via: "jdbc" | "jpql" | "native" | "constant" | "mybatis" | "call";
   /** The literal is concatenated with non-literal values: only the literal parts were read. */
   partial?: boolean;
   /** Where the constant was declared, when `via` is constant. */
@@ -111,7 +119,8 @@ export type SqlColumn = Loc & {
   default?: string;
   primaryKey?: boolean;
   unique?: boolean;
-  references?: { table: string; column?: string };
+  /** `schema`: the schema the reference names, when it is qualified. */
+  references?: { table: string; column?: string; schema?: string };
   /** COMMENT ON COLUMN / LABEL ON / inline COMMENT '...' / trailing `--` remark. */
   comment?: string;
   commentAt?: Loc;
@@ -121,7 +130,8 @@ export type SqlConstraint = Loc & {
   kind: "PRIMARY KEY" | "FOREIGN KEY" | "UNIQUE" | "CHECK";
   name?: string;
   columns: string[];
-  references?: { table: string; columns: string[] };
+  /** `schema`: the schema the reference names, when it is qualified. */
+  references?: { table: string; columns: string[]; schema?: string };
   /** CHECK text. */
   text?: string;
 };
@@ -139,24 +149,62 @@ export type SqlTable = Loc & {
   commentAt?: Loc;
   /** Views: the tables the defining query reads. */
   sources: string[];
+  /** Views: the schema a source is named with, when every reference to it names the same one. */
+  sourceSchemas?: Record<string, string>;
   endLine: number;
 };
 
 export type SqlIndex = Loc & {
   name: string;
   table: string;
+  /** The schema the ON clause names, when it is qualified. */
+  tableSchema?: string;
   columns: string[];
   unique: boolean;
 };
 
 export type SqlFile = { path: string; statements: number; gaps: EngineGap[] };
 
+/** A stored routine whose body was read (DB2 SQL PL, Oracle PL/SQL, T-SQL BEGIN ... END). */
+export type SqlRoutine = Loc & {
+  kind: "PROCEDURE" | "FUNCTION" | "TRIGGER";
+  /** Canonical name: unquoted, upper case, without schema. */
+  name: string;
+  schema?: string;
+  rawName: string;
+  endLine: number;
+  /** PL/SQL package members: the package (the name is then PACKAGE.MEMBER). */
+  package?: string;
+  /** Triggers: the table they fire on and the events (INSERT, UPDATE, DELETE). */
+  on?: string;
+  events?: string[];
+  /** Each table a static statement of the body names, with its verb (SELECT for a source). */
+  access: Array<Loc & { table: string; schema?: string; op: string }>;
+  /**
+   * CALL statements of the body. The name is PACKAGE.MEMBER when the callee is a package member
+   * (written `pkg.member`, or bare inside the same package); `qualifier` is the written prefix.
+   */
+  calls: Array<Loc & { name: string; qualifier?: string }>;
+};
+
 export type SqlModel = {
   files: SqlFile[];
   tables: SqlTable[];
   indexes: SqlIndex[];
+  /** Routines with a read body, sorted by name; the first definition of a name wins. */
+  routines: SqlRoutine[];
   /** Same table defined twice: the first definition wins; the others are listed here. */
   duplicates: Array<Loc & { name: string; first: Loc }>;
+  /**
+   * Bare names more than one explicit schema defines (`HR.EMPLOYEE`, `PAYROLL.EMPLOYEE`), sorted.
+   * Tables join by bare name across languages, so a reference to one of these may mean either.
+   */
+  ambiguous: Array<{ name: string; schemas: string[] }>;
+  /**
+   * For each ambiguous name, every schema's own definition (one per schema, the first wins),
+   * sorted by `SCHEMA.NAME`. The graph gives each a `table:SCHEMA.NAME` node.
+   */
+  schemaTables: SqlTable[];
 };
 
 export type JavaModel = {

@@ -26,6 +26,8 @@ export type RecordedRequest = {
   method: string;
   headers: Record<string, string>;
   body: string;
+  /** Raw bytes when the body was binary (file uploads). */
+  bytes?: Buffer;
 };
 
 export type Route = (req: RecordedRequest) => Response | Promise<Response> | undefined;
@@ -50,6 +52,7 @@ export function mockFetch(routes: Route[]): FetchLike & { calls: RecordedRequest
       method: (init?.method ?? "GET").toUpperCase(),
       headers,
       body: typeof init?.body === "string" ? init.body : "",
+      ...(init?.body instanceof Uint8Array ? { bytes: Buffer.from(init.body) } : {}),
     };
     calls.push(req);
     for (const route of routes) {

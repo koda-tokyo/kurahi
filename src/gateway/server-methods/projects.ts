@@ -4,7 +4,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
+import { resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import { auditSafe } from "../../audit/audit-log.js";
+import { loadConfig } from "../../config/config.js";
 import {
   addArtifactVersion,
   getArtifact,
@@ -13,7 +15,13 @@ import {
   setArtifactStatus,
 } from "../../projects/artifacts.js";
 import { loadArchivedChats, searchChatTranscripts, setChatArchived } from "../../projects/chats.js";
-import { loadProjectPack, PACK_SECTIONS, seedStarterPack } from "../../projects/pack.js";
+import { resolveDepartmentChat } from "../../projects/department-chat.js";
+import {
+  loadProjectPack,
+  PACK_SECTIONS,
+  seedStarterFiles,
+  seedStarterPack,
+} from "../../projects/pack.js";
 import {
   parseProjectSessionKey,
   projectSessionKey,
@@ -23,6 +31,7 @@ import {
   createProject,
   EXCLUDED_DIR_NAMES,
   getProject,
+  isAgentAllowed,
   loadProjects,
   setProjectMode,
   updateProject,
@@ -35,8 +44,11 @@ import {
 import { abortUpload, appendChunk, beginUpload, commitUpload } from "../../projects/uploads.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 
-/** Who is acting: a paired credential, a device key, or the shared owner token. */
+/** Who is acting: an SSO person, a paired credential, a device key, or the owner token. */
 export function actorOf(client: GatewayClient | null | undefined): string {
+  if (client?.person) {
+    return client.person.principal;
+  }
   if (client?.pairing) {
     return `pair:${client.pairing.fingerprint.slice(0, 12)}`;
   }
@@ -179,6 +191,14 @@ export const projectsHandlers: GatewayRequestHandlers = {
       const seeded = templateId
         ? seedStarterPack(project.id, path.join(resolveTemplatesDir(), "packs", templateId))
         : 0;
+      // Fill-in forms the template ships for its read-only folders (never over a file).
+      if (template?.starterFiles?.length) {
+        seedStarterFiles(
+          project,
+          path.join(resolveTemplatesDir(), "packs", template.id),
+          template.starterFiles,
+        );
+      }
       void auditSafe({
         identity: actor,
         scope: project.id,
@@ -264,12 +284,24 @@ export const projectsHandlers: GatewayRequestHandlers = {
   "projects.chatKey": ({ params, respond }) => {
     try {
       const project = projectOr404(params?.id);
-      const agentId =
-        typeof params?.agentId === "string" && params.agentId ? params.agentId : "main";
-      if (project.allowedAgents.length > 0 && !project.allowedAgents.includes(agentId)) {
+      if (project.archived) {
+        throw new Error("project not found or archived");
+      }
+      if (params.agentId !== undefined && (typeof params.agentId !== "string" || !params.agentId)) {
+        throw new Error("agentId must be a nonempty string");
+      }
+      const defaultAgentId = resolveDefaultAgentId(loadConfig());
+      const requestedAgentId = params.agentId;
+      const department =
+        params.departmentId === undefined
+          ? null
+          : resolveDepartmentChat(project, params.departmentId, defaultAgentId, requestedAgentId);
+      const agentId = department?.agentId ?? requestedAgentId ?? defaultAgentId;
+      if (!isAgentAllowed(project, agentId, defaultAgentId)) {
         throw new Error(`agent ${agentId} is not allowed in this project`);
       }
-      const chatId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const nonce = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const chatId = department ? `dept${department.departmentId}0${nonce}` : nonce;
       respond(true, { sessionKey: projectSessionKey(agentId, project.id, chatId) });
     } catch (err) {
       fail(respond, err);

@@ -262,6 +262,8 @@ Controls in code (`src/agents/messaging/`):
 Bundled plugins on a shared connector core (`src/connectors/business/`), off by default, with no
 tools until an administrator supplies the customer's own app registration. Reads are the default
 scopes; writes (`m365_mail_send`, `m365_calendar_create_event`, `gmail_send`) are separate opt-ins.
+`m365_mail_create_draft` (`Mail.ReadWrite`) is a draft-only opt-in without an approval step: it
+never sends, and a person sends the draft from Outlook.
 
 Controls in code:
 

@@ -19,6 +19,34 @@ import {
 import { assertScopes } from "./scopes.js";
 import { ConnectorTokenStore, getValidToken } from "./token-store.js";
 
+/**
+ * A credential that is not an interactive OAuth sign-in: a static API token pasted by an
+ * administrator (kintone, SmartHR) or a token minted from a signed assertion (LINE WORKS
+ * service account). It replaces the OAuth client for `configured`, `token()` and the headers.
+ */
+export type ConnectorCredential = {
+  /** A usable token; static credentials return the stored one, grants mint and store one. */
+  token: (store: ConnectorTokenStore, deps: ConnectorRuntimeDeps) => Promise<TokenSet>;
+  /** Headers that carry the token. Default `authorization: Bearer <token>`. */
+  headers?: (token: TokenSet, req: AuthorizedRequest) => Record<string, string>;
+};
+
+/** A static API token kept in the token store (`expiresAt` far in the future, never refreshed). */
+export function staticTokenCredential(
+  headers?: ConnectorCredential["headers"],
+): ConnectorCredential {
+  return {
+    token: async (store) => {
+      const t = store.load();
+      if (!t) {
+        throw new ConnectorError("not_authenticated", "no stored API token");
+      }
+      return t;
+    },
+    ...(headers ? { headers } : {}),
+  };
+}
+
 export type ConnectorRuntimeDeps = {
   fetch?: FetchLike;
   sleep?: Sleep;
@@ -32,6 +60,8 @@ export type ConnectorRuntimeOptions = {
   id: string;
   /** Undefined when the admin has not configured the connector. */
   client?: OAuthClientConfig;
+  /** Non-OAuth credential (API token, assertion grant); used instead of `client`. */
+  credential?: ConnectorCredential;
   /** Requests per second toward the provider. Default 8. */
   ratePerSecond?: number;
   maxRetries?: number;
@@ -41,9 +71,12 @@ export type AuthorizedRequest = {
   url: string;
   method?: string;
   headers?: Record<string, string>;
-  body?: string;
+  /** JSON or text, or raw bytes for a file upload. */
+  body?: string | Uint8Array<ArrayBuffer>;
   /** Scopes the operation needs; checked against the stored grant before any request. */
   scopes: readonly string[];
+  /** For a credential holding several tokens (kintone: one per app): which one to send. */
+  credentialKey?: string;
 };
 
 export class ConnectorRuntime {
@@ -64,7 +97,7 @@ export class ConnectorRuntime {
   }
 
   get configured(): boolean {
-    return Boolean(this.options.client);
+    return Boolean(this.options.client || this.options.credential);
   }
 
   get audit(): ConnectorAuditSink | undefined {
@@ -84,6 +117,9 @@ export class ConnectorRuntime {
   }
 
   async token(): Promise<TokenSet> {
+    if (this.options.credential) {
+      return this.options.credential.token(this.tokens, this.deps);
+    }
     return getValidToken(this.tokens, this.requireClient(), {
       fetch: this.deps.fetch,
       now: this.deps.now,
@@ -93,7 +129,9 @@ export class ConnectorRuntime {
   }
 
   async request(req: AuthorizedRequest): Promise<Response> {
-    this.requireClient();
+    if (!this.configured) {
+      throw new ConnectorError("not_configured", "connector is not configured");
+    }
     const stored = this.tokens.load();
     if (!stored) {
       throw new ConnectorError("not_authenticated", "no stored sign-in");
@@ -107,7 +145,9 @@ export class ConnectorRuntime {
         headers: {
           accept: "application/json",
           ...req.headers,
-          authorization: `Bearer ${token.accessToken}`,
+          ...(this.options.credential?.headers?.(token, req) ?? {
+            authorization: `Bearer ${token.accessToken}`,
+          }),
         },
         ...(req.body !== undefined ? { body: req.body } : {}),
       },

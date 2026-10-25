@@ -23,7 +23,7 @@ export type LanguageDef = {
   /** What the engine does today (active) or what is planned and not available (planned). */
   description: string;
   /** Name of the engine that analyses these files (active entries only). */
-  engine?: "cobol-jcl" | "java" | "sql-ddl" | "fortran" | "pli";
+  engine?: "cobol-jcl" | "java" | "sql-ddl" | "fortran" | "pli" | "plc";
   /** Files of the project this entry recognises. */
   detect(files: ScannedFile[]): ScannedFile[];
 };
@@ -74,8 +74,13 @@ export const LANGUAGES: LanguageDef[] = [
     status: "active",
     engine: "java",
     description:
-      "Classes, interfaces, enums, records, methods and fields with path:line; inheritance; statically resolvable call edges; Spring and JPA annotations; table access from JPA mappings, Spring Data repositories, @Query and JDBC SQL literals.",
-    detect: (fs) => fs.filter(isJava),
+      "Classes, interfaces, enums, records, methods and fields with path:line; inheritance; statically resolvable call edges; Spring and JPA annotations; table access from JPA mappings, Spring Data repositories, @Query, JDBC SQL literals and MyBatis mapper XML statements.",
+    detect: (fs) =>
+      fs.filter(
+        (f) =>
+          isJava(f) ||
+          sniff(/mybatis\.org\/\/DTD Mapper|<mapper\s[^>]*\bnamespace\s*=/i, [".xml"])(f),
+      ),
   },
   {
     id: "sql-ddl",
@@ -83,7 +88,7 @@ export const LANGUAGES: LanguageDef[] = [
     status: "active",
     engine: "sql-ddl",
     description:
-      "CREATE TABLE / VIEW / INDEX, columns with types, nullability and defaults, primary, foreign and unique keys, comments (ANSI, DB2, Oracle, PostgreSQL basics).",
+      "CREATE TABLE / VIEW / INDEX, columns with types, nullability and defaults, primary, foreign and unique keys, comments (ANSI, DB2, Oracle, PostgreSQL basics); stored procedures, functions and triggers with a BEGIN ... END body (DB2 SQL PL, Oracle PL/SQL): table access per statement, CALLs between routines and trigger events, dynamic SQL as gaps; a table name two schemas define gets one node per schema under the bare-name node.",
     detect: (fs) =>
       fs.filter(
         (f) =>
@@ -125,9 +130,10 @@ export const LANGUAGES: LanguageDef[] = [
       en: "PLC (IEC 61131-3: Structured Text, ladder exports)",
       ja: "PLC (IEC 61131-3: ST・ラダー出力)",
     },
-    status: "planned",
+    status: "active",
+    engine: "plc",
     description:
-      "Planned: no PLC engine yet. Structured Text sources and PLCopen XML / vendor ladder exports are counted only; POUs, I/O and tags are not analysed.",
+      "Structured Text sources (.st, .scl, .iecst): PROGRAM, FUNCTION_BLOCK and FUNCTION units with path:line; VAR sections with AT %I/%Q/%M addresses joined into an I/O map, addresses declared twice, function block instances resolved to their definition, assignments; TYPE structs, enums and aliases. PLCopen XML exports (TC6 0201): the same facts at the XML line, Structured Text bodies read, FBD/LD block calls and output/coil writes read, IL/SFC bodies reported as gaps. Source text only, never a controller. Vendor ladder exports (.l5x, .l5k, .tia, .exp) are counted, not read yet.",
     detect: (fs) =>
       fs.filter(
         (f) =>
@@ -188,17 +194,44 @@ export type Detection = {
   files: number;
   /** Up to 10 detected paths, sorted. */
   examples: string[];
+  /**
+   * Files whose content also matched this engine but that were routed to another one (see
+   * HOST_FIRST); present only when non-zero.
+   */
+  routedElsewhere?: number;
 };
 
-/** What each registry entry recognises in the scanned files (a file may match several). */
+/**
+ * Routing of content-sniffed files (no reliable extension) that match more than one active
+ * engine: the file goes to the first engine of this list only. A host-language program or job
+ * that embeds SQL (EXEC SQL CREATE VIEW, in-stream DDL under SYSIN) is that program or job, not
+ * a DDL script, exactly as it would be with a .cbl or .jcl extension.
+ */
+const HOST_FIRST: LanguageId[] = ["cobol", "pli", "fortran", "java", "sql-ddl", "plc-iec61131"];
+
+/**
+ * What each registry entry recognises in the scanned files. Planned entries may overlap (they
+ * only count); a content-sniffed file is routed to one active engine only (HOST_FIRST).
+ */
 export function detectLanguages(files: ScannedFile[]): {
   detections: Detection[];
   byLanguage: Map<LanguageId, ScannedFile[]>;
 } {
+  const hits = new Map(LANGUAGES.map((l) => [l.id, l.detect(files)]));
+  const owner = new Map<ScannedFile, LanguageId>();
+  for (const id of HOST_FIRST) {
+    for (const f of hits.get(id) ?? []) {
+      if (AMBIGUOUS.includes(f.ext) && !owner.has(f)) {
+        owner.set(f, id);
+      }
+    }
+  }
   const byLanguage = new Map<LanguageId, ScannedFile[]>();
   const detections = LANGUAGES.map((l) => {
-    const hit = l.detect(files);
+    const all = hits.get(l.id) ?? [];
+    const hit = l.status === "active" ? all.filter((f) => (owner.get(f) ?? l.id) === l.id) : all;
     byLanguage.set(l.id, hit);
+    const elsewhere = all.length - hit.length;
     return {
       id: l.id,
       label: l.label,
@@ -207,6 +240,7 @@ export function detectLanguages(files: ScannedFile[]): {
       ...(l.engine ? { engine: l.engine } : {}),
       files: hit.length,
       examples: hit.slice(0, 10).map((f) => f.path),
+      ...(elsewhere > 0 ? { routedElsewhere: elsewhere } : {}),
     };
   });
   return { detections, byLanguage };

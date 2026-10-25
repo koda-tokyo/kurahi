@@ -7,11 +7,13 @@
 // (attachments, artifacts); writes only in the folders the project rules mark writable; exec is
 // not granted. Directories named in EXCLUDED_DIR_NAMES are never reachable.
 
+import fs from "node:fs";
 import path from "node:path";
 import type { ToolPermissionSet } from "../agents/permissions.js";
 import type { Project, ProjectTemplate } from "./types.js";
 import { parsePermissionRule } from "../agents/permissions.js";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
+import { isDepartmentId, type DepartmentId } from "../workitems/types.js";
 import { excludedPathRegexes, projectDataDir, projectMode } from "./store.js";
 import { loadTemplates } from "./templates.js";
 
@@ -34,6 +36,12 @@ export function parseProjectSessionKey(key: string | undefined | null): ProjectS
   return m ? { agentId: parsed.agentId, projectId: m[1], chatId: m[2] } : null;
 }
 
+/** Department tags are conversation context, never access grants. */
+export function departmentIdOfProjectChat(chatId: string): DepartmentId | null {
+  const match = /^dept([a-z]+)0[a-z0-9]+$/.exec(chatId);
+  return match && chatId.length <= 32 && isDepartmentId(match[1]) ? match[1] : null;
+}
+
 function posix(p: string): string {
   return p.split(path.sep).join("/");
 }
@@ -49,12 +57,58 @@ export function effectiveWritable(project: Pick<Project, "rules">): string[] {
   });
 }
 
+function isInside(root: string, candidate: string): boolean {
+  const rel = path.relative(root, candidate);
+  return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+/**
+ * Resolve a path a tool was given (relative to the project folder, or absolute inside it) to the
+ * real path of a regular file in that folder. Refused: leaving the folder lexically (`../`, an
+ * absolute path elsewhere) or through a symbolic link (checked on the real path), an excluded
+ * folder, and anything that is not a regular file. Error messages never echo the path.
+ */
+export function resolveProjectFile(folder: string, input: unknown): string {
+  const text = typeof input === "string" ? input.trim() : "";
+  if (!text || text.includes("\0")) {
+    throw new Error("path is required");
+  }
+  let root: string;
+  try {
+    root = fs.realpathSync(folder);
+  } catch {
+    throw new Error("the project folder is not available");
+  }
+  const lexical = path.resolve(root, text);
+  if (!isInside(root, lexical)) {
+    throw new Error("the path is outside the project folder");
+  }
+  let real: string;
+  try {
+    real = fs.realpathSync(lexical);
+  } catch {
+    throw new Error("the file does not exist in the project folder");
+  }
+  if (!isInside(root, real)) {
+    throw new Error("the path leads outside the project folder through a symbolic link");
+  }
+  if (excludedPathRegexes().some((re) => re.test(posix(path.relative(root, real))))) {
+    throw new Error("the path is in an excluded folder");
+  }
+  if (!fs.statSync(real).isFile()) {
+    throw new Error("the path is not a regular file");
+  }
+  return real;
+}
+
 /**
  * Legacy analyser tools (extensions/legacy-analyzer). Reads: the permission guard classifies each
  * call as a read of its `path` (src/agents/permissions.ts), so they reach only the project folder
- * and never an excluded folder such as `_answer-keys`. Their only write is the analyser's own
- * cache folder (`output/.legacy-index/`: the index, the latest design document and wave plan),
- * never a file the agent chooses.
+ * and never an excluded folder such as `_answer-keys`. They write the analyser's own cache folder
+ * (`output/.legacy-index/`: the index, the latest design document and wave plan, the
+ * change-detection baseline) and, for legacy_design_doc with output_format docx, a new Word file
+ * in `output/design-docs/` under the office path guards (only where the mode makes output/
+ * writable, never over an existing file); never a file the agent chooses.
  */
 export const LEGACY_ANALYZER_TOOLS = [
   "legacy_index",
@@ -64,6 +118,8 @@ export const LEGACY_ANALYZER_TOOLS = [
   "legacy_impact",
   "legacy_design_doc",
   "legacy_wave_plan",
+  "legacy_changes",
+  "legacy_baseline_advance",
   "modernise_plan",
   "modernise_crud",
   "modernise_impact",
@@ -145,7 +201,11 @@ export function projectPluginIds(
 }
 
 /** Context the agent receives with each message in a project session (not shown in the UI). */
-export function projectContextForAgent(project: Project, packText = ""): string {
+export function projectContextForAgent(
+  project: Project,
+  packText = "",
+  departmentContext = "",
+): string {
   const lines = [
     `[Project: ${project.name}]`,
     `Project folder: ${project.folder}`,
@@ -181,6 +241,9 @@ export function projectContextForAgent(project: Project, packText = ""): string 
   );
   if (project.rules.artifactApprovalRequired) {
     lines.push("Outputs of this project need approval before they are final.");
+  }
+  if (departmentContext) {
+    lines.push(departmentContext);
   }
   const body = packText ? `${lines.join("\n")}\n\n${packText}` : lines.join("\n");
   return `[[kurahi-project]]\n${body}\n[[/kurahi-project]]`;

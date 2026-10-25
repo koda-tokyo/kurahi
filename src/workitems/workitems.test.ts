@@ -306,8 +306,12 @@ describe("lifecycle", () => {
       expect(req.message).toContain("receipt missing");
       return { text: "draft two" };
     });
-    expect((await again.done)?.draft?.version).toBe(1);
-    expect((await again.done)?.runIds).toHaveLength(2);
+    // The re-draft is the next version of the same draft artifact (so the rounds can be diffed).
+    const redrafted = (await again.done)!;
+    expect(redrafted.draft?.version).toBe(2);
+    expect(redrafted.draft?.artifactId).toBe(back.draft?.artifactId);
+    expect(getArtifact(redrafted.draft!.artifactId, null).artifact.status).toBe("review");
+    expect(redrafted.runIds).toHaveLength(2);
   });
 
   it("a failed run goes back to where it started, with the error kept", async () => {

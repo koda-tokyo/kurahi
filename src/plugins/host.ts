@@ -13,6 +13,7 @@ import type { PluginCandidate } from "./discovery.js";
 import type { PluginLoadContext, PluginInstance } from "./loader.js";
 import type { PluginRecord, PluginRegistry } from "./registry.js";
 import type { PluginServicesHandle } from "./services.js";
+import { resolveReleaseProfile, type ReleaseProfile } from "../packaging/release-profile.js";
 import { resolveUserPath } from "../utils.js";
 import { normalizePluginsConfig, type NormalizedPluginsConfig } from "./config-state.js";
 import { discoverKoLoPlugins } from "./discovery.js";
@@ -92,9 +93,14 @@ export function resolvePluginHotReloadSettings(cfg: KoLoConfig): PluginHotReload
   return { enabled, watch, debounceMs };
 }
 
-function buildCacheKey(workspaceDir: string | undefined, plugins: NormalizedPluginsConfig) {
+/** Same key as buildCacheKey in loader.ts (the release profile is part of it). */
+function buildCacheKey(
+  workspaceDir: string | undefined,
+  plugins: NormalizedPluginsConfig,
+  profile: ReleaseProfile,
+) {
   const workspaceKey = workspaceDir ? resolveUserPath(workspaceDir) : "";
-  return `${workspaceKey}::${JSON.stringify(plugins)}`;
+  return `${workspaceKey}::${profile}::${JSON.stringify(plugins)}`;
 }
 
 function globalPolicyChanged(a: NormalizedPluginsConfig, b: NormalizedPluginsConfig): boolean {
@@ -312,20 +318,23 @@ export function createPluginHost(params: {
           full: false,
         };
         const prevNormalized = ctx.normalized;
+        const prevProfile = resolveReleaseProfile(ctx.cfg);
         const nextNormalized = normalizePluginsConfig(nextConfig.plugins);
+        const nextProfile = resolveReleaseProfile(nextConfig);
         ctx.cfg = nextConfig;
         ctx.normalized = nextNormalized;
         ctx.memory.slot = nextNormalized.slots.memory;
         // Re-key the registry cache so a later loadKoLoPlugins(nextConfig) returns this registry.
         if (cacheKey !== null) {
           registryCache.delete(cacheKey);
-          cacheKey = buildCacheKey(ctx.workspaceDir, nextNormalized);
+          cacheKey = buildCacheKey(ctx.workspaceDir, nextNormalized, nextProfile);
           registryCache.set(cacheKey, ctx.registry);
           setActivePluginRegistry(ctx.registry, cacheKey);
         }
 
         const affected = new Set<string>();
-        if (globalPolicyChanged(prevNormalized, nextNormalized)) {
+        // A release-profile switch re-evaluates every plugin, like a global policy change.
+        if (globalPolicyChanged(prevNormalized, nextNormalized) || prevProfile !== nextProfile) {
           result.full = true;
           for (const record of ctx.registry.plugins) {
             affected.add(record.id);

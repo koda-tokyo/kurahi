@@ -75,6 +75,1668 @@ export type AgentsListResult = {
   }[];
 };
 
+export type AutopilotApprovalsCreateParams = {
+  projectId: string;
+  routineId: string;
+  action: string;
+  scope: {
+    addresses?: string[];
+    domains?: string[];
+    targets?: string[];
+    templates?: string[];
+    maxPerDay: number;
+  };
+  reason: string;
+  expiresAt: string;
+};
+
+export type AutopilotApprovalsCreateResult = {
+  approval: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    action: string;
+    scope: {
+      addresses: string[];
+      domains: string[];
+      targets: string[];
+      templates: string[];
+      maxPerDay: number;
+    };
+    reason: string;
+    createdBy: string;
+    createdAt: string;
+    expiresAt: string;
+    revokedAt: string | null;
+    revokedBy: string | null;
+    revokeReason: string | null;
+    state: "active" | "expired" | "revoked";
+  };
+};
+
+export type AutopilotApprovalsListParams = {
+  projectId: string;
+  routineId?: string;
+  includeInactive?: boolean;
+};
+
+export type AutopilotApprovalsListResult = {
+  approvals: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    action: string;
+    scope: {
+      addresses: string[];
+      domains: string[];
+      targets: string[];
+      templates: string[];
+      maxPerDay: number;
+    };
+    reason: string;
+    createdBy: string;
+    createdAt: string;
+    expiresAt: string;
+    revokedAt: string | null;
+    revokedBy: string | null;
+    revokeReason: string | null;
+    state: "active" | "expired" | "revoked";
+  }[];
+};
+
+export type AutopilotApprovalsRevokeParams = {
+  projectId: string;
+  id: string;
+  reason: string;
+};
+
+export type AutopilotApprovalsRevokeResult = {
+  approval: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    action: string;
+    scope: {
+      addresses: string[];
+      domains: string[];
+      targets: string[];
+      templates: string[];
+      maxPerDay: number;
+    };
+    reason: string;
+    createdBy: string;
+    createdAt: string;
+    expiresAt: string;
+    revokedAt: string | null;
+    revokedBy: string | null;
+    revokeReason: string | null;
+    state: "active" | "expired" | "revoked";
+  };
+};
+
+export type AutopilotAutonomyAcceptParams = {
+  projectId: string;
+  routineId: string;
+  kind: "promote" | "demote";
+  proposed: "L0" | "L1" | "L2" | "L3";
+  reason: string;
+};
+
+export type AutopilotAutonomyAcceptResult = {
+  proposal: {
+    routineId: string;
+    current: "L0" | "L1" | "L2" | "L3";
+    kind: "promote" | "demote" | "hold";
+    proposed: "L0" | "L1" | "L2" | "L3";
+    reason: "low_correction_rate" | "high_correction_rate" | "failed_runs" | "insufficient_evidence" | "at_top" | "within_band";
+    needsStandingApproval: boolean;
+    evidence: {
+      from: string;
+      to: string;
+      runs: number;
+      failedRuns: number;
+      workItems: number;
+      corrected: number;
+      correctionRate: number | null;
+      escalated: number;
+    };
+    fileLevel: "L0" | "L1" | "L2" | "L3";
+    acceptBlocker: ("above_file_level" | "no_standing_approval") | null;
+    declined: {
+      by: string;
+      at: string;
+      reason: string;
+    } | null;
+  };
+  change: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    kind: "accept" | "demotion";
+    fileLevel: "L0" | "L1" | "L2" | "L3";
+    from: "L0" | "L1" | "L2" | "L3";
+    to: "L0" | "L1" | "L2" | "L3";
+    by: string;
+    at: string;
+    reason: string;
+    cause: ("watchdog" | "reported_error") | null;
+    runId: string | null;
+    itemId: string | null;
+    proposal: {
+      kind: "promote" | "demote";
+      proposed: "L0" | "L1" | "L2" | "L3";
+    } | null;
+    evidence: {
+      bundle: string;
+      root: string;
+    } | null;
+  };
+  routine: {
+    id: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    enabled: boolean;
+    trigger: {
+      kind: "schedule";
+      expr: string;
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "interval";
+      minutes: number;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "event";
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    };
+    agentId: string | null;
+    gather: {
+      id: string;
+      tool: string;
+      each?: {
+        from: string;
+        match: string;
+        arg: string;
+        max: number;
+      };
+      gate?: boolean;
+    }[];
+    reasoning: {
+      promptId: string | null;
+      schemaId: string;
+      backend: string | null;
+      model: string | null;
+      timeoutSeconds: number;
+    };
+    actions: {
+      id: string;
+      class: "prepare" | "internal-reversible" | "external" | "never";
+      label: {
+        ja?: string;
+        en?: string;
+      };
+    }[];
+    level: "L0" | "L1" | "L2" | "L3";
+    effectiveLevel: "L0" | "L1" | "L2" | "L3";
+    override: {
+      level: "L0" | "L1" | "L2" | "L3";
+      kind: "accepted" | "demoted";
+      by: string;
+      at: string;
+      reason: string;
+      changeId: string;
+    } | null;
+    lastDemotion: {
+      at: string;
+      from: "L0" | "L1" | "L2" | "L3";
+      to: "L0" | "L1" | "L2" | "L3";
+      cause: "watchdog" | "reported_error";
+      by: string;
+      reason: string;
+      runId: string | null;
+      itemId: string | null;
+      changeId: string;
+    } | null;
+    limits: {
+      maxItemsPerRun: number;
+      maxActionsPerDay: number;
+    };
+    requireCitations: boolean;
+    baselineMinutes: number | null;
+    queue: string | null;
+    knowledge: string[];
+    state: {
+      paused: boolean;
+      pausedBy: string | null;
+      pausedAt: string | null;
+      pauseReason: string | null;
+      cronJobId: string | null;
+      lastRunId: string | null;
+      lastRunAt: string | null;
+      lastStatus: string | null;
+      actionsToday: number;
+      watchdog: {
+        baseline: "baseline" | "static";
+        runs: number;
+        thresholds: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        };
+        p95: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        } | null;
+        lastTrip: {
+          at: string;
+          runId: string;
+          reasons: string[];
+        } | null;
+        trips: number;
+        toolUseStreak: number;
+      };
+      triggers: {
+        source: string;
+        status: "active" | "degraded" | "disabled";
+        lastSignalAt: string | null;
+        lastError: string | null;
+      }[];
+    };
+  };
+};
+
+export type AutopilotAutonomyDeclineParams = {
+  projectId: string;
+  routineId: string;
+  kind: "promote" | "demote";
+  proposed: "L0" | "L1" | "L2" | "L3";
+  reason: string;
+};
+
+export type AutopilotAutonomyDeclineResult = {
+  proposal: {
+    routineId: string;
+    current: "L0" | "L1" | "L2" | "L3";
+    kind: "promote" | "demote" | "hold";
+    proposed: "L0" | "L1" | "L2" | "L3";
+    reason: "low_correction_rate" | "high_correction_rate" | "failed_runs" | "insufficient_evidence" | "at_top" | "within_band";
+    needsStandingApproval: boolean;
+    evidence: {
+      from: string;
+      to: string;
+      runs: number;
+      failedRuns: number;
+      workItems: number;
+      corrected: number;
+      correctionRate: number | null;
+      escalated: number;
+    };
+    fileLevel: "L0" | "L1" | "L2" | "L3";
+    acceptBlocker: ("above_file_level" | "no_standing_approval") | null;
+    declined: {
+      by: string;
+      at: string;
+      reason: string;
+    } | null;
+  };
+};
+
+export type AutopilotAutonomyProposalsParams = {
+  projectId: string;
+};
+
+export type AutopilotAutonomyProposalsResult = {
+  policy: {
+    windowDays: number;
+    minItemsToPromote: number;
+    promoteAtOrBelow: number;
+    minItemsToDemote: number;
+    demoteAtOrAbove: number;
+  };
+  proposals: {
+    routineId: string;
+    current: "L0" | "L1" | "L2" | "L3";
+    kind: "promote" | "demote" | "hold";
+    proposed: "L0" | "L1" | "L2" | "L3";
+    reason: "low_correction_rate" | "high_correction_rate" | "failed_runs" | "insufficient_evidence" | "at_top" | "within_band";
+    needsStandingApproval: boolean;
+    evidence: {
+      from: string;
+      to: string;
+      runs: number;
+      failedRuns: number;
+      workItems: number;
+      corrected: number;
+      correctionRate: number | null;
+      escalated: number;
+    };
+    fileLevel: "L0" | "L1" | "L2" | "L3";
+    acceptBlocker: ("above_file_level" | "no_standing_approval") | null;
+    declined: {
+      by: string;
+      at: string;
+      reason: string;
+    } | null;
+  }[];
+};
+
+export type AutopilotBriefGetParams = {
+  projectId: string;
+  from?: string;
+  to?: string;
+};
+
+export type AutopilotBriefGetResult = {
+  brief: {
+    version: 1;
+    projectId: string;
+    projectName: string;
+    principal: string;
+    name: string | null;
+    window: {
+      from: string;
+      to: string;
+    };
+    generatedAt: string;
+    handled: {
+      runs: number;
+      items: number;
+      prepared: number;
+      acted: number;
+      escalated: number;
+      handled: number;
+      failedRuns: number;
+      drafts: number;
+      areas: {
+        runs: number;
+        items: number;
+        prepared: number;
+        acted: number;
+        escalated: number;
+        handled: number;
+        edition: "industrial" | "business" | "scholars" | "core";
+        area: string;
+        department: string | null;
+      }[];
+    };
+    documents: {
+      runId: string;
+      routineId: string;
+      path: string;
+      at: string;
+    }[];
+    waiting: {
+      decisions: {
+        projectId: string;
+        itemId: string;
+        title: string;
+        queue: string;
+        status: string;
+        priority: string;
+        dueAt: string | null;
+        overdue: boolean;
+      }[];
+      flagged: {
+        projectId: string;
+        itemId: string;
+        title: string;
+        queue: string;
+        status: string;
+        priority: string;
+        dueAt: string | null;
+        overdue: boolean;
+        flags: string[];
+      }[];
+      proposals: {
+        routineId: string;
+        kind: "promote" | "demote";
+        current: "L0" | "L1" | "L2" | "L3";
+        proposed: "L0" | "L1" | "L2" | "L3";
+        reason: string;
+        needsStandingApproval: boolean;
+        acceptBlocker: ("above_file_level" | "no_standing_approval") | null;
+      }[];
+    };
+    commitments: {
+      projectId: string;
+      itemId: string;
+      title: string;
+      queue: string;
+      status: string;
+      priority: string;
+      dueAt: string | null;
+      overdue: boolean;
+    }[];
+    truncated?: {
+      documents: boolean;
+      decisions: boolean;
+      flagged: boolean;
+      commitments: boolean;
+    };
+    problems: {
+      watchdog: {
+        routineId: string;
+        runId: string;
+        at: string;
+        reasons: string[];
+      }[];
+      runs: {
+        routineId: string;
+        runId: string;
+        at: string;
+        status: "failed" | "skipped";
+        reason: string | null;
+      }[];
+      demotions: {
+        routineId: string;
+        at: string;
+        from: "L0" | "L1" | "L2" | "L3";
+        to: "L0" | "L1" | "L2" | "L3";
+        cause: string;
+      }[];
+      paused: {
+        routineId: string;
+        pausedBy: string | null;
+        pausedAt: string | null;
+        reason: string | null;
+      }[];
+      routinesError: string | null;
+      control: {
+        stopped: boolean;
+        emergencyStop: boolean;
+      };
+    };
+  };
+};
+
+export type AutopilotChangedEvent = {
+  projectId: string;
+  routineId: string | null;
+  kind: "run" | "paused" | "resumed" | "approval" | "autonomy" | "sync" | "watchdog" | "trigger" | "stopAll" | "startAll";
+  runId?: string;
+  at: string;
+};
+
+export type AutopilotPauseParams = {
+  projectId: string;
+  routineId: string;
+  reason: string;
+};
+
+export type AutopilotPauseResult = {
+  routine: {
+    id: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    enabled: boolean;
+    trigger: {
+      kind: "schedule";
+      expr: string;
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "interval";
+      minutes: number;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "event";
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    };
+    agentId: string | null;
+    gather: {
+      id: string;
+      tool: string;
+      each?: {
+        from: string;
+        match: string;
+        arg: string;
+        max: number;
+      };
+      gate?: boolean;
+    }[];
+    reasoning: {
+      promptId: string | null;
+      schemaId: string;
+      backend: string | null;
+      model: string | null;
+      timeoutSeconds: number;
+    };
+    actions: {
+      id: string;
+      class: "prepare" | "internal-reversible" | "external" | "never";
+      label: {
+        ja?: string;
+        en?: string;
+      };
+    }[];
+    level: "L0" | "L1" | "L2" | "L3";
+    effectiveLevel: "L0" | "L1" | "L2" | "L3";
+    override: {
+      level: "L0" | "L1" | "L2" | "L3";
+      kind: "accepted" | "demoted";
+      by: string;
+      at: string;
+      reason: string;
+      changeId: string;
+    } | null;
+    lastDemotion: {
+      at: string;
+      from: "L0" | "L1" | "L2" | "L3";
+      to: "L0" | "L1" | "L2" | "L3";
+      cause: "watchdog" | "reported_error";
+      by: string;
+      reason: string;
+      runId: string | null;
+      itemId: string | null;
+      changeId: string;
+    } | null;
+    limits: {
+      maxItemsPerRun: number;
+      maxActionsPerDay: number;
+    };
+    requireCitations: boolean;
+    baselineMinutes: number | null;
+    queue: string | null;
+    knowledge: string[];
+    state: {
+      paused: boolean;
+      pausedBy: string | null;
+      pausedAt: string | null;
+      pauseReason: string | null;
+      cronJobId: string | null;
+      lastRunId: string | null;
+      lastRunAt: string | null;
+      lastStatus: string | null;
+      actionsToday: number;
+      watchdog: {
+        baseline: "baseline" | "static";
+        runs: number;
+        thresholds: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        };
+        p95: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        } | null;
+        lastTrip: {
+          at: string;
+          runId: string;
+          reasons: string[];
+        } | null;
+        trips: number;
+        toolUseStreak: number;
+      };
+      triggers: {
+        source: string;
+        status: "active" | "degraded" | "disabled";
+        lastSignalAt: string | null;
+        lastError: string | null;
+      }[];
+    };
+  };
+};
+
+export type AutopilotReportErrorParams = {
+  projectId: string;
+  itemId: string;
+  reason: string;
+};
+
+export type AutopilotReportErrorResult = {
+  change: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    kind: "accept" | "demotion";
+    fileLevel: "L0" | "L1" | "L2" | "L3";
+    from: "L0" | "L1" | "L2" | "L3";
+    to: "L0" | "L1" | "L2" | "L3";
+    by: string;
+    at: string;
+    reason: string;
+    cause: ("watchdog" | "reported_error") | null;
+    runId: string | null;
+    itemId: string | null;
+    proposal: {
+      kind: "promote" | "demote";
+      proposed: "L0" | "L1" | "L2" | "L3";
+    } | null;
+    evidence: {
+      bundle: string;
+      root: string;
+    } | null;
+  };
+  routine: {
+    id: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    enabled: boolean;
+    trigger: {
+      kind: "schedule";
+      expr: string;
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "interval";
+      minutes: number;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "event";
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    };
+    agentId: string | null;
+    gather: {
+      id: string;
+      tool: string;
+      each?: {
+        from: string;
+        match: string;
+        arg: string;
+        max: number;
+      };
+      gate?: boolean;
+    }[];
+    reasoning: {
+      promptId: string | null;
+      schemaId: string;
+      backend: string | null;
+      model: string | null;
+      timeoutSeconds: number;
+    };
+    actions: {
+      id: string;
+      class: "prepare" | "internal-reversible" | "external" | "never";
+      label: {
+        ja?: string;
+        en?: string;
+      };
+    }[];
+    level: "L0" | "L1" | "L2" | "L3";
+    effectiveLevel: "L0" | "L1" | "L2" | "L3";
+    override: {
+      level: "L0" | "L1" | "L2" | "L3";
+      kind: "accepted" | "demoted";
+      by: string;
+      at: string;
+      reason: string;
+      changeId: string;
+    } | null;
+    lastDemotion: {
+      at: string;
+      from: "L0" | "L1" | "L2" | "L3";
+      to: "L0" | "L1" | "L2" | "L3";
+      cause: "watchdog" | "reported_error";
+      by: string;
+      reason: string;
+      runId: string | null;
+      itemId: string | null;
+      changeId: string;
+    } | null;
+    limits: {
+      maxItemsPerRun: number;
+      maxActionsPerDay: number;
+    };
+    requireCitations: boolean;
+    baselineMinutes: number | null;
+    queue: string | null;
+    knowledge: string[];
+    state: {
+      paused: boolean;
+      pausedBy: string | null;
+      pausedAt: string | null;
+      pauseReason: string | null;
+      cronJobId: string | null;
+      lastRunId: string | null;
+      lastRunAt: string | null;
+      lastStatus: string | null;
+      actionsToday: number;
+      watchdog: {
+        baseline: "baseline" | "static";
+        runs: number;
+        thresholds: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        };
+        p95: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        } | null;
+        lastTrip: {
+          at: string;
+          runId: string;
+          reasons: string[];
+        } | null;
+        trips: number;
+        toolUseStreak: number;
+      };
+      triggers: {
+        source: string;
+        status: "active" | "degraded" | "disabled";
+        lastSignalAt: string | null;
+        lastError: string | null;
+      }[];
+    };
+  };
+};
+
+export type AutopilotResumeParams = {
+  projectId: string;
+  routineId: string;
+  reason?: string;
+};
+
+export type AutopilotResumeResult = {
+  routine: {
+    id: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    enabled: boolean;
+    trigger: {
+      kind: "schedule";
+      expr: string;
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "interval";
+      minutes: number;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "event";
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    };
+    agentId: string | null;
+    gather: {
+      id: string;
+      tool: string;
+      each?: {
+        from: string;
+        match: string;
+        arg: string;
+        max: number;
+      };
+      gate?: boolean;
+    }[];
+    reasoning: {
+      promptId: string | null;
+      schemaId: string;
+      backend: string | null;
+      model: string | null;
+      timeoutSeconds: number;
+    };
+    actions: {
+      id: string;
+      class: "prepare" | "internal-reversible" | "external" | "never";
+      label: {
+        ja?: string;
+        en?: string;
+      };
+    }[];
+    level: "L0" | "L1" | "L2" | "L3";
+    effectiveLevel: "L0" | "L1" | "L2" | "L3";
+    override: {
+      level: "L0" | "L1" | "L2" | "L3";
+      kind: "accepted" | "demoted";
+      by: string;
+      at: string;
+      reason: string;
+      changeId: string;
+    } | null;
+    lastDemotion: {
+      at: string;
+      from: "L0" | "L1" | "L2" | "L3";
+      to: "L0" | "L1" | "L2" | "L3";
+      cause: "watchdog" | "reported_error";
+      by: string;
+      reason: string;
+      runId: string | null;
+      itemId: string | null;
+      changeId: string;
+    } | null;
+    limits: {
+      maxItemsPerRun: number;
+      maxActionsPerDay: number;
+    };
+    requireCitations: boolean;
+    baselineMinutes: number | null;
+    queue: string | null;
+    knowledge: string[];
+    state: {
+      paused: boolean;
+      pausedBy: string | null;
+      pausedAt: string | null;
+      pauseReason: string | null;
+      cronJobId: string | null;
+      lastRunId: string | null;
+      lastRunAt: string | null;
+      lastStatus: string | null;
+      actionsToday: number;
+      watchdog: {
+        baseline: "baseline" | "static";
+        runs: number;
+        thresholds: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        };
+        p95: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        } | null;
+        lastTrip: {
+          at: string;
+          runId: string;
+          reasons: string[];
+        } | null;
+        trips: number;
+        toolUseStreak: number;
+      };
+      triggers: {
+        source: string;
+        status: "active" | "degraded" | "disabled";
+        lastSignalAt: string | null;
+        lastError: string | null;
+      }[];
+    };
+  };
+};
+
+export type AutopilotRoutinesListParams = {
+  projectId: string;
+};
+
+export type AutopilotRoutinesListResult = {
+  routines: {
+    id: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    enabled: boolean;
+    trigger: {
+      kind: "schedule";
+      expr: string;
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "interval";
+      minutes: number;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    } | {
+      kind: "event";
+      tz: string;
+      events?: {
+        sources: ({
+          source: "m365.mail";
+          folder: string;
+        } | {
+          source: "workitems";
+          queue: string | null;
+          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+        } | {
+          source: "deadline";
+          withinHours: number;
+        } | {
+          source: "files";
+          folder: string;
+        })[];
+        debounceSeconds: number;
+        maxRunsPerHour: number;
+      };
+    };
+    agentId: string | null;
+    gather: {
+      id: string;
+      tool: string;
+      each?: {
+        from: string;
+        match: string;
+        arg: string;
+        max: number;
+      };
+      gate?: boolean;
+    }[];
+    reasoning: {
+      promptId: string | null;
+      schemaId: string;
+      backend: string | null;
+      model: string | null;
+      timeoutSeconds: number;
+    };
+    actions: {
+      id: string;
+      class: "prepare" | "internal-reversible" | "external" | "never";
+      label: {
+        ja?: string;
+        en?: string;
+      };
+    }[];
+    level: "L0" | "L1" | "L2" | "L3";
+    effectiveLevel: "L0" | "L1" | "L2" | "L3";
+    override: {
+      level: "L0" | "L1" | "L2" | "L3";
+      kind: "accepted" | "demoted";
+      by: string;
+      at: string;
+      reason: string;
+      changeId: string;
+    } | null;
+    lastDemotion: {
+      at: string;
+      from: "L0" | "L1" | "L2" | "L3";
+      to: "L0" | "L1" | "L2" | "L3";
+      cause: "watchdog" | "reported_error";
+      by: string;
+      reason: string;
+      runId: string | null;
+      itemId: string | null;
+      changeId: string;
+    } | null;
+    limits: {
+      maxItemsPerRun: number;
+      maxActionsPerDay: number;
+    };
+    requireCitations: boolean;
+    baselineMinutes: number | null;
+    queue: string | null;
+    knowledge: string[];
+    state: {
+      paused: boolean;
+      pausedBy: string | null;
+      pausedAt: string | null;
+      pauseReason: string | null;
+      cronJobId: string | null;
+      lastRunId: string | null;
+      lastRunAt: string | null;
+      lastStatus: string | null;
+      actionsToday: number;
+      watchdog: {
+        baseline: "baseline" | "static";
+        runs: number;
+        thresholds: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        };
+        p95: {
+          gatherCalls: number;
+          bytesRead: number;
+          items: number;
+          actions: number;
+          durationMs: number;
+        } | null;
+        lastTrip: {
+          at: string;
+          runId: string;
+          reasons: string[];
+        } | null;
+        trips: number;
+        toolUseStreak: number;
+      };
+      triggers: {
+        source: string;
+        status: "active" | "degraded" | "disabled";
+        lastSignalAt: string | null;
+        lastError: string | null;
+      }[];
+    };
+  }[];
+  source: {
+    kind: "project" | "admin" | "template" | "none";
+    path: string | null;
+  };
+  digest: string;
+  error: string | null;
+  catalogue: {
+    id: string;
+    class: "prepare" | "internal-reversible" | "external" | "never";
+    editions: ("industrial" | "business" | "scholars" | "core")[];
+    label: {
+      ja?: string;
+      en?: string;
+    };
+    executor: "tool" | "workitem" | "proposal" | "office" | "brief" | "none";
+    tools: string[];
+    source: string;
+  }[];
+  editions: Record<string, string[]>;
+  flags: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "unverified_citation" | "malicious_attachment" | "needs_review" | "duplicate" | "overdue" | "missing_data")[];
+  control: {
+    stopped: boolean;
+    by: string | null;
+    at: string | null;
+    reason: string | null;
+    emergencyStop: boolean;
+  };
+};
+
+export type AutopilotRoutinesSyncParams = {
+  projectId: string;
+};
+
+export type AutopilotRoutinesSyncResult = {
+  added: string[];
+  updated: string[];
+  removed: string[];
+  unchanged: string[];
+};
+
+export type AutopilotRunParams = {
+  projectId: string;
+  routineId: string;
+};
+
+export type AutopilotRunResult = {
+  run: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    level: "L0" | "L1" | "L2" | "L3";
+    trigger: "schedule" | "manual" | "event";
+    triggeredBy: string;
+    triggerSources?: string[];
+    startedAt: string;
+    endedAt: string;
+    status: "ok" | "escalated" | "no_input" | "failed" | "skipped";
+    reason: string | null;
+    routineDigest: string;
+    reasoning: {
+      backend: string | null;
+      model: string | null;
+      ms: number;
+      outputSha256: string | null;
+      retried?: boolean;
+    };
+    counts: {
+      items: number;
+      prepared: number;
+      acted: number;
+      escalated: number;
+      refused: number;
+      failed: number;
+      handled: number;
+      deferred: number;
+    };
+    workItems: string[];
+    evidence: {
+      bundle: string;
+      root: string;
+    } | null;
+    watchdog?: {
+      tripped: boolean;
+      reasons: string[];
+      baseline: "baseline" | "static";
+      metrics: {
+        gatherCalls: number;
+        bytesRead: number;
+        items: number;
+        actions: number;
+        durationMs: number;
+      } | null;
+    } | null;
+  };
+};
+
+export type AutopilotRunsGetParams = {
+  projectId: string;
+  id: string;
+};
+
+export type AutopilotRunsGetResult = {
+  run: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    level: "L0" | "L1" | "L2" | "L3";
+    trigger: "schedule" | "manual" | "event";
+    triggeredBy: string;
+    triggerSources?: string[];
+    startedAt: string;
+    endedAt: string;
+    status: "ok" | "escalated" | "no_input" | "failed" | "skipped";
+    reason: string | null;
+    routineDigest: string;
+    reasoning: {
+      backend: string | null;
+      model: string | null;
+      ms: number;
+      outputSha256: string | null;
+      retried?: boolean;
+    };
+    counts: {
+      items: number;
+      prepared: number;
+      acted: number;
+      escalated: number;
+      refused: number;
+      failed: number;
+      handled: number;
+      deferred: number;
+    };
+    workItems: string[];
+    evidence: {
+      bundle: string;
+      root: string;
+    } | null;
+    watchdog?: {
+      tripped: boolean;
+      reasons: string[];
+      baseline: "baseline" | "static";
+      metrics: {
+        gatherCalls: number;
+        bytesRead: number;
+        items: number;
+        actions: number;
+        durationMs: number;
+      } | null;
+    } | null;
+    gather: {
+      id: string;
+      tool: string;
+      calls: number;
+      bytes: number;
+      error: string | null;
+    }[];
+    actions: {
+      item: string;
+      kind: string;
+      class: ("prepare" | "internal-reversible" | "external" | "never") | null;
+      decision: "allow" | "needs_person" | "refuse";
+      code: string | null;
+      executed: boolean;
+      error: string | null;
+      approvalId: string | null;
+      ref: string | null;
+    }[];
+  };
+  evidence: {
+    ok: boolean;
+    problems: string[];
+  };
+};
+
+export type AutopilotRunsListParams = {
+  projectId: string;
+  routineId?: string;
+  edition?: "industrial" | "business" | "scholars" | "core";
+  area?: string;
+  status?: "ok" | "escalated" | "no_input" | "failed" | "skipped";
+  cursor?: string;
+  limit?: number;
+};
+
+export type AutopilotRunsListResult = {
+  runs: {
+    id: string;
+    projectId: string;
+    routineId: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    level: "L0" | "L1" | "L2" | "L3";
+    trigger: "schedule" | "manual" | "event";
+    triggeredBy: string;
+    triggerSources?: string[];
+    startedAt: string;
+    endedAt: string;
+    status: "ok" | "escalated" | "no_input" | "failed" | "skipped";
+    reason: string | null;
+    routineDigest: string;
+    reasoning: {
+      backend: string | null;
+      model: string | null;
+      ms: number;
+      outputSha256: string | null;
+      retried?: boolean;
+    };
+    counts: {
+      items: number;
+      prepared: number;
+      acted: number;
+      escalated: number;
+      refused: number;
+      failed: number;
+      handled: number;
+      deferred: number;
+    };
+    workItems: string[];
+    evidence: {
+      bundle: string;
+      root: string;
+    } | null;
+    watchdog?: {
+      tripped: boolean;
+      reasons: string[];
+      baseline: "baseline" | "static";
+      metrics: {
+        gatherCalls: number;
+        bytesRead: number;
+        items: number;
+        actions: number;
+        durationMs: number;
+      } | null;
+    } | null;
+  }[];
+  total: number;
+  nextCursor: string | null;
+};
+
+export type AutopilotStartAllParams = {
+  reason: string;
+};
+
+export type AutopilotStartAllResult = {
+  control: {
+    stopped: boolean;
+    by: string | null;
+    at: string | null;
+    reason: string | null;
+    emergencyStop: boolean;
+  };
+  changed: {
+    projectId: string;
+    routineIds: string[];
+  }[];
+  alreadyStarted: boolean;
+};
+
+export type AutopilotStatsParams = {
+  projectId: string;
+  from?: string;
+  to?: string;
+};
+
+export type AutopilotStatsResult = {
+  from: string | null;
+  to: string | null;
+  routines: {
+    runs: number;
+    failedRuns: number;
+    items: number;
+    prepared: number;
+    acted: number;
+    escalated: number;
+    handled: number;
+    correctedByPerson: number;
+    minutesSaved: number | null;
+    routineId: string;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+    baselineMinutes: number | null;
+    lastRunAt: string | null;
+    lastStatus: string | null;
+    watchdog: {
+      baseline: "baseline" | "static";
+      runs: number;
+      thresholds: {
+        gatherCalls: number;
+        bytesRead: number;
+        items: number;
+        actions: number;
+        durationMs: number;
+      };
+      p95: {
+        gatherCalls: number;
+        bytesRead: number;
+        items: number;
+        actions: number;
+        durationMs: number;
+      } | null;
+      lastTrip: {
+        at: string;
+        runId: string;
+        reasons: string[];
+      } | null;
+      trips: number;
+      toolUseStreak: number;
+    } | null;
+  }[];
+  areas: {
+    runs: number;
+    failedRuns: number;
+    items: number;
+    prepared: number;
+    acted: number;
+    escalated: number;
+    handled: number;
+    correctedByPerson: number;
+    minutesSaved: number | null;
+    edition: "industrial" | "business" | "scholars" | "core";
+    area: string;
+    department: string | null;
+  }[];
+  totals: {
+    runs: number;
+    failedRuns: number;
+    items: number;
+    prepared: number;
+    acted: number;
+    escalated: number;
+    handled: number;
+    correctedByPerson: number;
+    minutesSaved: number | null;
+  };
+  control: {
+    stopped: boolean;
+    by: string | null;
+    at: string | null;
+    reason: string | null;
+    emergencyStop: boolean;
+  };
+};
+
+export type AutopilotStopAllParams = {
+  reason: string;
+};
+
+export type AutopilotStopAllResult = {
+  control: {
+    stopped: boolean;
+    by: string | null;
+    at: string | null;
+    reason: string | null;
+    emergencyStop: boolean;
+  };
+  changed: {
+    projectId: string;
+    routineIds: string[];
+  }[];
+  alreadyStopped: boolean;
+};
+
 export type ChannelsLogoutParams = {
   channel: string;
   accountId?: string;
@@ -269,6 +1931,7 @@ export type ConnectParams = {
   auth?: {
     token?: string;
     password?: string;
+    breakGlass?: string;
   };
   locale?: string;
   userAgent?: string;
@@ -745,6 +2408,225 @@ export type HelloOk = {
     maxPayload: number;
     maxBufferedBytes: number;
     tickIntervalMs: number;
+  };
+};
+
+export type IdentityAdminResult = {
+  ok: true;
+  unit?: {
+    id: string;
+    name: string;
+    kind: "department" | "team";
+    parentId: string | null;
+    department: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  assignment?: {
+    id: string;
+    subject: string;
+    role: "org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer";
+    unit: string | null;
+    createdAt: string;
+    createdBy: string;
+  };
+  mapping?: {
+    /** scim, or the provider id that asserts the group */
+    source: string;
+    group: string;
+    matchDisplayName: boolean;
+    roles: ("org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer")[];
+    units: string[];
+    updatedAt: string;
+    updatedBy: string;
+  };
+  revoked?: number;
+  person?: {
+    id: string;
+    links: {
+      providerId: string;
+      issuer: string;
+      subject: string;
+    }[];
+  };
+  evidence: {
+    bundle: string;
+    root: string;
+  } | null;
+};
+
+export type IdentityGroupMappingsRemoveParams = {
+  /** `scim` (SCIM groups) or a provider id (groups that provider asserts). */
+  source: string;
+  group: string;
+};
+
+export type IdentityGroupMappingsSetParams = {
+  /** `scim` (SCIM groups) or a provider id (groups that provider asserts). */
+  source: string;
+  /** SCIM: the group id or externalId (immutable); provider: the asserted value. */
+  group: string;
+  /** SCIM only: also match the (renamable) display name. */
+  matchDisplayName?: boolean;
+  roles: ("org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer")[];
+  units?: string[];
+};
+
+export type IdentityOrgGetParams = Record<string, never>;
+
+export type IdentityOrgGetResult = {
+  org: {
+    name: string | null;
+  };
+  units: {
+    id: string;
+    name: string;
+    kind: "department" | "team";
+    parentId: string | null;
+    department: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+  assignments?: {
+    id: string;
+    subject: string;
+    role: "org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer";
+    unit: string | null;
+    createdAt: string;
+    createdBy: string;
+  }[];
+  mappings?: {
+    /** scim, or the provider id that asserts the group */
+    source: string;
+    group: string;
+    matchDisplayName: boolean;
+    roles: ("org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer")[];
+    units: string[];
+    updatedAt: string;
+    updatedBy: string;
+  }[];
+  persons?: {
+    id: string;
+    userName: string;
+    displayName: string | null;
+    active: boolean;
+    source: string;
+  }[];
+  tombstones?: {
+    id: string;
+    personId: string;
+    userName: string;
+    deletedAt: string;
+    deletedBy: string;
+  }[];
+};
+
+export type IdentityOrgUpdateParams = {
+  name: string | null;
+};
+
+export type IdentityPersonsLinkParams = {
+  personId: string;
+  providerId: string;
+  /** The IdP subject (OIDC sub, SAML NameID). */
+  subject: string;
+  /** Token issuer; default: the provider's issuer (OIDC) or IdP entity id (SAML). */
+  issuer?: string;
+};
+
+export type IdentityPersonsRestoreParams = {
+  tombstoneId: string;
+};
+
+export type IdentityPersonsUnlinkParams = {
+  personId: string;
+  providerId: string;
+};
+
+export type IdentityRolesAssignParams = {
+  /** `person:<id>` or `email:<address>` (matched at sign-in). */
+  subject: string;
+  role: "org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer";
+  unit?: string | null;
+};
+
+export type IdentityRolesRevokeParams = {
+  id: string;
+};
+
+export type IdentitySessionsListParams = {
+  personId?: string;
+};
+
+export type IdentitySessionsListResult = {
+  sessions: {
+    id: string;
+    personId: string;
+    providerId: string;
+    protocol: string;
+    createdAt: string;
+    lastSeenAt: string;
+    expiresAt: string;
+  }[];
+};
+
+export type IdentitySessionsRevokeParams = {
+  personId?: string;
+  sessionId?: string;
+  reason?: string;
+};
+
+export type IdentityUnitsRemoveParams = {
+  id: string;
+};
+
+export type IdentityUnitsUpsertParams = {
+  id: string;
+  name: string;
+  kind: "department" | "team";
+  parentId?: string | null;
+  department?: string | null;
+};
+
+export type IdentityWhoamiParams = Record<string, never>;
+
+export type IdentityWhoamiResult = {
+  kind: "person" | "owner" | "pairing" | "device" | "agent";
+  principal: string;
+  person: {
+    id: string;
+    email: string | null;
+    displayName: string | null;
+    issuer: string | null;
+    subject: string | null;
+    providerId: string;
+    groups: string[];
+  } | null;
+  roles: {
+    role: "org-admin" | "security-admin" | "auditor" | "department-manager" | "approver" | "operator" | "member" | "viewer";
+    unit: string | null;
+    /** assignment:<id>, group:<source>:<group> or default */
+    via: string;
+  }[];
+  units: string[];
+  /** observe | attach | admin | owner */
+  scope: string;
+  /** Administrative areas of the person's roles (scopes operator.identity, …). */
+  adminAreas: ("identity" | "sessions" | "pairing" | "policy" | "config")[];
+  /** Eligible for approval-type methods; stages still decide. */
+  approvals: boolean;
+  breakGlass: boolean;
+  session: {
+    id: string;
+    expiresAt: string;
+  } | null;
+  sso: {
+    required: boolean;
+    providers: {
+      id: string;
+      kind: "oidc" | "saml";
+      label: string;
+    }[];
   };
 };
 
@@ -1559,6 +3441,9 @@ export type WorkitemsAssignAgentResult = {
       by: string;
       at: string;
       comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
     }[];
     override: {
       by: string;
@@ -1570,6 +3455,76 @@ export type WorkitemsAssignAgentResult = {
     lastError: string | null;
     createdAt: string;
     createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
     updatedAt: string;
     revision: number;
     source: {
@@ -1580,6 +3535,14 @@ export type WorkitemsAssignAgentResult = {
         sha256?: string;
       }[];
       fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
     };
     history: {
       at: string;
@@ -1609,6 +3572,175 @@ export type WorkitemsChangedEvent = {
   updatedAt: string;
 };
 
+export type WorkitemsClearFlagParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+  reason: string;
+};
+
+export type WorkitemsClearFlagResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+};
+
 export type WorkitemsConfigParams = {
   projectId: string;
 };
@@ -1623,7 +3755,9 @@ export type WorkitemsConfigResult = {
     types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
     slaHours: number | null;
     defaultAgent: string | null;
+    department?: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
   }[];
+  departments: ("secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality")[];
   rules: {
     id: string;
     kind: string;
@@ -1638,6 +3772,67 @@ export type WorkitemsConfigResult = {
   }[];
   timezone: string;
   separationOfDuties: boolean;
+  routes: {
+    id: string;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    queues: string[];
+    types: string[];
+    when: {
+      field: string;
+      op: string;
+      value: unknown;
+    }[];
+    stages: {
+      id: string;
+      name: {
+        ja?: string;
+        en?: string;
+      };
+      approvers: {
+        roles: string[];
+        principals: string[];
+        departmentField: string | null;
+      };
+      minApprovals: number;
+      dueHours: number | null;
+      onReturn: "requester" | "previous";
+      delegation: boolean;
+      escalation: {
+        afterHours: number;
+        to: {
+          roles: string[];
+          principals: string[];
+        };
+      } | null;
+      when: {
+        field: string;
+        op: string;
+        value: unknown;
+      }[];
+    }[];
+  }[];
+  access: {
+    fallback: "none" | "any_approver";
+    configured: boolean;
+    roles: string[];
+    members: {
+      principal: string;
+      name: string | null;
+      roles: string[];
+      departments: string[];
+      email?: string;
+    }[] | null;
+  };
+  viewer: {
+    principal: string;
+    privileged: boolean;
+    roles: string[];
+    departments: string[];
+    listed: boolean;
+  };
   source: {
     kind: string;
     path: string | null;
@@ -1710,6 +3905,9 @@ export type WorkitemsCreateResult = {
       by: string;
       at: string;
       comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
     }[];
     override: {
       by: string;
@@ -1721,6 +3919,76 @@ export type WorkitemsCreateResult = {
     lastError: string | null;
     createdAt: string;
     createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
     updatedAt: string;
     revision: number;
     source: {
@@ -1731,6 +3999,14 @@ export type WorkitemsCreateResult = {
         sha256?: string;
       }[];
       fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
     };
     history: {
       at: string;
@@ -1801,6 +4077,9 @@ export type WorkitemsDecideResult = {
       by: string;
       at: string;
       comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
     }[];
     override: {
       by: string;
@@ -1812,6 +4091,76 @@ export type WorkitemsDecideResult = {
     lastError: string | null;
     createdAt: string;
     createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
     updatedAt: string;
     revision: number;
     source: {
@@ -1822,6 +4171,14 @@ export type WorkitemsDecideResult = {
         sha256?: string;
       }[];
       fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
     };
     history: {
       at: string;
@@ -1838,6 +4195,259 @@ export type WorkitemsDecideResult = {
       } | null;
     }[];
   };
+};
+
+export type WorkitemsDelegateParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  to: string;
+  reason: string;
+  expiresAt: string;
+};
+
+export type WorkitemsDelegateResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+};
+
+export type WorkitemsDocumentParams = {
+  projectId: string;
+  id: string;
+  ref: string;
+  maxChars?: number;
+};
+
+export type WorkitemsDocumentResult = {
+  document: {
+    ref: string;
+    kind: "attachment" | "file" | "artifact" | "draft";
+    name: string;
+    mediaType: string;
+    bytes: number;
+    sha256: string | null;
+    recordedSha256: string | null;
+    sha256Matches: boolean | null;
+    version: number | null;
+    binary: boolean;
+    text: string | null;
+    truncated: boolean;
+    escaped: "html";
+    untrusted: true;
+    provenance: Record<string, unknown>;
+  };
+};
+
+export type WorkitemsDraftDiffParams = {
+  projectId: string;
+  id: string;
+  fromVersion: number;
+  toVersion: number;
+};
+
+export type WorkitemsDraftDiffResult = {
+  artifactId: string;
+  from: {
+    artifactId: string;
+    version: number;
+    sha256: string;
+    size: number;
+    createdAt: string;
+    createdBy: string;
+    agentId: string | null;
+    runId: string | null;
+    note: string | null;
+    pinned: boolean;
+  };
+  to: {
+    artifactId: string;
+    version: number;
+    sha256: string;
+    size: number;
+    createdAt: string;
+    createdBy: string;
+    agentId: string | null;
+    runId: string | null;
+    note: string | null;
+    pinned: boolean;
+  };
+  hunks: {
+    oldStart: number;
+    oldLines: number;
+    newStart: number;
+    newLines: number;
+    lines: {
+      op: "eq" | "add" | "del";
+      text: string;
+      oldLine: number | null;
+      newLine: number | null;
+    }[];
+  }[];
+  stats: {
+    added: number;
+    removed: number;
+    unchanged: number;
+  };
+  identical: boolean;
+  truncated: boolean;
+  escaped: "html";
+  untrusted: true;
 };
 
 export type WorkitemsEvidenceParams = {
@@ -1903,6 +4513,9 @@ export type WorkitemsGetResult = {
       by: string;
       at: string;
       comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
     }[];
     override: {
       by: string;
@@ -1914,6 +4527,76 @@ export type WorkitemsGetResult = {
     lastError: string | null;
     createdAt: string;
     createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
     updatedAt: string;
     revision: number;
     source: {
@@ -1924,6 +4607,14 @@ export type WorkitemsGetResult = {
         sha256?: string;
       }[];
       fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
     };
     history: {
       at: string;
@@ -1942,6 +4633,188 @@ export type WorkitemsGetResult = {
   };
 };
 
+export type WorkitemsIntakeEmailParams = {
+  projectId: string;
+  queue: string;
+  title: string;
+  type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+  priority: "low" | "normal" | "high" | "urgent";
+  dueAt?: string | null;
+  summary: string;
+  source: {
+    kind: "email";
+    connector: "microsoft-365" | "gmail";
+    messageId: string;
+    receivedAt?: string;
+    from?: string;
+    subject?: string;
+  };
+  flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+  flagReason?: string;
+};
+
+export type WorkitemsIntakeEmailResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+  };
+  created: boolean;
+};
+
 export type WorkitemsListParams = {
   projectId: string;
   queue?: string;
@@ -1952,6 +4825,11 @@ export type WorkitemsListParams = {
   assigneeId?: string;
   overdue?: boolean;
   q?: string;
+  mine?: boolean;
+  awaitingMe?: boolean;
+  stage?: string;
+  department?: ("secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality") | "unmapped";
+  flagged?: boolean;
   cursor?: string;
   limit?: number;
 };
@@ -1997,6 +4875,9 @@ export type WorkitemsListResult = {
       by: string;
       at: string;
       comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
     }[];
     override: {
       by: string;
@@ -2008,17 +4889,147 @@ export type WorkitemsListResult = {
     lastError: string | null;
     createdAt: string;
     createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
     updatedAt: string;
     revision: number;
     source: {
       documents: number;
       fields: string[];
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
     };
     overdue: boolean;
+    currentStage: {
+      id: string;
+      name: {
+        ja?: string;
+        en?: string;
+      };
+      index: number;
+      count: number;
+      dueAt: string | null;
+      overdue: boolean;
+      escalated: boolean;
+      approvals: number;
+      minApprovals: number;
+    } | null;
   }[];
   nextCursor: string | null;
   total: number;
   counts: Record<string, number>;
+};
+
+export type WorkitemsStatsParams = {
+  projectId: string;
+  queue?: string;
+  windowDays?: number;
+  department?: ("secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality") | "unmapped";
+};
+
+export type WorkitemsStatsResult = {
+  scope: "all" | "visible";
+  total: number;
+  byStatus: Record<string, number>;
+  byQueue: Record<string, {
+      total: number;
+      byStatus: Record<string, number>;
+    }>;
+  overdue: number;
+  stageOverdue: number;
+  stages: {
+    routeId: string;
+    stageId: string;
+    index: number;
+    name: {
+      ja?: string;
+      en?: string;
+    };
+    waiting: number;
+    overdue: number;
+    escalated: number;
+  }[];
+  timeToApprove: {
+    windowDays: number;
+    count: number;
+    medianHours: number | null;
+    p90Hours: number | null;
+  };
+  computedAt: string;
 };
 
 export type WorkitemsUpdateParams = {
@@ -2093,6 +5104,9 @@ export type WorkitemsUpdateResult = {
       by: string;
       at: string;
       comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
     }[];
     override: {
       by: string;
@@ -2104,6 +5118,76 @@ export type WorkitemsUpdateResult = {
     lastError: string | null;
     createdAt: string;
     createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
     updatedAt: string;
     revision: number;
     source: {
@@ -2114,6 +5198,14 @@ export type WorkitemsUpdateResult = {
         sha256?: string;
       }[];
       fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
     };
     history: {
       at: string;
@@ -2992,6 +6084,121 @@ export type GetBuildHealthResponse = {
   time: string;
 };
 export type GetBuildHealthErrorBody = string | RateLimitError;
+
+// logoutIdentity: POST /api/identity/logout
+export type LogoutIdentityParams = Record<string, never>;
+export type LogoutIdentityBody = never;
+export type LogoutIdentityResponse = {
+  ok: true;
+  /** RP-initiated logout at the IdP (OIDC end_session_endpoint), when published. */
+  endSessionUrl: string | null;
+};
+export type LogoutIdentityErrorBody = GatewayError | RateLimitError;
+
+// getIdentitySession: GET /api/identity/session
+export type GetIdentitySessionParams = Record<string, never>;
+export type GetIdentitySessionBody = never;
+export type GetIdentitySessionResponse = {
+  ok: true;
+  principal: string;
+  person: {
+    id: string;
+    [key: string]: unknown;
+  };
+  roles: {
+    role: string;
+    unit: string | null;
+    via: string;
+    [key: string]: unknown;
+  }[];
+  units: string[];
+  scope: string;
+  approvals: boolean;
+  session: {
+    id: string;
+    expiresAt: string;
+  };
+};
+export type GetIdentitySessionErrorBody = GatewayError | RateLimitError;
+
+// getSsoConfig: GET /api/identity/sso
+export type GetSsoConfigParams = Record<string, never>;
+export type GetSsoConfigBody = never;
+export type GetSsoConfigResponse = {
+  enabled: boolean;
+  required: boolean;
+  providers: {
+    id: string;
+    kind: "oidc" | "saml";
+    label: string;
+    loginPath: string;
+  }[];
+};
+export type GetSsoConfigErrorBody = RateLimitError;
+
+// exchangeSsoCode: POST /api/identity/sso/exchange
+export type ExchangeSsoCodeParams = Record<string, never>;
+export type ExchangeSsoCodeBody = {
+  code: string;
+};
+export type ExchangeSsoCodeResponse = {
+  token: string;
+};
+export type ExchangeSsoCodeErrorBody = {
+  error: {
+    message: string;
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// samlAcs: POST /api/identity/sso/{provider}/acs
+export type SamlAcsParams = {
+  /** Provider id */
+  provider: string;
+};
+export type SamlAcsBody = {
+  SAMLResponse: string;
+  RelayState?: string;
+};
+export type SamlAcsResponse = never;
+export type SamlAcsErrorBody = string | OkFalseError | RateLimitError;
+
+// ssoCallback: GET /api/identity/sso/{provider}/callback
+export type SsoCallbackParams = {
+  /** Provider id */
+  provider: string;
+  /** query parameter */
+  code?: string;
+  /** query parameter */
+  state?: string;
+  /** query parameter */
+  error?: string;
+};
+export type SsoCallbackBody = never;
+export type SsoCallbackResponse = never;
+export type SsoCallbackErrorBody = string | RateLimitError;
+
+// startSsoLogin: GET /api/identity/sso/{provider}/login
+export type StartSsoLoginParams = {
+  /** Provider id */
+  provider: string;
+  /** query parameter */
+  returnTo?: string;
+};
+export type StartSsoLoginBody = never;
+export type StartSsoLoginResponse = never;
+export type StartSsoLoginErrorBody = string | RateLimitError;
+
+// getSamlMetadata: GET /api/identity/sso/{provider}/metadata
+export type GetSamlMetadataParams = {
+  /** Provider id */
+  provider: string;
+};
+export type GetSamlMetadataBody = never;
+export type GetSamlMetadataResponse = ArrayBuffer;
+export type GetSamlMetadataErrorBody = string | RateLimitError;
 
 // listJobs: GET /api/jobs
 export type ListJobsParams = {
@@ -4191,6 +7398,292 @@ export type GetMetricsParams = Record<string, never>;
 export type GetMetricsBody = never;
 export type GetMetricsResponse = string;
 export type GetMetricsErrorBody = GatewayError | RateLimitError;
+
+// listScimGroups: GET /scim/v2/Groups
+export type ListScimGroupsParams = {
+  /** e.g. userName eq "alice@example.com" */
+  filter?: string;
+  /** query parameter */
+  startIndex?: number;
+  /** query parameter */
+  count?: number;
+  /** Groups: `members` */
+  excludedAttributes?: string;
+};
+export type ListScimGroupsBody = never;
+export type ListScimGroupsResponse = {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type ListScimGroupsErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// createScimGroup: POST /scim/v2/Groups
+export type CreateScimGroupParams = Record<string, never>;
+export type CreateScimGroupBody = {
+  displayName: string;
+  [key: string]: unknown;
+};
+export type CreateScimGroupResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type CreateScimGroupErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// getScimGroup: GET /scim/v2/Groups/{id}
+export type GetScimGroupParams = {
+  /** Resource id */
+  id: string;
+};
+export type GetScimGroupBody = never;
+export type GetScimGroupResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type GetScimGroupErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// replaceScimGroup: PUT /scim/v2/Groups/{id}
+export type ReplaceScimGroupParams = {
+  /** Resource id */
+  id: string;
+};
+export type ReplaceScimGroupBody = Record<string, unknown>;
+export type ReplaceScimGroupResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type ReplaceScimGroupErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// deleteScimGroup: DELETE /scim/v2/Groups/{id}
+export type DeleteScimGroupParams = {
+  /** Resource id */
+  id: string;
+};
+export type DeleteScimGroupBody = never;
+export type DeleteScimGroupResponse = undefined;
+export type DeleteScimGroupErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// patchScimGroup: PATCH /scim/v2/Groups/{id}
+export type PatchScimGroupParams = {
+  /** Resource id */
+  id: string;
+};
+export type PatchScimGroupBody = {
+  Operations: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type PatchScimGroupResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type PatchScimGroupErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// listScimResourceTypes: GET /scim/v2/ResourceTypes
+export type ListScimResourceTypesParams = Record<string, never>;
+export type ListScimResourceTypesBody = never;
+export type ListScimResourceTypesResponse = {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type ListScimResourceTypesErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// listScimSchemas: GET /scim/v2/Schemas
+export type ListScimSchemasParams = Record<string, never>;
+export type ListScimSchemasBody = never;
+export type ListScimSchemasResponse = {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type ListScimSchemasErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// getScimServiceProviderConfig: GET /scim/v2/ServiceProviderConfig
+export type GetScimServiceProviderConfigParams = Record<string, never>;
+export type GetScimServiceProviderConfigBody = never;
+export type GetScimServiceProviderConfigResponse = {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type GetScimServiceProviderConfigErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// listScimUsers: GET /scim/v2/Users
+export type ListScimUsersParams = {
+  /** e.g. userName eq "alice@example.com" */
+  filter?: string;
+  /** query parameter */
+  startIndex?: number;
+  /** query parameter */
+  count?: number;
+  /** Groups: `members` */
+  excludedAttributes?: string;
+};
+export type ListScimUsersBody = never;
+export type ListScimUsersResponse = {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type ListScimUsersErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// createScimUser: POST /scim/v2/Users
+export type CreateScimUserParams = Record<string, never>;
+export type CreateScimUserBody = {
+  userName: string;
+  [key: string]: unknown;
+};
+export type CreateScimUserResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type CreateScimUserErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// getScimUser: GET /scim/v2/Users/{id}
+export type GetScimUserParams = {
+  /** Resource id */
+  id: string;
+};
+export type GetScimUserBody = never;
+export type GetScimUserResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type GetScimUserErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// replaceScimUser: PUT /scim/v2/Users/{id}
+export type ReplaceScimUserParams = {
+  /** Resource id */
+  id: string;
+};
+export type ReplaceScimUserBody = Record<string, unknown>;
+export type ReplaceScimUserResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type ReplaceScimUserErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// deleteScimUser: DELETE /scim/v2/Users/{id}
+export type DeleteScimUserParams = {
+  /** Resource id */
+  id: string;
+};
+export type DeleteScimUserBody = never;
+export type DeleteScimUserResponse = undefined;
+export type DeleteScimUserErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// patchScimUser: PATCH /scim/v2/Users/{id}
+export type PatchScimUserParams = {
+  /** Resource id */
+  id: string;
+};
+export type PatchScimUserBody = {
+  Operations: Record<string, unknown>[];
+  [key: string]: unknown;
+};
+export type PatchScimUserResponse = {
+  schemas: string[];
+  id: string;
+  [key: string]: unknown;
+};
+export type PatchScimUserErrorBody = {
+  schemas: string[];
+  status: string;
+  detail: string;
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
 
 // invokeTool: POST /tools/invoke
 export type InvokeToolParams = {

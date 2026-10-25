@@ -13,12 +13,15 @@
 //      /api/migrate, /api/bootstrap-invite  X-Migrate-Key, rate limited
 //      Slack + plugin channel webhooks  provider signature verification
 //      control UI static assets ....... public bundle; all data flows over the authenticated WS
-//      /__KOLO__/*, <ui>/avatar/* ..... gateway auth (this file)
+//      /__KOLO__/*, <ui>/avatar/* ..... gateway auth or an SSO session (this file)
+// With `gateway.identity.ssoRequired` the shared secret no longer opens these routes from other
+// hosts (http-shared-secret.ts): people use their SSO session.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { A2UI_PATH, CANVAS_HOST_PATH, CANVAS_WS_PATH } from "../canvas-host/a2ui.js";
 import { recordAuditEvent } from "../security/audit-log.js";
 import { authorizeGatewayConnect, isLocalDirectRequest, type ResolvedGatewayAuth } from "./auth.js";
 import { sendUnauthorized } from "./http-common.js";
+import { mayUseSharedSecret } from "./http-shared-secret.js";
 import { getBearerToken } from "./http-utils.js";
 import { resolveGatewayClientIp } from "./net.js";
 import {
@@ -118,20 +121,20 @@ export function isRemoteGatedPath(pathname: string, controlUiBasePath = ""): boo
   return pathname.startsWith(avatarPrefix);
 }
 
-/**
- * Returns true when the request was rejected (401 written): a non-local client asked for a
- * route that used to be open (canvas, A2UI, avatars) without gateway credentials.
- */
-export async function rejectUnauthenticatedRemoteRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
-  opts: { auth: ResolvedGatewayAuth; trustedProxies?: string[]; controlUiBasePath?: string },
-): Promise<boolean> {
-  if (!isRemoteGatedPath(pathnameOf(req), opts.controlUiBasePath ?? "")) {
-    return false;
-  }
-  if (isLocalDirectRequest(req, opts.trustedProxies)) {
-    return false;
+export type RemoteGateOptions = {
+  auth: ResolvedGatewayAuth;
+  trustedProxies?: string[];
+  controlUiBasePath?: string;
+  /** `gateway.identity.ssoRequired` as of this request (default false). */
+  ssoRequired?: boolean;
+  /** A valid SSO session (Bearer `kss_…`) of a person who may observe. */
+  ssoSession?: (req: IncomingMessage) => boolean;
+};
+
+/** Credentials a non-local client may open the remote-gated routes with. */
+async function remoteCredentialOk(req: IncomingMessage, opts: RemoteGateOptions): Promise<boolean> {
+  if (opts.ssoSession?.(req)) {
+    return true;
   }
   const bearer = getBearerToken(req);
   const result = await authorizeGatewayConnect({
@@ -140,7 +143,32 @@ export async function rejectUnauthenticatedRemoteRequest(
     req,
     trustedProxies: opts.trustedProxies,
   });
-  if (result.ok) {
+  return (
+    result.ok &&
+    mayUseSharedSecret(
+      req,
+      { ssoRequired: opts.ssoRequired === true, trustedProxies: opts.trustedProxies },
+      { credential: "shared-secret", operation: "remote-gated" },
+    )
+  );
+}
+
+/**
+ * Returns true when the request was rejected (401 written): a non-local client asked for a
+ * route that used to be open (canvas, A2UI, avatars) without gateway credentials.
+ */
+export async function rejectUnauthenticatedRemoteRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: RemoteGateOptions,
+): Promise<boolean> {
+  if (!isRemoteGatedPath(pathnameOf(req), opts.controlUiBasePath ?? "")) {
+    return false;
+  }
+  if (isLocalDirectRequest(req, opts.trustedProxies)) {
+    return false;
+  }
+  if (await remoteCredentialOk(req, opts)) {
     return false;
   }
   sendUnauthorized(res);
@@ -156,16 +184,10 @@ export async function isRemoteUpgradeAuthorized(
   req: IncomingMessage,
   auth: ResolvedGatewayAuth,
   trustedProxies: string[],
+  extra: Pick<RemoteGateOptions, "ssoRequired" | "ssoSession"> = {},
 ): Promise<boolean> {
   if (isLocalDirectRequest(req, trustedProxies)) {
     return true;
   }
-  const bearer = getBearerToken(req);
-  const result = await authorizeGatewayConnect({
-    auth,
-    connectAuth: bearer ? { token: bearer, password: bearer } : null,
-    req,
-    trustedProxies,
-  });
-  return result.ok;
+  return await remoteCredentialOk(req, { auth, trustedProxies, ...extra });
 }

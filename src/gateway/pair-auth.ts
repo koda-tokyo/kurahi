@@ -24,6 +24,15 @@ export function getHttpPrincipal(req: IncomingMessage): HttpPrincipal | undefine
   return principals.get(req);
 }
 
+/**
+ * Drop the principal of a credential that verified but a later gate refused (SSO required, not
+ * from the gateway host), so policy and audit never see "owner" for a request that another
+ * authenticator (an SSO session) then admits.
+ */
+export function clearHttpPrincipal(req: IncomingMessage): void {
+  principals.delete(req);
+}
+
 /** Identity string for audit lines: "owner:token", "device:<fingerprint>" … */
 export function principalIdentity(principal: HttpPrincipal): string {
   return principal.kind === "owner"

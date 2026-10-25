@@ -2,7 +2,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
 import type { ResolvedGatewayAuth } from "./auth.js";
-import { applyAuthAttemptGate, rejectUnauthenticatedRemoteRequest } from "./http-remote-auth.js";
+import {
+  applyAuthAttemptGate,
+  isRemoteUpgradeAuthorized,
+  rejectUnauthenticatedRemoteRequest,
+} from "./http-remote-auth.js";
 import { AuthAttemptLimiter } from "./rate-limiter.js";
 import { resolveGatewayRuntimeConfig } from "./server-runtime-config.js";
 
@@ -182,6 +186,34 @@ describe("routes that used to be open", () => {
       const local = mockReq({ ip: "127.0.0.1", url, host: "localhost" });
       expect(await rejectUnauthenticatedRemoteRequest(local, mockRes(), { auth })).toBe(false);
     }
+  });
+
+  it("with ssoRequired the gateway token no longer opens them from another host; an SSO session does", async () => {
+    const url = "/__KOLO__/canvas/index.html";
+    const withToken = (headers: Record<string, string> = {}) =>
+      mockReq({
+        ip: "203.0.113.5",
+        url,
+        headers: { authorization: `Bearer ${TOKEN}`, ...headers },
+      });
+    const res = mockRes();
+    expect(
+      await rejectUnauthenticatedRemoteRequest(withToken({ "x-kolo-break-glass": "x" }), res, {
+        auth,
+        ssoRequired: true,
+      }),
+    ).toBe(true);
+    expect(res.statusCode).toBe(401);
+    expect(
+      await rejectUnauthenticatedRemoteRequest(withToken(), mockRes(), {
+        auth,
+        ssoRequired: true,
+        ssoSession: () => true,
+      }),
+    ).toBe(false);
+    const upgrade = await isRemoteUpgradeAuthorized(withToken(), auth, [], { ssoRequired: true });
+    expect(upgrade).toBe(false);
+    expect(await isRemoteUpgradeAuthorized(withToken(), auth, [])).toBe(true);
   });
 
   it("health stays open", async () => {

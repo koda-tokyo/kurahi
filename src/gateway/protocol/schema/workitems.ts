@@ -1,7 +1,20 @@
 // Work queue (Business edition) protocol: work items per Project, agent drafts, policy checks,
 // person-only decisions. See docs/business/work-queue.md.
 import { Type, type TSchema } from "@sinclair/typebox";
+import {
+  DEPARTMENT_IDS,
+  EMAIL_CONNECTORS,
+  UNMAPPED_DEPARTMENT,
+  WORK_ITEM_FLAGS,
+} from "../../../workitems/types.js";
 import { NonEmptyString } from "./primitives.js";
+import {
+  WorkItemApprovalSchema,
+  WorkItemRouteSchema,
+  WorkItemStageSummarySchema,
+  WorkQueueRouteDefSchema,
+  WorkQueueViewerSchema,
+} from "./workitems-route.js";
 
 const lit = <T extends string>(values: readonly T[]) =>
   Type.Union(values.map((v) => Type.Literal(v)));
@@ -26,6 +39,13 @@ export const WorkItemStatusSchema = lit([
   "cancelled",
 ] as const);
 export const WorkItemPrioritySchema = lit(["low", "normal", "high", "urgent"] as const);
+/** Business department a queue maps to (a view for department workspaces, not a permission). */
+export const DepartmentIdSchema = lit(DEPARTMENT_IDS);
+/** List / stats filter: a department, or `unmapped` for queues with no department. */
+export const DepartmentFilterSchema = Type.Union([
+  DepartmentIdSchema,
+  Type.Literal(UNMAPPED_DEPARTMENT),
+]);
 export const WorkItemDecisionSchema = lit(["approve", "send_back", "cancel"] as const);
 
 const ProjectId = Type.String({ pattern: "^p[a-z0-9]{10}$" });
@@ -63,6 +83,34 @@ const SourceDocumentInput = Type.Object(
   { additionalProperties: false },
 );
 
+/** Risk flag on an item; `suspected_fraud` blocks approval until a person clears it. */
+export const WorkItemFlagSchema = lit(WORK_ITEM_FLAGS);
+export const EmailConnectorSchema = lit(EMAIL_CONNECTORS);
+
+/**
+ * Where the item came from: a reference to a message in the connected mailbox (the body stays
+ * there). Input bounds; the server validates again (address format, ISO date, id alphabet).
+ */
+export const WorkItemOriginSchema = Type.Object(
+  {
+    kind: Type.Literal("email"),
+    connector: EmailConnectorSchema,
+    messageId: Type.String({ minLength: 1, maxLength: 512, pattern: "^[A-Za-z0-9!._=+,:/-]+$" }),
+    receivedAt: Type.Optional(Type.String({ minLength: 10, maxLength: 40 })),
+    /** Sender address only (no display name). */
+    from: Type.Optional(Type.String({ minLength: 3, maxLength: 254 })),
+    subject: Type.Optional(Type.String({ maxLength: 300 })),
+  },
+  { additionalProperties: false },
+);
+
+export const WorkItemFlagClearanceSchema = Type.Object({
+  flag: WorkItemFlagSchema,
+  by: Type.String(),
+  at: Type.String(),
+  reason: Type.String(),
+});
+
 export const WorkItemDraftSchema = Type.Object({
   artifactId: NonEmptyString,
   version: Type.Integer({ minimum: 1 }),
@@ -83,11 +131,7 @@ export const WorkItemCheckSchema = Type.Object({
   policyDigest: Type.String(),
 });
 
-const Approval = Type.Object({
-  by: Type.String(),
-  at: Type.String(),
-  comment: Type.Union([Type.String(), Type.Null()]),
-});
+const Approval = WorkItemApprovalSchema;
 const Override = Type.Union([
   Type.Object({
     by: Type.String(),
@@ -132,6 +176,15 @@ const common = {
   lastError: Type.Union([Type.String(), Type.Null()]),
   createdAt: Type.String(),
   createdBy: Type.String(),
+  requestedBy: Type.String(),
+  route: Type.Union([WorkItemRouteSchema, Type.Null()]),
+  /** Intake summary in the agent's own words (never the email body). */
+  summary: Type.Optional(Type.String()),
+  /** Active risk flags; absent = none. */
+  flags: Type.Optional(Type.Array(WorkItemFlagSchema)),
+  flagReason: Type.Optional(Type.String()),
+  /** Flags a person cleared (who, when, why), oldest first. */
+  flagClearances: Type.Optional(Type.Array(WorkItemFlagClearanceSchema)),
   updatedAt: Type.String(),
   revision: Revision,
 };
@@ -141,14 +194,21 @@ export const WorkItemSchema = Type.Object({
   source: Type.Object({
     documents: Type.Array(WorkItemSourceDocumentSchema),
     fields: Fields,
+    /** Set on items taken in from an email (workitems.intakeEmail). */
+    origin: Type.Optional(WorkItemOriginSchema),
   }),
   history: Type.Array(WorkItemHistoryEntrySchema),
 });
 
 export const WorkItemSummarySchema = Type.Object({
   ...common,
-  source: Type.Object({ documents: Type.Integer(), fields: Type.Array(Type.String()) }),
+  source: Type.Object({
+    documents: Type.Integer(),
+    fields: Type.Array(Type.String()),
+    origin: Type.Optional(WorkItemOriginSchema),
+  }),
   overdue: Type.Boolean(),
+  currentStage: Type.Union([WorkItemStageSummarySchema, Type.Null()]),
 });
 
 const strict = <T extends Record<string, TSchema>>(props: T) =>
@@ -165,6 +225,19 @@ export const WorkitemsListParamsSchema = strict({
   assigneeId: Type.Optional(Type.String()),
   overdue: Type.Optional(Type.Boolean()),
   q: Type.Optional(Type.String({ maxLength: 200 })),
+  /** Only items the caller requested (enforced server-side, also for operators). */
+  mine: Type.Optional(Type.Boolean()),
+  /** Only items whose current stage the caller may approve now (incl. delegations). */
+  awaitingMe: Type.Optional(Type.Boolean()),
+  /** Only items awaiting review in this route stage id. */
+  stage: Type.Optional(Type.String({ maxLength: 64 })),
+  /**
+   * Department view: items whose queue maps to this department (`unmapped` = no department).
+   * Applied after visibility filtering; a view filter, never a permission.
+   */
+  department: Type.Optional(DepartmentFilterSchema),
+  /** true: only items with an active flag; false: only items without. After visibility. */
+  flagged: Type.Optional(Type.Boolean()),
   cursor: Type.Optional(Type.String()),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
 });
@@ -250,8 +323,12 @@ export const WorkitemsConfigResultSchema = Type.Object({
       types: Type.Array(WorkItemTypeSchema),
       slaHours: Type.Union([Type.Number(), Type.Null()]),
       defaultAgent: Type.Union([Type.String(), Type.Null()]),
+      /** Absent = the queue is not mapped to a department. */
+      department: Type.Optional(DepartmentIdSchema),
     }),
   ),
+  /** Stable department catalogue (ids only; the UI owns the labels). */
+  departments: Type.Array(DepartmentIdSchema),
   rules: Type.Array(
     Type.Object({
       id: Type.String(),
@@ -265,6 +342,27 @@ export const WorkitemsConfigResultSchema = Type.Object({
   ),
   timezone: Type.String(),
   separationOfDuties: Type.Boolean(),
+  routes: Type.Array(WorkQueueRouteDefSchema),
+  access: Type.Object({
+    fallback: lit(["none", "any_approver"] as const),
+    configured: Type.Boolean(),
+    /** Roles named in the policy. Member principals are listed only for privileged callers. */
+    roles: Type.Array(Type.String()),
+    members: Type.Union([
+      Type.Array(
+        Type.Object({
+          principal: Type.String(),
+          name: Type.Union([Type.String(), Type.Null()]),
+          roles: Type.Array(Type.String()),
+          departments: Type.Array(Type.String()),
+          /** Where the autopilot morning brief draft is addressed (optional). */
+          email: Type.Optional(Type.String()),
+        }),
+      ),
+      Type.Null(),
+    ]),
+  }),
+  viewer: WorkQueueViewerSchema,
   source: Type.Object({ kind: Type.String(), path: Type.Union([Type.String(), Type.Null()]) }),
   digest: Type.String(),
   error: Type.Union([Type.String(), Type.Null()]),

@@ -26,7 +26,9 @@ import {
   safeFileName,
   sniffKind,
   validateDocument,
+  validateOutgoingDocument,
 } from "./documents.js";
+import { seedStarterFiles } from "./pack.js";
 import {
   effectiveWritable,
   parseProjectSessionKey,
@@ -233,6 +235,7 @@ describe("templates", () => {
   it("loads the templates from data files", () => {
     const templates = loadTemplates(dir);
     expect(templates.map((t) => t.id).toSorted()).toEqual([
+      "business-company-operations",
       "business-finance-expense-invoice",
       "business-general-affairs",
       "business-hr-leave-overtime",
@@ -245,7 +248,10 @@ describe("templates", () => {
     for (const t of templates) {
       expect(t.name.ja && t.name.en).toBeTruthy();
       expect(t.starterPrompts.length).toBeGreaterThan(0);
-      expect(t.rules.writable).toEqual(["output"]);
+      // Research also receives open-access PDFs (attachment intake) in corpus-inbox/.
+      expect(t.rules.writable).toEqual(
+        t.id === "research-academic" ? ["output", "corpus-inbox"] : ["output"],
+      );
     }
     const legacy = templates.find((t) => t.id === "industry-legacy-modernisation");
     expect(legacy?.rules.readOnly).toContain("source");
@@ -279,9 +285,28 @@ describe("templates", () => {
       { createdBy: "owner", template: tpl, home },
     );
     expect(p.templateId).toBe("research-academic");
-    expect(p.rules.readOnly).toEqual(["corpus"]);
+    expect(p.rules.readOnly).toEqual(["corpus", "knowledge"]);
     expect(p.terminalProfile).toBe("scientific");
-    expect(fs.existsSync(path.join(folder, "output"))).toBe(true);
+    expect(p.plugins).toEqual(["scholar-sources", "office"]);
+    for (const f of ["output", "output/drafts", "output/literature", "corpus-inbox", "knowledge"]) {
+      expect(fs.existsSync(path.join(folder, f))).toBe(true);
+    }
+    // The fill-in forms land in the read-only knowledge folder once, never over a person's file.
+    expect(tpl?.starterFiles).toEqual(["knowledge/research-profile.md", "knowledge/grants.md"]);
+    const pack = path.join(dir, "packs", "research-academic");
+    fs.writeFileSync(path.join(folder, "knowledge", "grants.md"), "- 2030-01-01 | mine |\n");
+    expect(seedStarterFiles(p, pack, tpl!.starterFiles!)).toEqual([
+      "knowledge/research-profile.md",
+    ]);
+    expect(fs.readFileSync(path.join(folder, "knowledge", "grants.md"), "utf8")).toContain("mine");
+    expect(
+      fs.readFileSync(path.join(folder, "knowledge", "research-profile.md"), "utf8"),
+    ).toContain("## Topics");
+    expect(seedStarterFiles(p, pack, tpl!.starterFiles!)).toEqual([]);
+    // Outside a read-only folder, not text, or leaving the folder: never copied.
+    expect(
+      seedStarterFiles(p, pack, ["output/x.md", "knowledge/a.sh", "knowledge/../x.md"]),
+    ).toEqual([]);
   });
 });
 
@@ -312,6 +337,21 @@ async function makeXlsx(): Promise<Buffer> {
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
+async function makePptx(): Promise<Buffer> {
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", "<Types/>");
+  zip.file("ppt/presentation.xml", "<p:presentation/>");
+  zip.file(
+    "ppt/slides/slide2.xml",
+    "<p:sld><a:p><a:r><a:t>売上 &amp; 利益</a:t></a:r><a:br><a:rPr/></a:br><a:r><a:t>二行目</a:t></a:r></a:p></p:sld>",
+  );
+  zip.file(
+    "ppt/slides/slide1.xml",
+    "<p:sld><a:p><a:r><a:t>Title</a:t></a:r></a:p><a:p></a:p></p:sld>",
+  );
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
 describe("document validation and extraction", () => {
   it("checks type by magic bytes against the extension", async () => {
     expect((await validateDocument("a.pdf", Buffer.from("%PDF-1.7\n..."))).ok).toBe(true);
@@ -326,9 +366,29 @@ describe("document validation and extraction", () => {
     expect((await validateDocument("c.docx", docx)).ok).toBe(true);
     expect((await validateDocument("c.xlsx", docx)).ok).toBe(false);
     expect(await sniffKind(await makeXlsx())).toBe("xlsx");
+    const pptx = await makePptx();
+    expect(await sniffKind(pptx)).toBe("pptx");
+    expect((await validateDocument("deck.pptx", pptx)).ok).toBe(true);
+    expect((await validateDocument("deck.docx", pptx)).ok).toBe(false);
+    expect((await validateDocument("c.pptx", docx)).ok).toBe(false);
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
     expect((await validateDocument("p.png", png)).ok).toBe(true);
     expect((await validateDocument("p.jpg", png)).ok).toBe(false);
+  });
+
+  it("recognises PowerPoint for uploads and outgoing files", async () => {
+    const zip = new JSZip();
+    zip.file("ppt/presentation.xml", "<p:presentation/>");
+    const pptx = await zip.generateAsync({ type: "nodebuffer" });
+    expect(await sniffKind(pptx)).toBe("pptx");
+    expect(await validateDocument("deck.pptx", pptx)).toEqual({ ok: true, kind: "pptx" });
+    expect(await validateOutgoingDocument("deck.pptx", pptx)).toEqual({ ok: true, kind: "pptx" });
+    expect((await validateOutgoingDocument("deck.pptx", await makeDocx("x"))).ok).toBe(false);
+    expect((await validateOutgoingDocument("deck.docx", pptx)).ok).toBe(false);
+    expect(await validateOutgoingDocument("c.docx", await makeDocx("x"))).toEqual({
+      ok: true,
+      kind: "docx",
+    });
   });
 
   it("enforces the size limit", async () => {
@@ -337,9 +397,12 @@ describe("document validation and extraction", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("extracts text from docx and xlsx", async () => {
+  it("extracts text from docx, xlsx and pptx", async () => {
     expect(await extractText("docx", await makeDocx("Hello"))).toBe("Hello\nSecond & last");
     expect(await extractText("xlsx", await makeXlsx())).toBe("## Pay\nName,Rate\n田中,1.25");
+    expect(await extractText("pptx", await makePptx())).toBe(
+      "## Slide 1\nTitle\n## Slide 2\n売上 & 利益\n二行目",
+    );
     expect(await extractText("txt", Buffer.from("\uFEFFplain"))).toBe("plain");
   });
 

@@ -86,7 +86,11 @@ function typeSpec(ctx: DocCtx, t: JavaType, num: string): string[] {
     );
   }
   for (const u of java.tableUses.filter((x) => x.type === t.qualifiedName && x.kind !== "access")) {
-    out.push(`- ${m.mapsTo}: ${code(u.table)} (${cell(u.via)}) ${cite(u)}`);
+    const d = u.discriminator;
+    const disc = d
+      ? `; ${m.discriminator(d.column, d.value, d.implicit, d.abstract)}${d.duplicate ? ` ${m.duplicateDiscriminator}` : ""}`
+      : "";
+    out.push(`- ${m.mapsTo}: ${code(u.table)} (${cell(`${u.via}${disc}`)}) ${cite(u)}`);
   }
   if (t.enumConstants.length > 0) {
     out.push(
@@ -100,19 +104,24 @@ function typeSpec(ctx: DocCtx, t: JavaType, num: string): string[] {
   }
   out.push("");
   if (t.fields.length > 0) {
-    const cols = new Map(
-      java.columns.filter((c) => c.type === t.qualifiedName).map((c) => [c.field, c]),
-    );
+    // A field's columns: its own, or each of an embedded field's (field path "address.street").
+    const own = java.columns.filter((c) => c.type === t.qualifiedName);
+    const colsOf = (name: string) =>
+      own.filter((c) => c.field === name || c.field.startsWith(`${name}.`));
     out.push(
       ...table(
         [m.colName, m.colType, m.colAnnotations, m.colColumn, m.colSource],
         t.fields.map((f) => {
-          const c = cols.get(f.name);
           return [
             code(f.name),
             code(f.type),
             cell(f.annotations.map((a) => `@${a.name}`).join(" ")),
-            c ? `${code(`${c.table}.${c.column}`)}${c.implicit ? ` (${m.implicit})` : ""}` : "",
+            colsOf(f.name)
+              .map(
+                (c) =>
+                  `${code(`${c.table}.${c.column}`)}${c.implicit ? ` (${m.implicit})` : ""}${c.stores ? ` ${code(c.stores)}` : ""}`,
+              )
+              .join(" "),
             cite(f),
           ];
         }),

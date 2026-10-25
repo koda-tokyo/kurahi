@@ -16,24 +16,30 @@ code itself: deterministic analysers produce the facts, every fact cites the fil
 from, and the agent explains those facts instead of guessing. What the code cannot tell, such as a
 program's business purpose, is marked as needing confirmation and left for people to fill in.
 
-This is the Analysis pack of the [Industrial Edition](/editions). Status as of 24 October 2026:
-available in release 2.1.0.
+This is the Analysis pack of the [Industrial Edition](/editions). Status as of 25 October 2026:
+available in release 2.2.0.
 
 ## What is analysed
 
-| Language or domain                                | Status  | What the analyser produces                                                                                                           |
-| ------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| COBOL, copybooks and JCL                          | Active  | Paragraphs, PERFORM and CALL graphs, file, EXEC SQL and EXEC CICS access, data dictionary, rule candidates, impact                   |
-| Java                                              | Active  | Classes, methods and fields with path:line, inheritance, statically resolvable calls, Spring and JPA annotations, table access       |
-| SQL DDL                                           | Active  | Tables, views and indexes, columns with types, nullability and defaults, keys and comments (ANSI, DB2, Oracle, PostgreSQL basics)    |
-| FORTRAN                                           | Active  | Program units, CALL and USE edges, COMMON blocks shared across units, INCLUDE, file I/O units bound through JCL, types and precision |
-| PL/I                                              | Active  | Procedures and CALL edges, %INCLUDE, DECLARE structures, files bound through JCL, EXEC SQL tables, ON-units                          |
-| PLC (IEC 61131-3 Structured Text, ladder exports) | Planned | Files are counted only; nothing is analysed                                                                                          |
-| Batch schedulers                                  | Planned | Job-definition exports are counted only                                                                                              |
-| Maintenance records, cybersecurity review         | Planned | No engine                                                                                                                            |
+| Language or domain                        | Status  | What the analyser produces                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| COBOL, copybooks and JCL                  | Active  | Paragraphs, PERFORM and CALL graphs, file, EXEC SQL and EXEC CICS access, data dictionary, rule candidates, impact                                                                                                                                                                                                                            |
+| Java                                      | Active  | Classes, methods and fields with path:line, inheritance, statically resolvable calls, Spring, JPA and MyBatis mapper table access                                                                                                                                                                                                             |
+| SQL DDL                                   | Active  | Tables, views and indexes, columns with types, nullability and defaults, keys and comments (ANSI, DB2, Oracle, PostgreSQL basics); stored procedures, functions and triggers with a `BEGIN ... END` body (DB2 SQL PL, Oracle PL/SQL): table access per statement, CALLs and trigger events                                                    |
+| FORTRAN                                   | Active  | Program units, CALL and USE edges, COMMON blocks shared across units, INCLUDE, file I/O units bound through JCL, types and precision                                                                                                                                                                                                          |
+| PL/I                                      | Active  | Procedures and CALL edges, %INCLUDE, DECLARE structures, files bound through JCL, EXEC SQL tables, ON-units                                                                                                                                                                                                                                   |
+| PLC (IEC 61131-3 Structured Text)         | Active  | PROGRAM, FUNCTION_BLOCK and FUNCTION units, VAR sections, an I/O map of AT %I/%Q/%M addresses, addresses declared twice, function block instances, writes; PLCopen XML exports read the same way (Structured Text bodies; FBD/LD block calls and output/coil writes; IL/SFC bodies are gaps); vendor ladder exports are counted, not read yet |
+| Batch schedulers                          | Planned | Job-definition exports are counted only                                                                                                                                                                                                                                                                                                       |
+| Maintenance records, cybersecurity review | Planned | No engine                                                                                                                                                                                                                                                                                                                                     |
 
 A planned entry never produces facts. It only reports which files it would cover, so a project
 shows honestly what is outside the analysis.
+
+Files are recognised by extension, or by content when the extension says nothing (`.txt`, no
+extension, ...). A file recognised by content goes to one engine only: a COBOL program with an
+embedded `EXEC SQL CREATE VIEW`, or a job with in-stream DDL under `SYSIN`, is read by the
+COBOL/JCL engine, as it would be with a `.cbl` or `.jcl` extension, and not again as a DDL
+script. The detection of the other engine reports these files as routed elsewhere.
 
 Tables are one node across languages: a COBOL `EXEC SQL` table, a JPA `@Table` and a
 `CREATE TABLE` of the same name are the same table, so CRUD and impact questions can be answered
@@ -45,7 +51,45 @@ across COBOL, Java and the database schema. Details and limits per language:
 The analyser turns its facts into a design document in Japanese or English: system overview, job
 flow, program specifications, data dictionary, CRUD matrix, and a coverage section with every gap
 and open question. When the folder has Java or DDL, the document also gains Java class
-specifications and table definitions.
+specifications and table definitions, with a list of the stored routines whose body was read;
+with PLC Structured Text, PLC program specifications with
+the POU list, an I/O allocation table by %I/%Q/%M address and the variables of each POU.
+
+A stored procedure, function or trigger with a balanced `BEGIN ... END` body becomes a routine in
+the graph: each static statement links it to the tables it names (so the CRUD matrix and a table's
+impact include the routine), a `CALL` links it to the routine it calls (a name with no definition
+is kept and marked as not defined), and a trigger is linked from its table with its events. Dynamic
+SQL (`EXECUTE IMMEDIATE`, `PREPARE`, `EXEC(...)`) and DDL inside a body are listed as gaps, never
+guessed. An Oracle package body is split into its members, each a routine named
+`PACKAGE.MEMBER` (`CALL pkg.member`, and a bare `CALL` to a sibling inside the package, link to
+it); package-level cursors, the initialisation block and external members are gaps, and a package
+whose member declares a nested subprogram stays one gap. PostgreSQL dollar-quoted bodies, package
+specifications, bodies without `BEGIN` and unbalanced bodies stay one gap naming the tables they
+mention. Static calls into routines from Java (JDBC, JPA, MyBatis) and from COBOL and PL/I
+(`EXEC SQL CALL`) are linked too, so a table's impact reaches those callers through the routine.
+
+When two schemas define the same table name (`HR.EMPLOYEE`, `PAYROLL.EMPLOYEE`), each schema's
+table is its own node (`table:HR.EMPLOYEE`) with its own columns, under the bare-name node
+`table:EMPLOYEE`. A reference that names the schema (a JPA `@Table(schema = ...)`, qualified SQL in
+Java or a routine body) is linked to that schema's table; a bare reference stays on the bare-name
+node, which says the name is ambiguous. The same holds for foreign keys, view sources and indexes
+that name the schema, and an ALTER or COMMENT naming it changes that schema's table. The impact of one schema's table lists only its own
+accessors; the impact of the bare name lists them all. Tables only one schema defines keep a
+single node.
+
+A JPA `@ManyToOne` or `@OneToOne` (the owning side, not `mappedBy`) is a `JOIN` edge from the
+entity's table to the target entity's table, with its join columns (`@JoinColumn`, each column of
+`@JoinColumns`, or JPA's default `FIELD_` + the target's `@Id` column). It is the mapping's claim,
+compared with the DDL: a join whose owning table is in the DDL but has no matching foreign key
+says "no foreign key in the DDL", and a foreign key on a table an entity maps that no relationship
+uses is listed as unused by the mapping. Columns compare as a set. A unidirectional `@OneToMany`
+with `@JoinColumn` joins from the target's table to the owner's. A join table (`@ManyToMany`, or
+`@OneToMany` with `@JoinTable` or no join column) is two `JOIN` edges, to the owner
+(`joinColumns`) and to the target (`inverseJoinColumns`), with JPA's default names when the
+mapping names none (`OWNER_TARGET`; the inverse field or the owner's entity name + `_` + its `@Id`
+column; `FIELD_` + the target's `@Id` column); its foreign keys are judged like an entity table's.
+`mappedBy` sides add nothing: the owning side carries the join. `@SecondaryTable`, `@Inheritance`
+and `@Embedded` are not modelled yet.
 
 - **Every fact line cites `path:line`.** A reviewer can check any row against the source.
 - **Nothing is invented.** A program's business purpose, and the business meaning of each rule

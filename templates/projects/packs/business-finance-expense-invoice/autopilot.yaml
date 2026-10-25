@@ -1,0 +1,36 @@
+# 経理 / Finance autopilot (starter routine; see docs/autopilot.md).
+# L1 Prepare: invoice mail becomes work items in the invoice queue with the extracted fields and
+# flags (bank-detail changes, unknown vendors, urgency pressure → suspected_fraud). Payments are
+# never executed by the autopilot, at any level: a person approves and pays.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: finance-invoice-intake
+    edition: business
+    area: finance
+    name: { ja: 請求書メールの受付, en: Invoice intake from mail }
+    # New mail starts a run within seconds (Graph delta query); the hourly schedule is the
+    # safety net when the mail trigger is degraded (sign-in expired) or the gateway restarted.
+    trigger:
+      schedule: "0 9-18 * * 1-5"
+      tz: Asia/Tokyo
+      event: [{ source: m365.mail, folder: inbox }]
+      debounceSeconds: 60
+      maxRunsPerHour: 12
+    gather:
+      - id: invoices
+        tool: m365_mail_search
+        args: { query: "請求書 OR invoice", top: 25 }
+      - id: mail
+        tool: m365_mail_read
+        args: { maxChars: 12000 }
+        each: { from: invoices, match: "id: (\\S+)", arg: id, max: 10 }
+    reasoning:
+      prompt: invoice-intake
+      schema: autopilot.plan.v1
+    actions: [workitem.intake]
+    level: L1
+    limits: { maxItemsPerRun: 10, maxActionsPerDay: 100 }
+    queue: fin-invoice
+    metrics: { baselineMinutes: 8 }

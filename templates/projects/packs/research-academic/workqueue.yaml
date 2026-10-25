@@ -1,0 +1,53 @@
+# Research & academic work queue policy (example; adjust per lab).
+# The autopilot's literature watch, citation check and grant reminders land here for the
+# researcher to review. Nothing in these queues is ever submitted to a journal or a funder, and
+# no research participant is ever contacted.
+version: 1
+timezone: Asia/Tokyo
+queues:
+  - id: res-literature
+    name: { ja: 文献レビュー, en: Literature review }
+    types: [document, case]
+    slaHours: 168
+  - id: res-writing
+    name: { ja: 執筆, en: Writing }
+    types: [document, case]
+    slaHours: 120
+  - id: res-grants
+    name: { ja: 研究費・締切, en: Grants and deadlines }
+    types: [case, request]
+    slaHours: 48
+  - id: res-data
+    name: { ja: データ・再現性, en: Data and reproducibility }
+    types: [case, document]
+    slaHours: 168
+rules:
+  - id: res.summary
+    kind: required
+    fields: [summary]
+    label: { ja: 要約（出典付き）を記載, en: "Write a summary with its source" }
+  # Writing and grants only: a paper's own abstract in a literature item may say "accepted".
+  - id: res.not-submitted
+    kind: forbiddenPhrases
+    target: both
+    queues: [res-writing, res-grants]
+    phrases:
+      [
+        投稿済み,
+        投稿しました,
+        採択済み,
+        採択されました,
+        申請済み,
+        申請しました,
+        受理されました,
+        submitted,
+        accepted for publication,
+        has been accepted,
+        application sent,
+        grant awarded,
+      ]
+    label:
+      {
+        ja: 投稿・採択・申請を済みと書かない（Kurahi は投稿も申請もしません）,
+        en: "Never claim a paper or an application was submitted or accepted (Kurahi submits nothing)",
+      }

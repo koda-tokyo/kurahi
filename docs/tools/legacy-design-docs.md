@@ -102,6 +102,21 @@ The graph behind both documents is available through `legacy_query`:
 - `lineage` `{dataset}`: the producers upstream and the consumers downstream of a data set, SQL
   table or CICS file, through utility steps.
 
+## Word output
+
+`legacy_design_doc` takes `output_format: "md" | "docx"` (default `md`). With `docx` the same
+Markdown is also converted, deterministically, into a Word document: headings, paragraphs, block
+quotes, bullet and numbered lists, tables (cell line breaks kept), and Mermaid diagrams as
+preformatted source; Japanese or English by `lang`, with Japanese fonts and proofing language for
+`ja`. The file is written into the Project's `output/design-docs/` as `設計書_<YYYYMMDD>.docx`
+(English: `design-doc_<YYYYMMDD>.docx`), never over an existing file: a taken name gets `-2`,
+`-3` and so on. The tool result names the file (`details.path`).
+
+The Word file needs a Project session in 計画 Plan or 実行 Act mode and follows the
+[office tools](/tools/office)' path guards (a folder the mode makes writable, no symbolic links,
+nothing outside the Project). Both use one shared renderer (`src/office/`), so Word output works
+without the office plugin being enabled.
+
 ## Command line
 
 ```bash

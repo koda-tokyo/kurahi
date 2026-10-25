@@ -3,10 +3,12 @@ version: 1
 timezone: Asia/Tokyo
 queues:
   - id: ga-requests
+    department: admin
     name: { ja: 総務依頼, en: General affairs requests }
     types: [request]
     slaHours: 48
   - id: ga-facilities
+    department: admin
     name: { ja: 施設・設備, en: Facilities }
     types: [request, case]
     slaHours: 72

@@ -39,7 +39,11 @@ export type BundleManifest = {
   extensions: { included: string[]; omitted: Record<string, string> };
   pruned: string[];
   fileCount: number;
+  /** Release profile the bundle was built with (absent in bundles before 2.2 = standard). */
+  profile?: BundleProfile;
 };
+
+export type BundleProfile = "standard" | "enterprise";
 
 export const SUPPORTED_TARGETS: readonly BundleTarget[] = [
   { os: "linux", arch: "x64" },
@@ -76,8 +80,17 @@ export function archiveExtension(os: BundleOs): ".tar.gz" | ".zip" {
   return os === "win32" ? ".zip" : ".tar.gz";
 }
 
-export function bundleArchiveName(version: string, target: BundleTarget): string {
-  return `${bundleDirName(version, target)}${archiveExtension(target.os)}`;
+/**
+ * Release asset name. The enterprise bundle carries a `-enterprise` suffix after the target, so
+ * globs written for the standard asset (`kolo-*-linux-x64.tar.gz`) never pick it up by accident.
+ */
+export function bundleArchiveName(
+  version: string,
+  target: BundleTarget,
+  profile: BundleProfile = "standard",
+): string {
+  const suffix = profile === "enterprise" ? "-enterprise" : "";
+  return `${bundleDirName(version, target)}${suffix}${archiveExtension(target.os)}`;
 }
 
 /** Launcher path inside a bundle, relative to the bundle root. */
@@ -234,6 +247,7 @@ export function createBundleManifest(params: {
   extensions: { included: string[]; omitted: Record<string, string> };
   pruned: string[];
   fileCount: number;
+  profile?: BundleProfile;
 }): BundleManifest {
   return {
     schema: BUNDLE_MANIFEST_SCHEMA,
@@ -249,5 +263,6 @@ export function createBundleManifest(params: {
     extensions: params.extensions,
     pruned: params.pruned,
     fileCount: params.fileCount,
+    profile: params.profile ?? "standard",
   };
 }

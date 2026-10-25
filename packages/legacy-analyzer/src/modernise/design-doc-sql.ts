@@ -1,13 +1,15 @@
 // テーブル定義 / Table definitions of the design document: the table list with who accesses each
 // table across COBOL, Java, PL/I and JCL, then per table its columns (type, NULL, default, keys,
-// comment), constraints, indexes, view sources and the CRUD evidence. Tables that are accessed but
-// not defined in the analysed DDL, and DDL the engine did not model, are listed at the end.
+// comment), constraints, indexes, view sources and the CRUD evidence. Stored routines whose body
+// was read (their table access, calls and trigger events), tables that are accessed but not
+// defined in the analysed DDL, and DDL the engine did not model are listed at the end.
 // Every fact line cites `path:line`.
 
 import type { DocCtx } from "../design-doc-context.js";
 import type { SqlTable } from "./types.js";
 import { cell, cite, cites, code, table } from "../md.js";
 import { modernStrings } from "./doc-i18n.js";
+import { compareJoinKeys, foreignKeys, keyOfRelation } from "./jpa-keys.js";
 import { accessorLanguage } from "./lang.js";
 import { tableRows } from "./plan.js";
 
@@ -61,6 +63,27 @@ export function renderTables(ctx: DocCtx, n: number): string[] {
     }
     out.push("");
   }
+  if (poly.sql.routines.length > 0) {
+    out.push(`### ${n}.${next++} ${m.routines}`, "");
+    out.push(
+      ...table(
+        [m.colName, m.colKind, m.colFiresOn, m.colTablesOps, m.colRoutineCalls, m.colSource],
+        poly.sql.routines.map((r) => [
+          code(`${r.schema ? `${r.schema}.` : ""}${r.name}`),
+          r.kind,
+          r.on ? `${code(r.on)} ${(r.events ?? []).join(", ")}` : "",
+          cell(r.access.map((a) => `${a.table} ${a.op}`).join(", ")),
+          cell(r.calls.map((c) => c.name).join(", ")),
+          cites([r, ...r.access, ...r.calls], 6),
+        ]),
+      ),
+      "",
+    );
+  }
+  const relations = poly.java.relations ?? [];
+  if (relations.length > 0) {
+    out.push(`### ${n}.${next++} ${m.jpaKeys}`, "", `> ${m.jpaKeysNote}`, "", ...jpaKeys(ctx));
+  }
   const gaps = poly.sql.files.flatMap((f) => f.gaps);
   if (gaps.length > 0 || poly.sql.duplicates.length > 0) {
     out.push(`### ${n}.${next} ${m.notModelled}`, "");
@@ -70,6 +93,58 @@ export function renderTables(ctx: DocCtx, n: number): string[] {
     for (const d of poly.sql.duplicates) {
       out.push(`- ${code(d.name)}: ${m.duplicate} ${cite(d.first)} ${cite(d)}`);
     }
+  }
+  return out;
+}
+
+// JPA relationships against the DDL's foreign keys (jpa-keys.ts): one row per relation with the
+// key it matches or why it is not judged, then the foreign keys no mapping uses.
+function jpaKeys(ctx: DocCtx): string[] {
+  const m = modernStrings(ctx.lang);
+  const poly = ctx.poly;
+  if (!poly) {
+    return [];
+  }
+  const keys = foreignKeys(poly.sql);
+  const findings = compareJoinKeys(poly.java, poly.sql);
+  const missing = new Set(
+    findings.flatMap((f) => (f.kind === "join without foreign key" ? [f.relation] : [])),
+  );
+  const q = (name: string, schema?: string) => `${schema ? `${schema}.` : ""}${name}`;
+  const out = table(
+    [m.colMapping, m.colJoinColumns, m.colReferences, m.colForeignKey, m.colSource],
+    (poly.java.relations ?? []).map((r) => {
+      const key = r.target ? keyOfRelation(r, keys) : undefined;
+      const status = !r.target
+        ? m.targetNotEntity
+        : missing.has(r)
+          ? m.keyMissing
+          : key
+            ? `${m.keyMatches} ${cite(key)}`
+            : m.keyNotJudged;
+      return [
+        code(`${r.type.split(".").pop()}${r.field ? `.${r.field}` : ""} @${r.kind}`),
+        `${code(`${q(r.table, r.schema)}(${r.columns.join(", ")})`)}${r.implicit ? ` ${m.implicit}` : ""}${r.joinTable ? ` ${m.joinTable}` : ""}`,
+        r.target
+          ? code(
+              `${q(r.target, r.targetSchema)}${r.referenced ? `(${r.referenced.join(", ")})` : ""}`,
+            )
+          : code(r.unresolved),
+        status,
+        cite(r),
+      ];
+    }),
+  );
+  out.push("");
+  const unused = findings.flatMap((f) => (f.kind === "foreign key without mapping" ? [f.key] : []));
+  if (unused.length > 0) {
+    out.push(`${m.unusedKeys}:`, "");
+    for (const k of unused) {
+      out.push(
+        `- ${code(`${q(k.table, k.schema)}(${k.columns.join(", ")}) -> ${q(k.target, k.targetSchema)}${k.referenced.length ? `(${k.referenced.join(", ")})` : ""}`)} ${cite(k)}`,
+      );
+    }
+    out.push("");
   }
   return out;
 }

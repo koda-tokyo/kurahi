@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/watsonx-orchestrate",
+  "version": "2.2.0",
+  "description": "watsonx Orchestrate agent client: call allowlisted Orchestrate agents (off by default)",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

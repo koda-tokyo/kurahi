@@ -1,0 +1,53 @@
+{
+  "id": "business-company-operations",
+  "name": {
+    "en": "Company operations — all departments",
+    "ja": "企業業務 — 全部門"
+  },
+  "description": {
+    "en": "One project with 15 departmental work queues for enterprise or SME operations. Agents prepare drafts and people review decisions. Configure access before adding confidential records.",
+    "ja": "企業・中小企業向けに15部門の業務キューを備えたプロジェクトです。エージェントが下書きを作成し、人が判断します。機密情報を登録する前にアクセス権を設定してください。"
+  },
+  "folders": ["requests", "knowledge", "output"],
+  "rules": {
+    "readOnly": ["requests", "knowledge"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "エージェントは下書きのみを作成します。承認・差戻し・取消は必ず人が行います。",
+        "en": "Agents only draft. Approve, send back and cancel are always done by a person."
+      },
+      {
+        "ja": "申請内容と添付資料にない事実は書かず、不足は【要確認】と明記してください。",
+        "en": "Use only facts from the request and its attachments; mark anything missing as 【要確認 / to confirm】."
+      },
+      {
+        "ja": "承認されるまで、送信・発注・支払・予約・共有は一切しないでください。",
+        "en": "Never send, order, pay, book or share anything until the item is approved."
+      },
+      {
+        "ja": "requests/ の申請書は読み取り専用です。",
+        "en": "Request forms in requests/ are read-only."
+      },
+      {
+        "ja": "knowledge/ には人が承認した会社情報（会社概要・料金・連絡先など）を置きます。読み取り専用で、エージェントは変更できません。",
+        "en": "knowledge/ holds company facts people have approved (profile, prices, contacts). It is read-only; agents cannot change it."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "en": "Prepare a request for the appropriate department using the supplied facts. Ask for missing information before submitting it for review.",
+      "ja": "提供された事実から適切な部門への依頼を準備してください。不足情報を確認してからレビューに提出してください。"
+    },
+    {
+      "en": "List open departmental work, its owners and due dates. Do not infer completion or external actions.",
+      "ja": "各部門の未完了業務、担当者、期限を一覧にしてください。完了や外部操作を推測しないでください。"
+    }
+  ],
+  "terminalProfile": "data",
+  "plugins": ["office"]
+}

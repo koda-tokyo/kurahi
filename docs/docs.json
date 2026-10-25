@@ -845,6 +845,7 @@
               "industrial-modernisation",
               "work-console",
               "business/work-queue",
+              "autopilot",
               "scholars",
               "start/phone",
               "start/getting-started",
@@ -856,6 +857,10 @@
               "start/hubs",
               "start/onboarding"
             ]
+          },
+          {
+            "group": "Releases",
+            "pages": ["releases/2.2.0"]
           },
           {
             "group": "Help",
@@ -1032,6 +1037,9 @@
               "security/owasp-agentic",
               "security/threat-model-industrial",
               "security/privacy",
+              "security/attachment-intake",
+              "security/identity",
+              "security/enterprise-profile",
               "security/formal-verification",
               "gateway/sandbox-vs-tool-policy-vs-elevated",
               "gateway/sandboxing",
@@ -1074,13 +1082,35 @@
           },
           {
             "group": "Business connectors",
-            "pages": ["connectors/microsoft-365", "connectors/gmail", "connectors/entra"]
+            "pages": [
+              "connectors/index",
+              "connectors/microsoft-365",
+              "connectors/gmail",
+              "connectors/entra",
+              "connectors/kintone",
+              "connectors/freee",
+              "connectors/money-forward",
+              "connectors/smarthr",
+              "connectors/line-works",
+              "connectors/box",
+              "connectors/scholar-sources"
+            ]
+          },
+          {
+            "group": "Enterprise integrations",
+            "pages": [
+              "integrations/ibm-watsonx",
+              "integrations/ibm-watsonx-orchestrate",
+              "integrations/ibm-watsonx-governance",
+              "integrations/ibm-watsonx-data-db2"
+            ]
           },
           {
             "group": "Providers",
             "pages": [
               "providers/README",
               "providers/sakura",
+              "providers/watsonx",
               "providers/index",
               "providers/models",
               "providers/openai",
@@ -1117,6 +1147,7 @@
               "tools/legacy-analyzer",
               "tools/legacy-mcp",
               "tools/legacy-design-docs",
+              "tools/office",
               "tools/llm-task",
               "plugin",
               "plugins/manifest",
@@ -1234,28 +1265,57 @@
               "ja/industrial-modernisation",
               "ja/work-console",
               "ja/business/work-queue",
+              "ja/autopilot",
               "ja/scholars"
             ]
           },
           {
+            "group": "リリース",
+            "pages": ["ja/releases/2.2.0"]
+          },
+          {
             "group": "業務コネクター",
-            "pages": ["ja/connectors/microsoft-365", "ja/connectors/gmail", "ja/connectors/entra"]
+            "pages": [
+              "ja/connectors/index",
+              "ja/connectors/microsoft-365",
+              "ja/connectors/gmail",
+              "ja/connectors/entra",
+              "ja/connectors/kintone",
+              "ja/connectors/freee",
+              "ja/connectors/money-forward",
+              "ja/connectors/smarthr",
+              "ja/connectors/line-works",
+              "ja/connectors/box",
+              "ja/connectors/scholar-sources"
+            ]
+          },
+          {
+            "group": "エンタープライズ連携",
+            "pages": [
+              "ja/integrations/ibm-watsonx",
+              "ja/integrations/ibm-watsonx-orchestrate",
+              "ja/integrations/ibm-watsonx-governance",
+              "ja/integrations/ibm-watsonx-data-db2"
+            ]
           },
           {
             "group": "プロバイダー",
-            "pages": ["ja/providers/sakura"]
+            "pages": ["ja/providers/sakura", "ja/providers/watsonx"]
           },
           {
             "group": "セキュリティ",
             "pages": [
               "ja/security/SECURITY_OVERVIEW",
               "ja/security/privacy",
+              "ja/security/attachment-intake",
+              "ja/security/identity",
+              "ja/security/enterprise-profile",
               "ja/security/owasp-agentic"
             ]
           },
           {
             "group": "ツール",
-            "pages": ["ja/tools/legacy-mcp", "ja/plugins/a2a"]
+            "pages": ["ja/tools/legacy-mcp", "ja/tools/office", "ja/plugins/a2a"]
           }
         ]
       }

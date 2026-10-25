@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { emitAgentEvent, registerAgentRunContext } from "../infra/agent-events.js";
+import { createProject } from "../projects/store.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import {
   agentCommand,
@@ -48,6 +49,54 @@ async function waitFor(condition: () => boolean, timeoutMs = 1500) {
 }
 
 describe("gateway server chat", () => {
+  test("department chat sends trusted project context and rejects stale department routing", async () => {
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "gateway-department-"));
+    try {
+      await fs.mkdir(path.join(folder, "context"));
+      const policyPath = path.join(folder, "context/workqueue.json");
+      await fs.writeFile(
+        policyPath,
+        JSON.stringify({
+          version: 1,
+          queues: [
+            { id: "finance-work", department: "finance", defaultAgent: "main", types: ["request"] },
+          ],
+          rules: [],
+        }),
+      );
+      const project = createProject(
+        { name: "Company", folder, allowedAgents: ["main"] },
+        { createdBy: "owner" },
+      );
+      const key = await rpcReq(ws, "projects.chatKey", { id: project.id, departmentId: "finance" });
+      expect(key.ok).toBe(true);
+      const sessionKey = (key.payload as { sessionKey: string }).sessionKey;
+      const spy = vi.mocked(getReplyFromConfig);
+      spy.mockClear();
+      const sent = await rpcReq(ws, "chat.send", {
+        sessionKey,
+        message: "Help me prepare an expense request",
+        idempotencyKey: "department-finance-context",
+      });
+      expect(sent.ok).toBe(true);
+      await waitFor(() => spy.mock.calls.length > 0);
+      const input = spy.mock.calls[0]?.[0] as { BodyForAgent?: string };
+      expect(input.BodyForAgent).toContain("Department: finance");
+      expect(input.BodyForAgent).toContain("[[kurahi-project]]");
+      expect(input.BodyForAgent).toContain("Help me prepare an expense request");
+      await fs.writeFile(policyPath, JSON.stringify({ version: 1, queues: [], rules: [] }));
+      const stale = await rpcReq(ws, "chat.send", {
+        sessionKey,
+        message: "Continue",
+        idempotencyKey: "department-finance-stale",
+      });
+      expect(stale.ok).toBe(false);
+      expect(stale.error?.message).toContain("not configured");
+    } finally {
+      await fs.rm(folder, { recursive: true, force: true });
+    }
+  });
+
   test("handles chat send and history flows", async () => {
     const tempDirs: string[] = [];
     let webchatWs: WebSocket | undefined;

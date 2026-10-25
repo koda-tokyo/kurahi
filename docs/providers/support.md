@@ -8,30 +8,31 @@ title: "Provider support"
 
 # Provider support
 
-The provider registry has **209 entries**. They are not all equal.
+The provider registry has **210 entries**. They are not all equal.
 
-| Level           | What it means                                                                                                                                                                 | Count in 2.1.0      |
+| Level           | What it means                                                                                                                                                                 | Count in 2.2.0      |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| **Curated**     | Configuration written and maintained by KODA: endpoint, authentication, region note, defaults, list prices where published. Supported: we fix problems with these.            | 17                  |
+| **Curated**     | Configuration written and maintained by KODA: endpoint, authentication, region note, defaults, list prices where published. Supported: we fix problems with these.            | 18                  |
 | **Catalogue**   | Imported from a public provider catalogue so you can try them. Listed, not tested; best effort only.                                                                          | 192                 |
 | **KODA tested** | A curated provider and model that passed the [KODA tested benchmark](/providers/koda-tested) as a resident: tool use, policy adherence, continuity and Japanese instructions. | 1 model; 10 pending |
 
 ## Curated providers
 
-| Provider                             | Where requests are processed (provider's own statement) |
-| ------------------------------------ | ------------------------------------------------------- |
-| Sakura AI Engine (default profile)   | Japan                                                   |
-| Ollama                               | Your machine                                            |
-| Any OpenAI-compatible endpoint       | Wherever that endpoint is hosted                        |
-| Azure OpenAI                         | The region you choose per resource                      |
-| Mistral AI                           | European Union                                          |
-| OpenAI                               | Global, US by default                                   |
-| Anthropic                            | Global, US by default                                   |
-| Google Gemini API                    | Global; region not selectable on this API               |
-| Groq, Together AI, Fireworks AI, xAI | Global, US by default                                   |
-| OpenRouter                           | Depends on the upstream model                           |
-| DeepSeek, Moonshot AI, Z.AI          | China (international endpoints for some)                |
-| MiniMax                              | Singapore                                               |
+| Provider                             | Where requests are processed (provider's own statement)         |
+| ------------------------------------ | --------------------------------------------------------------- |
+| Sakura AI Engine (default profile)   | Japan                                                           |
+| Ollama                               | Your machine                                                    |
+| Any OpenAI-compatible endpoint       | Wherever that endpoint is hosted                                |
+| Azure OpenAI                         | The region you choose per resource                              |
+| IBM watsonx.ai                       | The region you choose per account (Tokyo, `jp-tok`, by default) |
+| Mistral AI                           | European Union                                                  |
+| OpenAI                               | Global, US by default                                           |
+| Anthropic                            | Global, US by default                                           |
+| Google Gemini API                    | Global; region not selectable on this API                       |
+| Groq, Together AI, Fireworks AI, xAI | Global, US by default                                           |
+| OpenRouter                           | Depends on the upstream model                                   |
+| DeepSeek, Moonshot AI, Z.AI          | China (international endpoints for some)                        |
+| MiniMax                              | Singapore                                                       |
 
 Region statements come from each provider's documentation and are recorded in the registry with
 their source. Check your contract with the provider before sending regulated data; for personal

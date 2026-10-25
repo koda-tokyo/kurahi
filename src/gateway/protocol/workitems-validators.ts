@@ -1,6 +1,16 @@
 // Compiled validators for the work queue methods (kept apart from protocol/index.ts).
 import AjvPkg, { type ValidateFunction } from "ajv";
 import {
+  WorkitemsClearFlagParamsSchema,
+  WorkitemsIntakeEmailParamsSchema,
+} from "./schema/workitems-intake.js";
+import {
+  WorkitemsDelegateParamsSchema,
+  WorkitemsDocumentParamsSchema,
+  WorkitemsDraftDiffParamsSchema,
+  WorkitemsStatsParamsSchema,
+} from "./schema/workitems-review.js";
+import {
   WorkitemsAssignAgentParamsSchema,
   WorkitemsConfigParamsSchema,
   WorkitemsCreateParamsSchema,
@@ -46,6 +56,12 @@ export const workitemsValidators = {
   "workitems.decide": lazyCompile(WorkitemsDecideParamsSchema),
   "workitems.config": lazyCompile(WorkitemsConfigParamsSchema),
   "workitems.evidence": lazyCompile(WorkitemsEvidenceParamsSchema),
+  "workitems.delegate": lazyCompile(WorkitemsDelegateParamsSchema),
+  "workitems.document": lazyCompile(WorkitemsDocumentParamsSchema),
+  "workitems.draftDiff": lazyCompile(WorkitemsDraftDiffParamsSchema),
+  "workitems.stats": lazyCompile(WorkitemsStatsParamsSchema),
+  "workitems.intakeEmail": lazyCompile(WorkitemsIntakeEmailParamsSchema),
+  "workitems.clearFlag": lazyCompile(WorkitemsClearFlagParamsSchema),
 } as const;
 
 export type WorkitemsMethod = keyof typeof workitemsValidators;

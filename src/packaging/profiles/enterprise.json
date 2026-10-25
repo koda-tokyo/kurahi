@@ -1,0 +1,254 @@
+{
+  "$comment": "Kurahi enterprise build profile (release 2.2). One entry per directory in extensions/; src/packaging/profiles/enterprise-profile.test.ts fails when an extension is missing. Read by scripts/bundle.mjs, scripts/npm-pack.mjs, scripts/pack-plugin.mjs, scripts/enterprise-check.mjs and, at runtime, src/plugins/profile-gate.ts. See docs/security/enterprise-profile.md.",
+  "schema": 1,
+  "profile": "enterprise",
+  "release": "2.2",
+  "tiers": {
+    "enterprise": "Shipped in the enterprise package and allowed to load under the enterprise profile.",
+    "optional": "Not in the enterprise package. Shipped as a separate plugin archive (kurahi-<id>-<version>.tgz); loads under the enterprise profile only when the administrator installs it and enables it explicitly (plugins.entries.<id>.enabled: true, plugins.allow or the memory slot).",
+    "excluded": "Not in the enterprise package and refused by the runtime under the enterprise profile, even when copied into a plugin directory and enabled."
+  },
+  "licensePolicy": {
+    "fail": ["copyleft"],
+    "warn": ["weak-copyleft", "unknown"],
+    "exceptions": {}
+  },
+  "extensions": {
+    "a2a": {
+      "tier": "enterprise",
+      "reason": "Agent2Agent protocol server and client tools: interoperability with enterprise agent platforms behind gateway auth and signed agent messaging."
+    },
+    "alpha-vantage": {
+      "tier": "excluded",
+      "reason": "Free-tier consumer market-data feed (stocks, forex, crypto) used for personal briefings; not a business connector."
+    },
+    "bluebubbles": {
+      "tier": "excluded",
+      "reason": "Consumer channel: iMessage through a relay on a personal Mac."
+    },
+    "box": {
+      "tier": "enterprise",
+      "reason": "Box business connector, read-only by default, fetches go through the attachment scanner into the Project."
+    },
+    "brave-search": {
+      "tier": "optional",
+      "reason": "Web search is business-relevant but sends queries to an external API with a separate key; opt-in after the customer reviews that data egress."
+    },
+    "circadian": {
+      "tier": "excluded",
+      "reason": "Private-deployment origin: phase-of-day signal from a private deployment's agent persona layer; no business function."
+    },
+    "copilot-proxy": {
+      "tier": "excluded",
+      "reason": "Proxies a personal GitHub Copilot subscription as a model provider; licence terms do not cover use inside a business product."
+    },
+    "diagnostics-otel": {
+      "tier": "enterprise",
+      "reason": "OpenTelemetry exporter to the customer's own collector; no data leaves except to the configured endpoint."
+    },
+    "discord": {
+      "tier": "excluded",
+      "reason": "Consumer channel: community chat network."
+    },
+    "entra": {
+      "tier": "enterprise",
+      "reason": "Microsoft Entra ID business connector: OIDC sign-in and directory read."
+    },
+    "freee": {
+      "tier": "enterprise",
+      "reason": "freee accounting business connector (Japan), bounded reads."
+    },
+    "gmail": {
+      "tier": "enterprise",
+      "reason": "Google Workspace mail business connector, read-only by default."
+    },
+    "google-gemini-cli-auth": {
+      "tier": "excluded",
+      "reason": "Reuses a consumer CLI OAuth login as a model credential; enterprise deployments configure contracted API keys in the core providers."
+    },
+    "googlechat": {
+      "tier": "optional",
+      "reason": "Google Workspace chat channel: business-grade, but outside the channel set reviewed for 2.2; separate archive, explicit opt-in."
+    },
+    "health-watchdog": {
+      "tier": "enterprise",
+      "reason": "Gateway liveness watchdog (lease and listener checks, audited supervisor restart); local operations only, on by default."
+    },
+    "ibm-data": {
+      "tier": "enterprise",
+      "reason": "Read-only IBM watsonx.data (SELECT/SHOW/DESCRIBE only, catalog allowlist, row and byte limits) and allow-listed Db2 REST services; off by default."
+    },
+    "imessage": {
+      "tier": "excluded",
+      "reason": "Consumer channel: personal Apple ID on macOS."
+    },
+    "kintone": {
+      "tier": "enterprise",
+      "reason": "kintone business connector: configured apps, bounded record queries with a field allow-list."
+    },
+    "legacy-analyzer": {
+      "tier": "enterprise",
+      "reason": "Legacy analyser tools (COBOL, copybooks, JCL) for modernisation projects; local analysis only."
+    },
+    "libretranslate": {
+      "tier": "optional",
+      "reason": "Translation is business-relevant; the default public instance would receive document text, so it is opt-in and should point at a self-hosted server."
+    },
+    "line": {
+      "tier": "excluded",
+      "reason": "Consumer channel: LINE Messaging API for personal accounts. The business path is line-works."
+    },
+    "line-works": {
+      "tier": "enterprise",
+      "reason": "LINE WORKS business connector: bot channel information and members, read-only by default."
+    },
+    "llm-task": {
+      "tier": "enterprise",
+      "reason": "JSON-only LLM task tool on the configured model; no data path beyond the configured provider."
+    },
+    "lobster": {
+      "tier": "excluded",
+      "reason": "Runs an external workflow CLI that is neither shipped nor reviewed with the product; inherited upstream tooling."
+    },
+    "locationiq": {
+      "tier": "excluded",
+      "reason": "Free-tier consumer geocoding API used for personal assistants; not a business connector."
+    },
+    "log-rotation": {
+      "tier": "enterprise",
+      "reason": "Size and age caps for state-root logs: local retention control."
+    },
+    "matrix": {
+      "tier": "optional",
+      "reason": "Self-hostable federated chat used in some public-sector deployments; native crypto addon and federation need their own review; separate archive, explicit opt-in."
+    },
+    "mattermost": {
+      "tier": "optional",
+      "reason": "Self-hosted team chat; business-grade but outside the channel set reviewed for 2.2; separate archive, explicit opt-in."
+    },
+    "memory-boot-inject": {
+      "tier": "excluded",
+      "reason": "Private-deployment origin: injects a private deployment's continuity files into every agent bootstrap; no business function."
+    },
+    "memory-core": {
+      "tier": "enterprise",
+      "reason": "Core memory search (the default memory slot); local index."
+    },
+    "memory-lancedb": {
+      "tier": "optional",
+      "reason": "Needs the @lancedb native runtime (about 250 MB); separate archive, selected explicitly through plugins.slots.memory."
+    },
+    "microsoft-365": {
+      "tier": "enterprise",
+      "reason": "Microsoft 365 business connector: mail, calendar and files, read-only by default."
+    },
+    "minimax-portal-auth": {
+      "tier": "excluded",
+      "reason": "Consumer portal OAuth login used as a model credential; enterprise deployments use contracted API keys."
+    },
+    "money-forward": {
+      "tier": "enterprise",
+      "reason": "Money Forward Cloud invoicing business connector (Japan), read-only."
+    },
+    "msteams": {
+      "tier": "enterprise",
+      "reason": "Microsoft Teams through an Azure bot in the customer's Entra tenant; direct messages default to pairing (owner approval) and group chats to an allow-list, so no conversation reaches an agent without an approval."
+    },
+    "newsdata": {
+      "tier": "excluded",
+      "reason": "Free-tier consumer news feed used for personal briefings."
+    },
+    "nextcloud-talk": {
+      "tier": "optional",
+      "reason": "Self-hosted chat; business-grade but outside the channel set reviewed for 2.2; separate archive, explicit opt-in."
+    },
+    "nostr": {
+      "tier": "excluded",
+      "reason": "Consumer channel: public social relay network."
+    },
+    "ocr-space": {
+      "tier": "optional",
+      "reason": "OCR is business-relevant (scanned invoices, forms), but this plugin uploads document content to the OCR.space cloud on a free tier; opt-in after the customer's data-processing review."
+    },
+    "office": {
+      "tier": "enterprise",
+      "reason": "Office document tools (PPTX, DOCX, XLSX) that write into the current Project folder; local only."
+    },
+    "open-meteo": {
+      "tier": "excluded",
+      "reason": "Consumer weather feed used for personal briefings."
+    },
+    "open-prose": {
+      "tier": "excluded",
+      "reason": "Third-party skill-pack VM with its own telemetry; not reviewed for the business product."
+    },
+    "opencorporates": {
+      "tier": "optional",
+      "reason": "Company-registry lookup is business-relevant but calls an external API with a separate licence; opt-in."
+    },
+    "proactive-triggers": {
+      "tier": "excluded",
+      "reason": "Private-deployment origin: impulse rules that make agents start conversations unprompted; not wanted in a business product."
+    },
+    "qwen-portal-auth": {
+      "tier": "excluded",
+      "reason": "Consumer portal OAuth login used as a model credential; enterprise deployments use contracted API keys."
+    },
+    "scholar-sources": {
+      "tier": "enterprise",
+      "reason": "Read-only literature sources (arXiv, OpenAlex, Crossref, PubMed) for Kurahi Scholars; public research metadata."
+    },
+    "self-check": {
+      "tier": "enterprise",
+      "reason": "Local security self-check (permissions, config, integrity, ports); supports the customer's own review."
+    },
+    "signal": {
+      "tier": "excluded",
+      "reason": "Consumer channel: messenger tied to a personal phone number."
+    },
+    "slack": {
+      "tier": "enterprise",
+      "reason": "Slack workspaces and Enterprise Grid through a customer-installed app; direct messages default to pairing (owner approval) and channels to an allow-list, so no conversation reaches an agent without an approval."
+    },
+    "smarthr": {
+      "tier": "enterprise",
+      "reason": "SmartHR business connector: employees (work fields only) and departments, read-only."
+    },
+    "telegram": {
+      "tier": "excluded",
+      "reason": "Consumer channel: public messenger."
+    },
+    "tlon": {
+      "tier": "excluded",
+      "reason": "Consumer channel: Tlon/Urbit network."
+    },
+    "twitch": {
+      "tier": "excluded",
+      "reason": "Consumer channel: live-streaming chat."
+    },
+    "voice-call": {
+      "tier": "optional",
+      "reason": "Places and receives phone calls through a telephony provider; needs a telephony and call-recording review; separate archive, explicit opt-in."
+    },
+    "watsonx-orchestrate": {
+      "tier": "enterprise",
+      "reason": "IBM watsonx Orchestrate agent client: allow-listed agents, IAM auth, replies wrapped as untrusted, never an autopilot gather tool; off by default."
+    },
+    "whatsapp": {
+      "tier": "optional",
+      "reason": "Already a separately installed plugin since 2.1.0: its libsignal dependency is GPL-3.0 and may not ship in the package."
+    },
+    "wolfram-alpha": {
+      "tier": "excluded",
+      "reason": "Consumer computation and knowledge API used for personal assistants."
+    },
+    "zalo": {
+      "tier": "excluded",
+      "reason": "Consumer channel: Zalo messenger."
+    },
+    "zalouser": {
+      "tier": "excluded",
+      "reason": "Consumer channel: drives a personal Zalo account through an unofficial CLI."
+    }
+  }
+}

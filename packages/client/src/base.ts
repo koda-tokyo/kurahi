@@ -321,11 +321,19 @@ export class KoloClientBase {
         };
       }
     }
+    // SSO required: the owner token over HTTP needs a stated break-glass reason, taken from
+    // KOLO_BREAK_GLASS like the WebSocket client (percent-encoded: header values are ASCII).
+    const breakGlass = (options.discover?.env ?? process.env).KOLO_BREAK_GLASS?.trim();
+    const headers =
+      breakGlass && token && token === found.token && found.tokenSource !== "device"
+        ? { "X-KoLo-Break-Glass": encodeURIComponent(breakGlass.slice(0, 500)), ...rest.headers }
+        : rest.headers;
     const client = new this({
       ...rest,
       baseUrl: rest.baseUrl ?? found.baseUrl,
       token,
       device,
+      headers,
     });
     return Object.assign(client, { discovered: found });
   }

@@ -16,6 +16,8 @@ import type {
 } from "./types.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { projectDataDir } from "../projects/store.js";
+import { emitWorkItemChange } from "./events.js";
+import { stageSummary } from "./routes.js";
 
 const ITEM_ID_RE = /^w[a-z0-9]{12}$/;
 const LOCK_FILE = ".lock";
@@ -105,10 +107,17 @@ export function readWorkItem(projectId: string, id: string, home?: string): Work
   try {
     const raw = fs.readFileSync(path.join(workItemDir(projectId, id, home), "item.json"), "utf8");
     const item = JSON.parse(raw) as WorkItem;
-    return item.projectId === projectId && item.id === id ? item : null;
+    return item.projectId === projectId && item.id === id ? normalize(item) : null;
   } catch {
     return null;
   }
+}
+
+/** Items written before requester tracking and routes: fill the new fields. */
+function normalize(item: WorkItem): WorkItem {
+  item.requestedBy ??= item.createdBy;
+  item.route ??= null;
+  return item;
 }
 
 export function writeWorkItem(item: WorkItem, home?: string): void {
@@ -116,6 +125,8 @@ export function writeWorkItem(item: WorkItem, home?: string): void {
     path.join(workItemDir(item.projectId, item.id, home), "item.json"),
     `${JSON.stringify(item, null, 2)}\n`,
   );
+  // In-process listeners (the autopilot's workitems trigger); they only schedule work.
+  emitWorkItemChange(item);
 }
 
 /** Insert a new item (its folder must not exist yet). */
@@ -166,8 +177,16 @@ export type WorkItemFilter = {
   assigneeKind?: "agent" | "person" | "none";
   assigneeId?: string;
   overdue?: boolean;
+  /** true: only items with an active flag; false: only items without. */
+  flagged?: boolean;
   /** Case-insensitive substring of the title. */
   q?: string;
+  /** Id of the active route stage (items awaiting review in that stage). */
+  stage?: string;
+  /** Extra predicate (viewer visibility, mine, awaitingMe), applied after the fields above. */
+  where?: (item: WorkItem) => boolean;
+  /** Department view (queue predicate); checked only for items that passed `where`. */
+  inDepartment?: (queueId: string) => boolean;
 };
 
 export function isOverdue(item: Pick<WorkItem, "dueAt" | "status">, now: Date): boolean {
@@ -204,18 +223,32 @@ function matches(item: WorkItem, f: WorkItemFilter, now: Date): boolean {
   if (f.overdue !== undefined && isOverdue(item, now) !== f.overdue) {
     return false;
   }
+  if (f.flagged !== undefined && (item.flags?.length ?? 0) > 0 !== f.flagged) {
+    return false;
+  }
   if (f.q && !item.title.toLowerCase().includes(f.q.toLowerCase())) {
     return false;
   }
-  return true;
+  if (f.stage !== undefined && stageSummary(item, now)?.id !== f.stage) {
+    return false;
+  }
+  if (f.where && !f.where(item)) {
+    return false;
+  }
+  return f.inDepartment ? f.inDepartment(item.queue) : true;
 }
 
 export function summarize(item: WorkItem, now: Date = new Date()): WorkItemSummary {
   const { history: _history, source, ...rest } = item;
   return {
     ...rest,
-    source: { documents: source.documents.length, fields: Object.keys(source.fields) },
+    source: {
+      documents: source.documents.length,
+      fields: Object.keys(source.fields),
+      ...(source.origin ? { origin: source.origin } : {}),
+    },
     overdue: isOverdue(item, now),
+    currentStage: stageSummary(item, now),
   };
 }
 
@@ -247,30 +280,44 @@ export type WorkItemPage = {
   counts: Record<WorkItemStatus, number>;
 };
 
-export function listWorkItems(
+/** Every item of the Project (unordered). `prepare` may replace an item as it is read. */
+export function readAllWorkItems(
   projectId: string,
-  filter: WorkItemFilter,
-  page: { cursor?: string; limit?: number } = {},
-  opts: { home?: string; now?: Date } = {},
-): WorkItemPage {
-  const now = opts.now ?? new Date();
-  const limit = Math.min(LIST_MAX, Math.max(1, page.limit ?? LIST_DEFAULT));
-  const after = page.cursor ? decodeCursor(page.cursor) : null;
+  opts: { home?: string; prepare?: (item: WorkItem) => WorkItem } = {},
+): WorkItem[] {
   let names: string[] = [];
   try {
     names = fs.readdirSync(workItemsRoot(projectId, opts.home)).filter((n) => ITEM_ID_RE.test(n));
   } catch {
     names = [];
   }
+  const out: WorkItem[] = [];
+  for (const id of names) {
+    const item = readWorkItem(projectId, id, opts.home);
+    if (item) {
+      out.push(opts.prepare ? opts.prepare(item) : item);
+    }
+  }
+  return out;
+}
+
+export function listWorkItems(
+  projectId: string,
+  filter: WorkItemFilter,
+  page: { cursor?: string; limit?: number } = {},
+  opts: { home?: string; now?: Date; prepare?: (item: WorkItem) => WorkItem } = {},
+): WorkItemPage {
+  const now = opts.now ?? new Date();
+  const limit = Math.min(LIST_MAX, Math.max(1, page.limit ?? LIST_DEFAULT));
+  const after = page.cursor ? decodeCursor(page.cursor) : null;
   const all: WorkItem[] = [];
   const counts = Object.fromEntries(
     ["new", "drafting", "awaiting_review", "approved", "sent_back", "done", "cancelled"].map(
       (s) => [s, 0],
     ),
   ) as Record<WorkItemStatus, number>;
-  for (const id of names) {
-    const item = readWorkItem(projectId, id, opts.home);
-    if (item && matches(item, filter, now)) {
+  for (const item of readAllWorkItems(projectId, opts)) {
+    if (matches(item, filter, now)) {
       all.push(item);
       counts[item.status] += 1;
     }

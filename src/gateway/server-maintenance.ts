@@ -1,6 +1,7 @@
 import type { HealthSummary } from "../commands/health.js";
 import type { ChatRunEntry } from "./server-chat.js";
 import type { DedupeEntry } from "./server-shared.js";
+import { changedEventPayload, sweepAllEscalations } from "../workitems/escalation.js";
 import { abortChatRunById, type ChatAbortControllerEntry } from "./chat-abort.js";
 import {
   DEDUPE_MAX,
@@ -10,6 +11,9 @@ import {
 } from "./server-constants.js";
 import { formatError } from "./server-utils.js";
 import { setBroadcastHealthUpdate } from "./server/health-state.js";
+
+/** Work queue stage timers (overdue / escalation) are checked every this many cleanup ticks. */
+const WORKITEM_SWEEP_EVERY_TICKS = 5;
 
 export function startGatewayMaintenanceTimers(params: {
   broadcast: (
@@ -71,9 +75,16 @@ export function startGatewayMaintenanceTimers(params: {
     .refreshGatewayHealthSnapshot({ probe: true })
     .catch((err) => params.logHealth.error(`initial refresh failed: ${formatError(err)}`));
 
-  // dedupe cache cleanup
+  // dedupe cache cleanup (+ the work queue's stage timers every few minutes)
+  let cleanupTicks = 0;
   const dedupeCleanup = setInterval(() => {
     const now = Date.now();
+    if (++cleanupTicks % WORKITEM_SWEEP_EVERY_TICKS === 0) {
+      sweepAllEscalations({
+        onChange: (item) =>
+          params.broadcast("workitems.changed", changedEventPayload(item), { dropIfSlow: true }),
+      });
+    }
     for (const [k, v] of params.dedupe) {
       if (now - v.ts > DEDUPE_TTL_MS) {
         params.dedupe.delete(k);

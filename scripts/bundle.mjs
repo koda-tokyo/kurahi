@@ -4,6 +4,15 @@
 //
 //   pnpm build && node scripts/bundle.mjs [--target <os>-<arch>] [--out release] [--version X]
 //        [--node-version 22.18.0] [--node-from <node binary>] [--no-archive] [--verify] [--keep]
+//        [--profile standard|enterprise]
+//
+// --profile enterprise (Kurahi 2.2, docs/security/enterprise-profile.md) ships only the
+// extensions that src/packaging/profiles/enterprise.json classifies as enterprise, installs only
+// their production dependencies, writes `profile: "enterprise"` into bundle-manifest.json, makes
+// the launcher export KURAHI_PROFILE=enterprise, names the archive
+// kolo-<version>-<os>-<arch>-enterprise.*, and runs scripts/enterprise-check.mjs on the staged
+// tree before archiving (a finding fails the build). Optional plugins are packed separately with
+// `node scripts/pack-plugin.mjs --tier optional`.
 //
 // The target must be the host (native addons: sharp, node-pty, sqlite-vec, canvas). CI builds
 // each OS on its own runner. Output: release/kolo-<version>-<os>-<arch>.{tar.gz|zip} + .sha256.
@@ -13,6 +22,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { checkPackageDir, isTestOnlySource, loadProfile } from "./enterprise-check.mjs";
+import { writeSrcShims } from "./src-shims.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_NODE_VERSION = "22.18.0";
@@ -35,6 +46,29 @@ const OMIT_EXTENSIONS = {
   whatsapp:
     "optional plugin, installed separately (kurahi plugins install kurahi-whatsapp-<version>.tgz): its libsignal dependency is GPL-3.0",
 };
+/** Extensions left out of a bundle of this profile, with the reason recorded in its manifest. */
+function omittedExtensions(profile) {
+  if (profile !== "enterprise") {
+    return OMIT_EXTENSIONS;
+  }
+  const manifest = loadProfile(ROOT);
+  const omitted = {};
+  for (const name of listDirs("extensions")) {
+    const entry = manifest.extensions[name];
+    if (!entry) {
+      throw new Error(
+        `extensions/${name} is not classified in src/packaging/profiles/enterprise.json`,
+      );
+    }
+    if (entry.tier !== "enterprise") {
+      omitted[name] = `${entry.tier}: ${entry.reason}`;
+    }
+  }
+  return omitted;
+}
+
+// Workspace packages shipped as sources under lib/packages/ (see the npm `files` list).
+const WORKSPACE_SOURCE_PACKAGES = ["legacy-analyzer"];
 const LIB_FILES = ["kolo.mjs", "CHANGELOG.md", "README.md"];
 const LIB_DIRS = ["dist", "skills", "assets", "docs"];
 const LICENSE_FILES = ["LICENSE", "NOTICE", "LICENSING.md"];
@@ -64,6 +98,7 @@ function parseArgs(argv) {
     archive: true,
     verify: false,
     keep: false,
+    profile: "standard",
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -84,6 +119,11 @@ function parseArgs(argv) {
       opts.verify = true;
     } else if (a === "--keep") {
       opts.keep = true;
+    } else if (a === "--profile") {
+      opts.profile = next();
+      if (opts.profile !== "standard" && opts.profile !== "enterprise") {
+        throw new Error(`--profile must be standard or enterprise, got ${opts.profile}`);
+      }
     } else {
       throw new Error(`unknown argument ${a}`);
     }
@@ -214,8 +254,12 @@ function copyTree(src, dest, { skip = () => false, skippedLinks = [] } = {}) {
   }
 }
 
-/** Production node_modules for the whole workspace (root + extensions), flat (hoisted). */
-function installProductionDeps(depsDir) {
+/**
+ * Production node_modules for the workspace (root + the given extensions), flat (hoisted). An
+ * extension left out of `extensions` contributes no dependencies: pnpm installs a subset of the
+ * workspace from the same frozen lockfile.
+ */
+function installProductionDeps(depsDir, extensions) {
   fs.rmSync(depsDir, { recursive: true, force: true });
   fs.mkdirSync(depsDir, { recursive: true });
   for (const f of ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"]) {
@@ -229,7 +273,7 @@ function installProductionDeps(depsDir) {
   const workspaceDirs = [
     "ui",
     ...listDirs("packages").map((d) => `packages/${d}`),
-    ...listDirs("extensions").map((d) => `extensions/${d}`),
+    ...extensions.map((d) => `extensions/${d}`),
   ];
   for (const dir of workspaceDirs) {
     const pkg = path.join(ROOT, dir, "package.json");
@@ -265,6 +309,102 @@ function listDirs(rel) {
     .readdirSync(dir, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name);
+}
+
+function readPkg(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function runtimeDepNames(pkg) {
+  return Object.keys({
+    ...pkg?.dependencies,
+    ...pkg?.optionalDependencies,
+    ...pkg?.peerDependencies,
+  });
+}
+
+/** Node resolution inside the deps tree: the nearest node_modules/<name> from `fromDir` up. */
+function resolveInstalled(depsDir, fromDir, name) {
+  let dir = fromDir;
+  for (;;) {
+    const candidate = path.join(dir, "node_modules", ...name.split("/"));
+    if (fs.existsSync(path.join(candidate, "package.json"))) {
+      // Workspace links (the runtime itself, packages/client) resolve outside node_modules: they
+      // are roots in their own right, never walked or removed here.
+      const real = fs.realpathSync(candidate);
+      const store = `${fs.realpathSync(path.join(depsDir, "node_modules"))}${path.sep}`;
+      return real.startsWith(store) ? real : null;
+    }
+    if (path.resolve(dir) === path.resolve(depsDir)) {
+      return null;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      return null;
+    }
+    dir = parent;
+  }
+}
+
+/** Installed package directories reachable from `roots` ([fromDir, depName] pairs). */
+function reachableDeps(depsDir, roots) {
+  const seen = new Set();
+  const stack = roots.map(([from, name]) => resolveInstalled(depsDir, from, name)).filter(Boolean);
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    if (seen.has(dir)) {
+      continue;
+    }
+    seen.add(dir);
+    for (const name of runtimeDepNames(readPkg(path.join(dir, "package.json")))) {
+      const next = resolveInstalled(depsDir, dir, name);
+      if (next && !seen.has(next)) {
+        stack.push(next);
+      }
+    }
+  }
+  return seen;
+}
+
+/**
+ * Enterprise profile: pnpm installs the whole lockfile even for a subset of the workspace, so
+ * remove what only the omitted extensions need: packages reachable from their dependencies and
+ * not reachable from the root package, ui/, packages/* or a shipped extension. A package that is
+ * reachable from both stays. Returns the removed package directories (relative).
+ */
+function pruneExclusiveDeps({ depsDir, kept, dropped }) {
+  const rootsOf = (rel) => {
+    const pkg =
+      readPkg(path.join(depsDir, rel, "package.json")) ??
+      readPkg(path.join(ROOT, rel, "package.json"));
+    const from = fs.existsSync(path.join(depsDir, rel)) ? path.join(depsDir, rel) : depsDir;
+    return runtimeDepNames(pkg).map((name) => [from, name]);
+  };
+  const keptRoots = [
+    ...rootsOf("."),
+    ...rootsOf("ui"),
+    ...listDirs("packages").flatMap((d) => rootsOf(`packages/${d}`)),
+    ...kept.flatMap((d) => rootsOf(`extensions/${d}`)),
+  ];
+  const droppedRoots = dropped.flatMap((d) =>
+    runtimeDepNames(readPkg(path.join(ROOT, "extensions", d, "package.json"))).map((name) => [
+      depsDir,
+      name,
+    ]),
+  );
+  const keep = reachableDeps(depsDir, keptRoots);
+  const removed = [];
+  for (const dir of reachableDeps(depsDir, droppedRoots)) {
+    if (!keep.has(dir) && fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed.push(path.relative(depsDir, dir));
+    }
+  }
+  return removed.toSorted((a, b) => a.localeCompare(b));
 }
 
 /** Remove platform packages for other targets and the explicit prune list. */
@@ -332,7 +472,7 @@ function pruneNodeModules(nodeModules, target) {
   return Array.from(pruned).toSorted((a, b) => a.localeCompare(b));
 }
 
-function writeLaunchers(stage, target) {
+function writeLaunchers(stage, target, profile) {
   const bin = path.join(stage, "bin");
   fs.mkdirSync(bin, { recursive: true });
   if (target.os === "win32") {
@@ -341,6 +481,7 @@ function writeLaunchers(stage, target) {
       "rem Kurahi launcher: bundled runtime, no system Node required.",
       "setlocal",
       'set "KOLO_BUNDLE_ROOT=%~dp0.."',
+      ...(profile === "enterprise" ? ['set "KURAHI_PROFILE=enterprise"'] : []),
       'if exist "%~dp0..\\.update\\pending.json" call "%~dp0..\\.update\\apply.cmd"',
       '"%~dp0..\\node\\node.exe" "%~dp0..\\lib\\kolo.mjs" %*',
       "endlocal & exit /b %ERRORLEVEL%",
@@ -368,6 +509,7 @@ function writeLaunchers(stage, target) {
     'root=$(cd "$bindir/.." && pwd)',
     'KOLO_BUNDLE_ROOT="$root"',
     "export KOLO_BUNDLE_ROOT",
+    ...(profile === "enterprise" ? ["KURAHI_PROFILE=enterprise", "export KURAHI_PROFILE"] : []),
     'exec "$root/node/bin/node" "$root/lib/kolo.mjs" "$@"',
     "",
   ].join("\n");
@@ -532,24 +674,69 @@ async function main() {
     }
   }
   // Bundled extensions (sources, loaded through jiti at runtime).
+  const omitted = omittedExtensions(opts.profile);
   const included = [];
   for (const name of listDirs("extensions")) {
     if (!fs.existsSync(path.join(ROOT, "extensions", name, "package.json"))) {
       continue;
     }
-    if (OMIT_EXTENSIONS[name]) {
+    if (omitted[name]) {
       continue;
     }
     copyTree(path.join(ROOT, "extensions", name), path.join(lib, "extensions", name), {
       skippedLinks,
       skip: (rel, e) =>
-        e.name === "node_modules" || e.name.endsWith(".test.ts") || e.name === "__tests__",
+        e.name === "node_modules" ||
+        e.name === "__tests__" ||
+        (e.isFile() && isTestOnlySource(e.name)),
     });
     included.push(name);
   }
+  // Workspace packages the extensions import by source path (legacy-analyzer imports
+  // packages/legacy-analyzer/src), mirroring the npm `files` list: sources without tests/fixtures.
+  for (const name of WORKSPACE_SOURCE_PACKAGES) {
+    const from = path.join(ROOT, "packages", name);
+    const to = path.join(lib, "packages", name);
+    fs.mkdirSync(to, { recursive: true });
+    fs.copyFileSync(path.join(from, "package.json"), path.join(to, "package.json"));
+    copyTree(path.join(from, "src"), path.join(to, "src"), {
+      skippedLinks,
+      skip: (rel, e) =>
+        e.name === "node_modules" ||
+        e.name === "test-fixtures" ||
+        (e.isFile() && isTestOnlySource(e.name)),
+    });
+  }
+  const shims = writeSrcShims(lib, included);
+  log(`wrote ${shims.written} src shim(s) for core modules the extensions import`);
+  if (shims.missing.length > 0) {
+    throw new Error(
+      `extension imports with no built module:\n  ${shims.missing
+        .slice(0, 20)
+        .map((m) => `${m.file}: ${m.spec}`)
+        .join("\n  ")}`,
+    );
+  }
 
-  installProductionDeps(depsDir);
+  // The standard bundle resolves every extension's dependencies (and prunes a few); the enterprise
+  // bundle only the shipped ones, so nothing an excluded extension needs is installed at all.
+  installProductionDeps(
+    depsDir,
+    opts.profile === "enterprise"
+      ? included
+      : listDirs("extensions").filter((d) =>
+          fs.existsSync(path.join(ROOT, "extensions", d, "package.json")),
+        ),
+  );
   const srcNm = path.join(depsDir, "node_modules");
+  if (opts.profile === "enterprise") {
+    const exclusive = pruneExclusiveDeps({
+      depsDir,
+      kept: included,
+      dropped: Object.keys(omitted),
+    });
+    log(`enterprise: removed ${exclusive.length} package(s) only omitted extensions need`);
+  }
   const dstNm = path.join(lib, "node_modules");
   copyTree(srcNm, dstNm, {
     skippedLinks,
@@ -591,7 +778,7 @@ async function main() {
     );
   }
 
-  writeLaunchers(stage, target);
+  writeLaunchers(stage, target, opts.profile);
   for (const f of LICENSE_FILES) {
     if (fs.existsSync(path.join(ROOT, f))) {
       fs.copyFileSync(path.join(ROOT, f), path.join(stage, f));
@@ -616,9 +803,10 @@ async function main() {
     nodeVersion: node.version,
     nodeSha256: node.sha256,
     commit,
-    extensions: { included, omitted: OMIT_EXTENSIONS },
+    extensions: { included, omitted },
     pruned,
     fileCount,
+    profile: opts.profile,
   });
   fs.writeFileSync(
     path.join(stage, m.BUNDLE_MANIFEST_FILE),
@@ -627,10 +815,25 @@ async function main() {
   const sums = m.writeBundleSums(stage);
   log(`staged ${sums.size} files in ${stage}`);
 
+  if (opts.profile === "enterprise") {
+    const check = checkPackageDir(stage, { repoRoot: ROOT });
+    for (const w of check.warnings.slice(0, 20)) {
+      log(`enterprise-check warn: ${w}`);
+    }
+    if (check.findings.length > 0) {
+      throw new Error(
+        `enterprise-check: ${check.findings.length} finding(s) in the staged bundle:\n  ${check.findings.slice(0, 40).join("\n  ")}`,
+      );
+    }
+    log(
+      `enterprise-check: clean (${check.extensions.length} extensions, ${check.packages} packages ${JSON.stringify(check.licences)})`,
+    );
+  }
+
   if (!opts.archive) {
     return;
   }
-  const archiveName = m.bundleArchiveName(version, target);
+  const archiveName = m.bundleArchiveName(version, target, opts.profile);
   const archivePath = path.join(outDir, archiveName);
   log(`archiving ${archiveName}`);
   await createArchive(stage, archivePath, target);
@@ -658,6 +861,7 @@ async function main() {
       node: node.version,
       pruned,
       extensionsIncluded: included.length,
+      profile: opts.profile,
     }),
   );
 }

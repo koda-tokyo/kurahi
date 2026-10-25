@@ -1,3 +1,5 @@
+import type { GatewayIdentityConfig } from "./types.identity.js";
+
 export type GatewayBindMode = "auto" | "lan" | "loopback" | "custom" | "tailnet";
 
 export type GatewayTlsConfig = {
@@ -261,6 +263,8 @@ export type GatewayConfig = {
   controlUi?: GatewayControlUiConfig;
   auth?: GatewayAuthConfig;
   pairing?: GatewayPairingConfig;
+  /** Enterprise identity: SSO (OIDC, SAML), SCIM provisioning, "SSO required". */
+  identity?: GatewayIdentityConfig;
   tailscale?: GatewayTailscaleConfig;
   remote?: GatewayRemoteConfig;
   reload?: GatewayReloadConfig;
@@ -269,8 +273,9 @@ export type GatewayConfig = {
   nodes?: GatewayNodesConfig;
   /**
    * IPs of trusted reverse proxies (e.g. Traefik, nginx). When a connection
-   * arrives from one of these IPs, the Gateway trusts `x-forwarded-for` (or
-   * `x-real-ip`) to determine the client IP for local pairing and HTTP checks.
+   * arrives from one of these IPs, the Gateway reads `x-forwarded-for` from the
+   * right (skipping these IPs; or `x-real-ip`) to determine the client IP for
+   * local pairing, HTTP checks and rate limits.
    */
   trustedProxies?: string[];
   /**

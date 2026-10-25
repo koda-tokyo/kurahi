@@ -4,6 +4,8 @@ import { getPluginToolMeta, resolveProjectScopedPluginTools } from "./tools.js";
 
 // Project-scoped plugins: enabled for one project's sessions, never for the gateway.
 const LEGACY = [
+  "legacy_baseline_advance",
+  "legacy_changes",
   "legacy_design_doc",
   "legacy_dictionary",
   "legacy_impact",

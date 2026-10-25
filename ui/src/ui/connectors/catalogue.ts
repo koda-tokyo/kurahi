@@ -41,6 +41,44 @@ const BUSINESS_CATALOGUE: CatalogueEntry[] = [
     aliases: ["entra", "entra-id", "microsoft-entra", "microsoft-entra-id", "azuread", "azure-ad"],
     capabilities: ["connectors.capability.sso", "connectors.capability.directoryRead"],
   },
+  // Japanese business SaaS (extensions/<id>). Built and tested against recorded responses only:
+  // each row stays Unverified until its plugin reports a successful live probe.
+  {
+    id: "business:kintone",
+    name: "kintone",
+    aliases: ["kintone", "cybozu-kintone"],
+    capabilities: ["connectors.capability.records"],
+  },
+  {
+    id: "business:freee",
+    name: "freee 会計",
+    aliases: ["freee", "freee-accounting", "freee-kaikei"],
+    capabilities: ["connectors.capability.accounting"],
+  },
+  {
+    id: "business:money-forward",
+    name: "マネーフォワード クラウド",
+    aliases: ["money-forward", "moneyforward", "mf-cloud", "money-forward-cloud"],
+    capabilities: ["connectors.capability.invoicing"],
+  },
+  {
+    id: "business:smarthr",
+    name: "SmartHR",
+    aliases: ["smarthr", "smart-hr"],
+    capabilities: ["connectors.capability.employeeDirectory"],
+  },
+  {
+    id: "business:line-works",
+    name: "LINE WORKS",
+    aliases: ["line-works", "lineworks", "line works"],
+    capabilities: ["connectors.capability.chat"],
+  },
+  {
+    id: "business:box",
+    name: "Box",
+    aliases: ["box", "box-com", "box.com"],
+    capabilities: ["connectors.capability.files"],
+  },
 ];
 
 const ALIAS_TO_BUSINESS_ID = new Map(
@@ -112,6 +150,12 @@ const HEALTH_TO_BUSINESS_ID: Record<string, string> = {
   "microsoft-365": "business:microsoft-365",
   gmail: "business:gmail",
   entra: "business:entra",
+  kintone: "business:kintone",
+  freee: "business:freee",
+  "money-forward": "business:money-forward",
+  smarthr: "business:smarthr",
+  "line-works": "business:line-works",
+  box: "business:box",
 };
 
 /** A probe older than this no longer proves anything (the longest probe interval is 24 h). */

@@ -17,6 +17,8 @@
           "defaultAgent": { "type": "string" },
           "publicCard": { "type": "boolean", "default": true },
           "streaming": { "type": "boolean", "default": true },
+          "apiKeyHeader": { "type": "boolean", "default": false },
+          "rest": { "type": "boolean", "default": false },
           "maxBodyBytes": { "type": "integer", "minimum": 1024 },
           "maxInputChars": { "type": "integer", "minimum": 100 },
           "maxParts": { "type": "integer", "minimum": 1 },

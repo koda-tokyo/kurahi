@@ -115,13 +115,16 @@ Controls for the risks that are specific to agents, each on its own page with it
 limits. New installations get them switched on; existing installations are told by `kurahi doctor`
 which ones are still off ([Secure defaults](/security/secure-defaults)).
 
-| Control                                                  | What it does                                                                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [Supply-chain lock](/security/skill-integrity)           | Skills and plugins load only when their SHA-256 matches a pin in a lock signed by the owner key               |
-| [Memory provenance](/security/memory-provenance)         | Every memory write records who wrote it; writes after untrusted input are held for operator review            |
-| [Agent message signing](/security/agent-message-signing) | Messages between agents are signed per agent and verified (sender, recipient, time, nonce, payload schema)    |
-| [Console terminal broker](/security/terminal-broker)     | The Work Console shell is owned by the gateway: each line gated, approvals, file diffs, audit                 |
-| [Secure defaults](/security/secure-defaults)             | Credential isolation, sandbox, exec approvals, budgets and the destructive-command guard on new installations |
+| Control                                                      | What it does                                                                                                                 |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| [Supply-chain lock](/security/skill-integrity)               | Skills and plugins load only when their SHA-256 matches a pin in a lock signed by the owner key                              |
+| [Memory provenance](/security/memory-provenance)             | Every memory write records who wrote it; writes after untrusted input are held for operator review                           |
+| [Agent message signing](/security/agent-message-signing)     | Messages between agents are signed per agent and verified (sender, recipient, time, nonce, payload schema)                   |
+| [Console terminal broker](/security/terminal-broker)         | The Work Console shell is owned by the gateway: each line gated, approvals, file diffs, audit                                |
+| [Secure defaults](/security/secure-defaults)                 | Credential isolation, sandbox, exec approvals, budgets and the destructive-command guard on new installations                |
+| [Attachment intake](/security/attachment-intake)             | Mail attachments are quarantined, checked by a static policy and malware-scanned (fail closed) before a Project stores them  |
+| [Enterprise identity](/security/identity)                    | OIDC / SAML sign-in for people, SCIM provisioning, roles and org units, SSO required with audited break-glass                |
+| [Autopilot watchdog and stop](/autopilot#behaviour-watchdog) | A routine whose run exceeds its baseline executes nothing and pauses; `autopilot.stopAll` and a STOP file stop every routine |
 
 How these map to the OWASP Top 10 for Agentic Applications, with a rating per risk:
 [OWASP Agentic Top 10](/security/owasp-agentic).

@@ -18,6 +18,7 @@ import {
   logout,
   listPendingInvites,
 } from "../db/invite.js";
+import { requestClientIp } from "./request-client-ip.js";
 
 // ============================================================================
 // Request Parsing Helpers
@@ -32,14 +33,6 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
 
 function parseUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? "/", "http://localhost");
-}
-
-function getClientIp(req: IncomingMessage): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string") {
-    return forwarded.split(",")[0].trim();
-  }
-  return req.socket.remoteAddress ?? "unknown";
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
@@ -130,7 +123,7 @@ async function handleCreateInvite(
     const { invite, token } = await createInvite(
       parsed.data as CreateInvite,
       adminUserId,
-      getClientIp(req),
+      requestClientIp(req),
     );
 
     // Generate invite URL
@@ -206,7 +199,7 @@ async function handleRedeemInvite(req: IncomingMessage, res: ServerResponse): Pr
       return;
     }
 
-    const result = await redeemInvite(parsed.data.token, parsed.data.name, getClientIp(req));
+    const result = await redeemInvite(parsed.data.token, parsed.data.name, requestClientIp(req));
 
     // Set session cookie (30 days)
     setSessionCookie(res, result.sessionToken, 30 * 24 * 60 * 60);
@@ -289,7 +282,7 @@ async function handleLogout(req: IncomingMessage, res: ServerResponse): Promise<
   }
 
   try {
-    await logout(token, getClientIp(req));
+    await logout(token, requestClientIp(req));
     clearSessionCookie(res);
     sendJson(res, 200, { ok: true });
   } catch (err) {

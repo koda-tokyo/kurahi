@@ -118,6 +118,18 @@ const PROJECT_OBSERVE = [
   "workitems.get",
   "workitems.config",
   "workitems.evidence",
+  "workitems.document",
+  "workitems.draftDiff",
+  "workitems.stats",
+  // Autopilot reads (routines, runs, approvals, metrics).
+  "autopilot.routines.list",
+  "autopilot.runs.list",
+  "autopilot.runs.get",
+  "autopilot.approvals.list",
+  "autopilot.stats",
+  "autopilot.autonomy.proposals",
+  // The caller's own morning brief (person only, items the caller can already read).
+  "autopilot.brief.get",
 ];
 const PROJECT_ATTACH = [
   "projects.chatKey",
@@ -134,6 +146,21 @@ const PROJECT_ATTACH = [
   "workitems.update",
   "workitems.assignAgent",
   "workitems.decide",
+  "workitems.delegate",
+  "workitems.intakeEmail",
+  "workitems.clearFlag",
+  // Autopilot: manual run; pause / resume and standing approvals are person-only in the handler.
+  "autopilot.run",
+  "autopilot.pause",
+  "autopilot.resume",
+  "autopilot.approvals.create",
+  "autopilot.approvals.revoke",
+  "autopilot.autonomy.accept",
+  "autopilot.autonomy.decline",
+  "autopilot.reportError",
+  // Global kill switch: person-only, operator.approvals, voice refused (handler + guard).
+  "autopilot.stopAll",
+  "autopilot.startAll",
 ];
 
 const WS_OBSERVE = new Set([
@@ -173,6 +200,10 @@ const WS_OBSERVE = new Set([
   "plugins.list",
   // M13: the kill switch state is observable; policy.kill / policy.release stay admin.
   "policy.status",
+  // Enterprise identity: who am I, and the org directory (the handler filters by role).
+  "identity.whoami",
+  "identity.org.get",
+  "identity.sessions.list",
   ...PROJECT_OBSERVE,
 ]);
 

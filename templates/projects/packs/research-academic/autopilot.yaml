@@ -1,0 +1,101 @@
+# Scholars autopilot (starter routines; see docs/autopilot.md#scholars).
+# L1 Prepare only: the routines read through the scholar-sources plugin (arXiv, OpenAlex,
+# Crossref, PubMed; free public APIs, no keys), open work items for the researcher and write Word
+# documents into output/. Every item must cite a SOURCE retrieved in its run; an item whose
+# citation names anything else is flagged unverified_citation and gets no action. Never submits a
+# paper or a grant application, never contacts research participants.
+# Needs the Project in 実行 Act mode (documents and open-access PDFs are written to the Project).
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  # Weekly: new papers on the topics of the research profile since the last successful run. One
+  # item per relevant paper (summary, why it matters, its citation from the record) and a Word
+  # digest in output/literature/. Papers already planned in an earlier run are skipped.
+  - id: literature-watch
+    edition: scholars
+    area: literature
+    name: { ja: 新着文献ウォッチ, en: Literature watch }
+    trigger: { schedule: "0 7 * * 1", tz: Asia/Tokyo }
+    knowledge: [knowledge/research-profile.md]
+    gather:
+      - id: search
+        tool: scholar_search
+        args:
+          queries: { fromKnowledge: topics, max: 5 }
+          sources: { fromKnowledge: sources, max: 4, optional: true }
+          since: { var: lastRun, fallbackDays: 14 }
+          limit: 20
+      - id: papers
+        tool: scholar_get
+        each: { from: search, match: "\\d+\\. id: (\\S+)", arg: id, max: 8 }
+    reasoning:
+      prompt: literature-watch
+      schema: autopilot.plan.v1
+    actions: [workitem.intake, office.create]
+    outputFolder: output/literature
+    level: L1
+    requireCitations: true
+    limits: { maxItemsPerRun: 10, maxActionsPerDay: 60 }
+    queue: res-literature
+    metrics: { baselineMinutes: 20 }
+
+  # When a draft in output/drafts/ changes (and on demand): check its references against
+  # Crossref / doi.org, arXiv and PubMed, and file one item listing what does not resolve or
+  # does not match (flagged unverified_citation). Each version of a draft (its content hash) is
+  # checked once. The draft itself is never changed.
+  - id: citation-check
+    edition: scholars
+    area: writing
+    name: { ja: 引用チェック, en: Citation check }
+    trigger:
+      event: [{ source: files, folder: output/drafts }]
+      debounceSeconds: 120
+      maxRunsPerHour: 4
+    gather:
+      - id: drafts
+        tool: scholar_cite_check
+        args: { path: output/drafts, list: true }
+      - id: check
+        tool: scholar_cite_check
+        each: { from: drafts, match: "\\d+\\. id: (\\S+)", arg: draft, max: 5 }
+    reasoning:
+      prompt: citation-check
+      schema: autopilot.plan.v1
+    actions: [workitem.intake]
+    level: L1
+    requireCitations: true
+    limits: { maxItemsPerRun: 5, maxActionsPerDay: 20 }
+    queue: res-writing
+    metrics: { baselineMinutes: 30 }
+
+  # Weekly and whenever the list changes: reminders 30, 14, 7, 3 and 1 days before each deadline
+  # in knowledge/grants.md (the researcher's own list), one item per reminder. Nothing is ever
+  # submitted.
+  - id: grant-deadlines
+    edition: scholars
+    area: grants
+    name: { ja: 研究費の締切リマインダー, en: Grant deadline reminders }
+    trigger:
+      schedule: "0 8 * * 1-5"
+      tz: Asia/Tokyo
+      event: [{ source: files, folder: knowledge }]
+      debounceSeconds: 60
+      maxRunsPerHour: 2
+    gather:
+      - id: due
+        tool: scholar_grant_deadlines
+        args: { path: knowledge/grants.md, tz: Asia/Tokyo }
+      - id: reminder
+        tool: scholar_grant_deadlines
+        args: { path: knowledge/grants.md, tz: Asia/Tokyo }
+        each: { from: due, match: "\\d+\\. id: (\\S+)", arg: id, max: 10 }
+    reasoning:
+      prompt: grant-deadlines
+      schema: autopilot.plan.v1
+    actions: [workitem.intake]
+    level: L1
+    requireCitations: true
+    limits: { maxItemsPerRun: 10, maxActionsPerDay: 30 }
+    queue: res-grants
+    metrics: { baselineMinutes: 10 }

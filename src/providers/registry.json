@@ -256,6 +256,18 @@
       "requiresBaseUrl": true
     },
     {
+      "id": "watsonx",
+      "displayName": "IBM watsonx.ai",
+      "apiStyle": "watsonx",
+      "baseUrl": "https://jp-tok.ml.cloud.ibm.com?project_id={project}",
+      "authHeader": "ibm-iam",
+      "modelsEndpoint": "/ml/v1/foundation_model_specs?version=2024-03-14&filters=function_text_chat",
+      "regionNote": "Region chosen per account (jp-tok is Tokyo)",
+      "envVar": "WATSONX_AI_APIKEY",
+      "requiresBaseUrl": true,
+      "docUrl": "https://cloud.ibm.com/apidocs/watsonx-ai"
+    },
+    {
       "id": "302ai",
       "displayName": "302.AI",
       "apiStyle": "openai-compatible",

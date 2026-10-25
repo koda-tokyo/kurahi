@@ -28,6 +28,7 @@ export type NodeKind =
   | "java-method"
   | "column"
   | "sql-index"
+  | "routine"
   // FORTRAN and PL/I (modernise/sci-graph.ts); their units are "program" nodes with attrs.language
   | "fortran-module"
   | "common-block";
@@ -70,8 +71,11 @@ export type EdgeKind =
   | "MAPS"
   | "JPA"
   | "FK"
+  | "JOIN"
   | "INDEX"
   | "VIEW"
+  | "TRIGGER"
+  | "SCHEMA"
   // FORTRAN (modernise/sci-graph.ts)
   | "USE"
   | "COMMON";
@@ -88,6 +92,11 @@ export type GraphEdge = {
   detail?: string;
   /** Java facts: how the access was found (JDBC SELECT, @Query, EmployeeRepository.save, ...). */
   via?: string;
+  /**
+   * The schema a Java reference names; on a table node with ambiguousSchemas it tells which of
+   * the schemas' tables the edge means. Absent when the reference is bare.
+   */
+  schema?: string;
 };
 
 export type KnowledgeGraph = {

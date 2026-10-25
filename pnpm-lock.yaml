@@ -321,6 +321,12 @@ importers:
         specifier: workspace:kurahi@*
         version: link:../..
 
+  extensions/box:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
   extensions/brave-search:
     devDependencies:
       kolo:
@@ -391,6 +397,12 @@ importers:
         specifier: workspace:kurahi@*
         version: link:../..
 
+  extensions/freee:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
   extensions/gmail:
     devDependencies:
       kolo:
@@ -419,7 +431,19 @@ importers:
         specifier: workspace:kurahi@*
         version: link:../..
 
+  extensions/ibm-data:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
   extensions/imessage:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
+  extensions/kintone:
     devDependencies:
       kolo:
         specifier: workspace:kurahi@*
@@ -438,6 +462,12 @@ importers:
         version: link:../..
 
   extensions/line:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
+  extensions/line-works:
     devDependencies:
       kolo:
         specifier: workspace:kurahi@*
@@ -535,6 +565,12 @@ importers:
         specifier: workspace:kurahi@*
         version: link:../..
 
+  extensions/money-forward:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
   extensions/msteams:
     dependencies:
       '@microsoft/agents-hosting':
@@ -586,6 +622,12 @@ importers:
         specifier: workspace:kurahi@*
         version: link:../..
 
+  extensions/office:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
   extensions/open-meteo:
     devDependencies:
       kolo:
@@ -610,6 +652,12 @@ importers:
         specifier: workspace:kurahi@*
         version: link:../..
 
+  extensions/scholar-sources:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
   extensions/self-check:
     devDependencies:
       kolo:
@@ -617,6 +665,12 @@ importers:
         version: link:../..
 
   extensions/signal:
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
+  extensions/smarthr:
     devDependencies:
       kolo:
         specifier: workspace:kurahi@*
@@ -677,6 +731,12 @@ importers:
       zod:
         specifier: ^4.3.6
         version: 4.3.6
+    devDependencies:
+      kolo:
+        specifier: workspace:kurahi@*
+        version: link:../..
+
+  extensions/watsonx-orchestrate:
     devDependencies:
       kolo:
         specifier: workspace:kurahi@*

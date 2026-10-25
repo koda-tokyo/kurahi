@@ -11,18 +11,35 @@ const digest = (value: string) => createHash("sha256").update(value, "utf8").dig
 
 export type ClientAuthenticator = (req: IncomingMessage) => A2aServerClient | null;
 
-export function createClientAuthenticator(clients: A2aServerClient[]): ClientAuthenticator {
+/** The token a request presents: `Authorization: Bearer`, else `X-API-Key` when allowed. */
+export function presentedToken(
+  req: IncomingMessage,
+  opts: { apiKeyHeader?: boolean } = {},
+): string | null {
+  const header = req.headers.authorization;
+  if (typeof header === "string") {
+    const match = /^Bearer\s+(\S+)\s*$/i.exec(header);
+    return match ? match[1] : null;
+  }
+  if (opts.apiKeyHeader) {
+    const raw = req.headers["x-api-key"];
+    const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+    return value && !/\s/.test(value) ? value : null;
+  }
+  return null;
+}
+
+export function createClientAuthenticator(
+  clients: A2aServerClient[],
+  opts: { apiKeyHeader?: boolean } = {},
+): ClientAuthenticator {
   const entries = clients.map((client) => ({ client, hash: digest(client.token) }));
   return (req) => {
-    const header = req.headers.authorization;
-    if (typeof header !== "string") {
+    const token = presentedToken(req, opts);
+    if (!token) {
       return null;
     }
-    const match = /^Bearer\s+(\S+)\s*$/i.exec(header);
-    if (!match) {
-      return null;
-    }
-    const presented = digest(match[1]);
+    const presented = digest(token);
     let found: A2aServerClient | null = null;
     // Compare against every entry so timing does not reveal which (if any) matched.
     for (const entry of entries) {

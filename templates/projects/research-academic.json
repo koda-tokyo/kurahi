@@ -2,26 +2,69 @@
   "id": "research-academic",
   "name": { "ja": "研究・学術", "en": "Research & academic" },
   "description": {
-    "ja": "文献コーパスを読み、出典を明記した文献レビューと再現可能な分析を作成します。コーパスは読み取り専用。",
-    "en": "Read a corpus and write literature reviews and reproducible analyses with every claim cited. The corpus is read-only."
+    "ja": "文献コーパスを読み、出典を明記した文献レビューと再現可能な分析を作成します。arXiv・OpenAlex・Crossref・PubMed の新着文献ウォッチ、引用チェック、研究費の締切リマインダーを備えます。コーパスとナレッジは読み取り専用。投稿・申請・研究参加者への連絡は行いません。",
+    "en": "Read a corpus and write literature reviews and reproducible analyses with every claim cited. Includes a literature watch over arXiv, OpenAlex, Crossref and PubMed, a citation check and grant deadline reminders. The corpus and the knowledge folder are read-only. Never submits papers or applications and never contacts research participants."
   },
-  "folders": ["output"],
+  "folders": [
+    "corpus",
+    "corpus-inbox",
+    "knowledge",
+    "output",
+    "output/drafts",
+    "output/literature"
+  ],
+  "starterFiles": ["knowledge/research-profile.md", "knowledge/grants.md"],
   "rules": {
-    "readOnly": ["corpus"],
-    "writable": ["output"],
+    "readOnly": ["corpus", "knowledge"],
+    "writable": ["output", "corpus-inbox"],
     "artifactApprovalRequired": false,
     "instructions": [
-      { "ja": "corpus/ は読み取り専用です。", "en": "corpus/ is read-only." },
-      { "ja": "出力に含めるすべての主張には、出典ファイル名を明記してください。出典のない主張は書かないでください。", "en": "Every claim in an output must cite a source file. Do not write claims without a source." },
-      { "ja": "分析は手順とコードを残し、再現できるようにしてください。", "en": "Keep the steps and code of every analysis so it can be reproduced." }
+      {
+        "ja": "corpus/ と knowledge/ は読み取り専用です。knowledge/ には研究者本人が書いた研究プロフィール（テーマ・キーワード・情報源・言語）と研究費の締切一覧を置きます。",
+        "en": "corpus/ and knowledge/ are read-only. knowledge/ holds the researcher's own research profile (topics, keywords, sources, languages) and grant deadline list."
+      },
+      {
+        "ja": "オープンアクセスの論文 PDF は検疫とマルウェア検査を経て corpus-inbox/ に保存されます。",
+        "en": "Open-access paper PDFs are stored in corpus-inbox/ after quarantine and a malware scan."
+      },
+      {
+        "ja": "出力に含めるすべての主張には、出典（ファイル名、DOI、arXiv ID、PMID）を明記してください。出典のない主張は書かないでください。この実行で取得していない文献を引用しないでください。",
+        "en": "Every claim in an output must cite a source (file name, DOI, arXiv id or PMID). Do not write claims without a source, and never cite a work that was not retrieved."
+      },
+      {
+        "ja": "分析は手順とコードを残し、再現できるようにしてください。",
+        "en": "Keep the steps and code of every analysis so it can be reproduced."
+      },
+      {
+        "ja": "論文の投稿、研究費の申請、研究参加者への連絡は行いません。投稿済み・採択済み・申請済みと書かないでください。",
+        "en": "Never submit a paper or a grant application and never contact research participants. Never write that anything was submitted, accepted or applied for."
+      }
     ]
   },
   "suggestedAgents": ["main"],
   "suggestedSkills": [],
+  "plugins": ["scholar-sources", "office"],
   "starterPrompts": [
-    { "ja": "questions.md の Q1 に、出典ファイルを示して答えてください。", "en": "Answer Q1 in questions.md, citing the source files." },
-    { "ja": "コーパスの文献レビューを作成してください。各主張に出典を付けてください。", "en": "Write a literature review of the corpus, citing a source for each claim." },
-    { "ja": "再現可能な分析の手順を、コードと共に提案してください。", "en": "Propose a reproducible analysis, with the code." }
+    {
+      "ja": "questions.md の Q1 に、出典ファイルを示して答えてください。",
+      "en": "Answer Q1 in questions.md, citing the source files."
+    },
+    {
+      "ja": "コーパスの文献レビューを作成してください。各主張に出典を付けてください。",
+      "en": "Write a literature review of the corpus, citing a source for each claim."
+    },
+    {
+      "ja": "研究プロフィールのテーマで、この1年の文献を検索して要点をまとめてください。",
+      "en": "Search the literature of the past year on the topics of my research profile and summarise it."
+    },
+    {
+      "ja": "output/drafts/ の原稿の参考文献を確認してください。",
+      "en": "Check the references of the drafts in output/drafts/."
+    },
+    {
+      "ja": "再現可能な分析の手順を、コードと共に提案してください。",
+      "en": "Propose a reproducible analysis, with the code."
+    }
   ],
   "terminalProfile": "scientific",
   "demoFolder": "~/kurahi-demo-packs/research-academic"

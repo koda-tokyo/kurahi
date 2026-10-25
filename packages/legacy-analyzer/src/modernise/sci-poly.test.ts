@@ -146,6 +146,7 @@ describe("modernisation plan, inventory and design document with FORTRAN and PL/
       "sql-ddl:active:1/1",
       "fortran:active:4/4",
       "pli:active:2/2",
+      "plc-iec61131:active:0/0",
     ]);
     expect(plan.inventory.fortran).toMatchObject({
       files: 4,

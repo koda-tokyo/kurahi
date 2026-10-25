@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/google-gemini-cli-auth",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Kurahi Gemini CLI OAuth provider plugin",
   "type": "module",
   "devDependencies": {

@@ -1,5 +1,7 @@
+import type { Duplex } from "node:stream";
 import type { TlsOptions } from "node:tls";
 import type { WebSocketServer } from "ws";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   createServer as createHttpServer,
   type Server as HttpServer,
@@ -12,13 +14,17 @@ import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { auditHttpAuthFailure } from "../audit/http.js";
 import { handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
-import { loadConfig } from "../config/config.js";
+import { type KoLoConfig, loadConfig } from "../config/config.js";
+import { authorizeSsoSession, createSsoHttpHandlers, getHttpPerson } from "../identity/http.js";
+import { createScimHandler } from "../identity/scim.js";
+import { getIdentityService } from "../identity/service.js";
 import { getPolicyEngine } from "../policy/engine.js";
 import { handleSlackHttpRequest, listSlackHttpPaths } from "../slack/http/index.js";
 import { VERSION } from "../version.js";
 import { handleAdminApiRequest } from "./admin-api.js";
 import { handleAdminCovenantRequest } from "./admin-covenant.js";
 import { getAdminSessionUser, getCurrentUser, handleAuthApiRequest } from "./auth-api.js";
+import { isLocalDirectRequest } from "./auth.js";
 import { createCodeModeHttpHandlers } from "./code-mode-http.js";
 import { createContinuityHttpHandlers } from "./continuity-http.js";
 import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
@@ -49,25 +55,29 @@ import {
   isRemoteGatedPath,
   isRemoteUpgradeAuthorized,
   rejectUnauthenticatedRemoteRequest,
+  resolveAttemptKey,
   upgradePathname,
 } from "./http-remote-auth.js";
+import { SCIM_OPERATION_IDS } from "./http-routes-identity.js";
 import { createGatewayRouter } from "./http-routes.js";
+import { mayUseSharedSecret } from "./http-shared-secret.js";
 import { createSnapshotsHttpHandlers } from "./http-snapshots.js";
 import { getBearerToken } from "./http-utils.js";
 import { handleMetricsRequest } from "./metrics.js";
 import { handleMigrateRequest, handleBootstrapInviteRequest } from "./migrate-api.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
-import { authorizeHttpBearer, getHttpPrincipal, isPairAccessToken } from "./pair-auth.js";
+import {
+  authorizeHttpBearer,
+  clearHttpPrincipal,
+  getHttpPrincipal,
+  isPairAccessToken,
+} from "./pair-auth.js";
 import { createPairHttpHandlers } from "./pair-http.js";
 import { getCredentialStore, storeOptionsFromConfig } from "./pair-store.js";
 import { createPluginsHttpHandlers } from "./plugins-http.js";
 import { createPolicyHttpHandlers } from "./policy-http.js";
-import {
-  checkHttpRateLimit,
-  decideWsConnectionRateLimit,
-  WsMessageLimiter,
-} from "./rate-limiter.js";
+import { checkHttpRateLimit, decideWsConnectionRateLimit } from "./rate-limiter.js";
 import { routeMinScope } from "./scopes.js";
 import { GATEWAY_EVENTS, listGatewayMethods } from "./server-methods-list.js";
 import { createSessionsHttpHandlers } from "./sessions-http.js";
@@ -315,6 +325,9 @@ export function describeRuntimeHttpRoutes(params: {
   return out;
 }
 
+// Break-glass over HTTP lives with the shared-secret check; re-exported for existing callers.
+export { BREAK_GLASS_HEADER, httpBreakGlass } from "./http-shared-secret.js";
+
 export function createGatewayHttpServer(opts: {
   canvasHost: CanvasHostHandler | null;
   controlUiEnabled: boolean;
@@ -340,15 +353,24 @@ export function createGatewayHttpServer(opts: {
     handlePluginRequest,
     resolvedAuth,
   } = opts;
-  // Per-request config (trusted proxies, avatars) as before the registry: loaded once per request
-  // in handleRequest and read by the bound handlers through this slot.
-  let configSnapshot: ReturnType<typeof loadConfig>;
-  const trustedProxies = () => configSnapshot.gateway?.trustedProxies ?? [];
+  // Per-request config (trusted proxies, identity, avatars): loaded once per request in
+  // handleRequest and carried by AsyncLocalStorage, so concurrent requests never read each
+  // other's snapshot across an await.
+  const requestConfig = new AsyncLocalStorage<KoLoConfig>();
+  const configSnapshot = (): KoLoConfig => requestConfig.getStore() ?? loadConfig();
+  const trustedProxies = () => configSnapshot().gateway?.trustedProxies ?? [];
 
   // Pairing store (M3a): created from `gateway.pairing` on the first request that needs it.
   const credentialStore = () =>
-    getCredentialStore(storeOptionsFromConfig(configSnapshot?.gateway?.pairing));
-  const gatewayTokenOk = async (req: IncomingMessage) => {
+    getCredentialStore(storeOptionsFromConfig(configSnapshot().gateway?.pairing));
+  // SSO required (gateway.identity.ssoRequired): the shared secret and pairing credentials work
+  // over HTTP only from the gateway host itself, the shared secret only as audited break-glass;
+  // people elsewhere use their SSO session. One check for every gate: mayUseSharedSecret.
+  const sharedSecretGate = () => ({
+    ssoRequired: getIdentityService(configSnapshot()).settings.ssoRequired,
+    trustedProxies: trustedProxies(),
+  });
+  const gatewayTokenOk = async (req: IncomingMessage, route?: BoundRoute) => {
     const bearer = getBearerToken(req);
     if (isPairAccessToken(bearer)) {
       return false; // handled by the pair-credential authenticator
@@ -357,7 +379,17 @@ export function createGatewayHttpServer(opts: {
       auth: resolvedAuth,
       trustedProxies: trustedProxies(),
     });
-    return result.ok;
+    if (!result.ok) {
+      return false;
+    }
+    const accepted = mayUseSharedSecret(req, sharedSecretGate(), {
+      credential: "shared-secret",
+      operation: route?.operationId ?? null,
+    });
+    if (!accepted) {
+      clearHttpPrincipal(req);
+    }
+    return accepted;
   };
   const pairCredentialOk = async (req: IncomingMessage, route: BoundRoute) => {
     const bearer = getBearerToken(req);
@@ -371,7 +403,14 @@ export function createGatewayHttpServer(opts: {
       store: credentialStore(),
     });
     if (result.ok) {
-      return true;
+      const accepted = mayUseSharedSecret(req, sharedSecretGate(), {
+        credential: "pairing",
+        operation: route.operationId,
+      });
+      if (!accepted) {
+        clearHttpPrincipal(req);
+      }
+      return accepted;
     }
     if (result.status === 403) {
       auditHttpAuthFailure(req, 403, result.reason);
@@ -379,6 +418,13 @@ export function createGatewayHttpServer(opts: {
     }
     return false;
   };
+  // Canvas / A2UI / avatars from another host: an SSO session of a person who may observe.
+  const remoteSsoSession = (req: IncomingMessage) =>
+    authorizeSsoSession(
+      req,
+      { operationId: "remote-gated", minScope: "observe" },
+      getIdentityService(configSnapshot()),
+    ) === true;
   const pairHandlers = createPairHttpHandlers({ store: undefined, resolveStore: credentialStore });
   const sessionsHandlers = createSessionsHttpHandlers();
   const snapshotsHandlers = createSnapshotsHttpHandlers();
@@ -389,10 +435,42 @@ export function createGatewayHttpServer(opts: {
   const policyHttpHandlers = createPolicyHttpHandlers();
   // M15: the factory reads the per-request config snapshot (kipEngine, factory, evidence).
   const factoryHandlers = createFactoryHttpHandlers({
-    getConfig: () => configSnapshot ?? loadConfig(),
+    getConfig: () => configSnapshot(),
     gatewayVersion: PACKAGE_VERSION,
   });
   const channelsHandlers = createChannelsHttpHandlers();
+  // Sign-in return targets: console routes only, never a path the gateway itself serves (API,
+  // canvas / A2UI, avatars, plugin and channel webhooks, hooks), where another page's script
+  // could read the fragment.
+  const isGatewayPath = (pathname: string) => {
+    const under = (prefix: string) => {
+      const p = prefix.replace(/\/+$/, "");
+      return p !== "" && (pathname === p || pathname.startsWith(`${p}/`));
+    };
+    const hooksPath = configSnapshot().hooks?.path?.trim() || "/hooks";
+    return (
+      staticPaths.has(pathname) ||
+      isRemoteGatedPath(pathname, controlUiBasePath) ||
+      isProtectedAdminPath(pathname) ||
+      under(hooksPath.startsWith("/") ? hooksPath : `/${hooksPath}`) ||
+      listSlackHttpPaths().some(under) ||
+      (opts.listPluginHttpRoutes?.() ?? []).some((r) => under(r.path))
+    );
+  };
+  const ssoHandlers = createSsoHttpHandlers({
+    service: () => getIdentityService(configSnapshot()),
+    attemptKey: (req) =>
+      isLocalDirectRequest(req, trustedProxies()) ? null : resolveAttemptKey(req, trustedProxies()),
+    consoleBasePath: controlUiBasePath,
+    isGatewayPath,
+  });
+  const scim = createScimHandler({ service: () => getIdentityService(configSnapshot()) });
+  const scimHandlers = Object.fromEntries(
+    SCIM_OPERATION_IDS.map((id) => [
+      id,
+      (req: IncomingMessage, res: ServerResponse) => scim.handle(req, res),
+    ]),
+  );
   const adminApi = async (req: IncomingMessage, res: ServerResponse) => {
     const currentUser = await getCurrentUser(req);
     return await handleAdminApiRequest(req, res, { userId: currentUser?.id });
@@ -493,6 +571,15 @@ export function createGatewayHttpServer(opts: {
             config: openResponsesConfig,
             trustedProxies: trustedProxies(),
           }),
+        getSsoConfig: ssoHandlers.getSsoConfig,
+        startSsoLogin: ssoHandlers.startSsoLogin,
+        ssoCallback: ssoHandlers.ssoCallback,
+        samlAcs: ssoHandlers.samlAcs,
+        getSamlMetadata: ssoHandlers.samlMetadata,
+        exchangeSsoCode: ssoHandlers.exchangeSsoCode,
+        getIdentitySession: ssoHandlers.getIdentitySession,
+        logoutIdentity: ssoHandlers.logoutIdentity,
+        ...scimHandlers,
         createChatCompletion: (req, res) =>
           handleOpenAiHttpRequest(req, res, {
             auth: resolvedAuth,
@@ -526,13 +613,13 @@ export function createGatewayHttpServer(opts: {
           controlUiEnabled &&
           handleControlUiAvatarRequest(req, res, {
             basePath: controlUiBasePath,
-            resolveAvatar: (agentId) => resolveAgentAvatar(configSnapshot, agentId),
+            resolveAvatar: (agentId) => resolveAgentAvatar(configSnapshot(), agentId),
           }),
         "control-ui": (req, res) =>
           controlUiEnabled &&
           handleControlUiHttpRequest(req, res, {
             basePath: controlUiBasePath,
-            config: configSnapshot,
+            config: configSnapshot(),
           }),
       },
     },
@@ -540,7 +627,19 @@ export function createGatewayHttpServer(opts: {
       authenticators: {
         "gateway-token": gatewayTokenOk,
         "pair-credential": pairCredentialOk,
-        "session-admin": async (req) => Boolean(await getAdminSessionUser(req)),
+        "session-admin": async (req, route) =>
+          Boolean(await getAdminSessionUser(req)) &&
+          mayUseSharedSecret(req, sharedSecretGate(), {
+            credential: "legacy-session",
+            operation: route.operationId,
+          }),
+        "sso-session": (req, route) =>
+          authorizeSsoSession(
+            req,
+            { operationId: route.operationId, minScope: routeMinScope(route) },
+            getIdentityService(configSnapshot()),
+          ),
+        "scim-token": (req) => scim.authorize(req),
       },
       onUnauthorized: (_req, res) => sendUnauthorized(res),
       onForbidden: (_req, res) => sendForbidden(res),
@@ -550,7 +649,7 @@ export function createGatewayHttpServer(opts: {
         const decision = getPolicyEngine().evaluate("request", {
           surface: "http",
           operation: route.operationId,
-          scope: getHttpPrincipal(req)?.scope ?? "owner",
+          scope: getHttpPrincipal(req)?.scope ?? getHttpPerson(req)?.scope ?? "owner",
         });
         return decision.effect === "allow"
           ? { ok: true }
@@ -572,22 +671,32 @@ export function createGatewayHttpServer(opts: {
     });
   }
 
+  // A failure outside the per-route try (config load, rate limiter) answers 503 instead of
+  // becoming an unhandled rejection that takes the process down.
+  const onRequest = (req: IncomingMessage, res: ServerResponse) => {
+    handleRequest(req, res).catch(() => sendServiceUnavailable(res));
+  };
   const httpServer: HttpServer = opts.tlsOptions
-    ? createHttpsServer(opts.tlsOptions, (req, res) => {
-        void handleRequest(req, res);
-      })
-    : createHttpServer((req, res) => {
-        void handleRequest(req, res);
-      });
+    ? createHttpsServer(opts.tlsOptions, onRequest)
+    : createHttpServer(onRequest);
 
   async function handleRequest(req: IncomingMessage, res: ServerResponse) {
     // Don't interfere with WebSocket upgrades; ws handles the 'upgrade' event.
     if (String(req.headers.upgrade ?? "").toLowerCase() === "websocket") {
       return;
     }
+    let config: KoLoConfig;
+    try {
+      config = loadConfig();
+    } catch {
+      sendServiceUnavailable(res);
+      return;
+    }
+    await requestConfig.run(config, () => handleConfiguredRequest(req, res));
+  }
 
+  async function handleConfiguredRequest(req: IncomingMessage, res: ServerResponse) {
     // ── Rate limiting (Gateway v3 — Phase 1 hardening) ──────────────────
-    configSnapshot = loadConfig();
     if (!checkHttpRateLimit(req, res, trustedProxies())) {
       return; // 429 already written by rate limiter
     }
@@ -607,6 +716,8 @@ export function createGatewayHttpServer(opts: {
           auth: resolvedAuth,
           trustedProxies: trustedProxies(),
           controlUiBasePath,
+          ssoRequired: sharedSecretGate().ssoRequired,
+          ssoSession: remoteSsoSession,
         })
       ) {
         return;
@@ -617,6 +728,7 @@ export function createGatewayHttpServer(opts: {
         await rejectUnauthorizedAdminRequest(req, res, {
           auth: resolvedAuth,
           trustedProxies: trustedProxies(),
+          ssoRequired: sharedSecretGate().ssoRequired,
         })
       ) {
         return;
@@ -652,7 +764,16 @@ export function attachGatewayUpgradeHandler(opts: {
   resolvedAuth?: import("./auth.js").ResolvedGatewayAuth;
 }) {
   const { httpServer, wss, canvasHost, resolvedAuth } = opts;
+  // A throwing config load or gate refuses the upgrade (503) instead of crashing the process.
   httpServer.on("upgrade", (req, socket, head) => {
+    try {
+      handleUpgrade(req, socket, head);
+    } catch {
+      refuseUpgrade(socket);
+    }
+  });
+
+  function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
     // ── WebSocket connection rate limiting (Gateway v3 — Phase 1 hardening)
     const configSnapshot = loadConfig();
     const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
@@ -673,7 +794,16 @@ export function attachGatewayUpgradeHandler(opts: {
     // Canvas live-reload WS: same gate as the canvas HTTP routes for non-local clients (M2a).
     if (canvasHost && resolvedAuth && isRemoteGatedPath(upgradePathname(req))) {
       void (async () => {
-        const allowed = await isRemoteUpgradeAuthorized(req, resolvedAuth, trustedProxies);
+        const identity = getIdentityService(configSnapshot);
+        const allowed = await isRemoteUpgradeAuthorized(req, resolvedAuth, trustedProxies, {
+          ssoRequired: identity.settings.ssoRequired,
+          ssoSession: (r) =>
+            authorizeSsoSession(
+              r,
+              { operationId: "remote-gated", minScope: "observe" },
+              identity,
+            ) === true,
+        });
         if (!allowed) {
           socket.destroy();
           return;
@@ -683,7 +813,7 @@ export function attachGatewayUpgradeHandler(opts: {
             wss.emit("connection", ws, req);
           });
         }
-      })();
+      })().catch(() => refuseUpgrade(socket));
       return;
     }
     if (canvasHost?.handleUpgrade(req, socket, head)) {
@@ -692,5 +822,35 @@ export function attachGatewayUpgradeHandler(opts: {
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);
     });
-  });
+  }
+}
+
+/** 503 for a request whose handling failed outside the route handlers (headers permitting). */
+function sendServiceUnavailable(res: ServerResponse): void {
+  try {
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
+    res.statusCode = 503;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Retry-After", "5");
+    res.end("Service Unavailable");
+  } catch {
+    // the socket is already gone
+  }
+}
+
+/** Refuse a WebSocket upgrade with a plain 503 and close the socket. */
+function refuseUpgrade(socket: Duplex): void {
+  try {
+    if (socket.writable) {
+      socket.end(
+        "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+      );
+    }
+  } catch {
+    // ignore
+  }
+  socket.destroy();
 }

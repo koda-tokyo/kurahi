@@ -1,13 +1,15 @@
 // HTTP handlers for job evidence (KoLo 2.0, M12c), declared in http-routes.ts: getJobEvidence,
 // listJobEvidenceEvents, exportJobEvidence, getEvidenceView. The router authenticates (attach
 // for reads, admin for export); a paired credential restricted to sessions only sees jobs of
-// those sessions (404 otherwise). Exports land under <KOLO_HOME>/evidence-exports, never at a
-// caller-chosen path.
+// those sessions, an SSO person only jobs the Project access policy lets them read
+// (identity/evidence-access.ts; 404 otherwise). Exports land under
+// <KOLO_HOME>/evidence-exports, never at a caller-chosen path.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type { RouteContext, RouteHandler } from "./http-registry.js";
 import { auditSafe, resolveAuditDir } from "../audit/audit-log.js";
+import { resolveKoloHome } from "../config/kolo-home.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
   EvidenceNotFoundError,
@@ -17,6 +19,8 @@ import {
 import { EVIDENCE_VIEW_CSP, renderEvidenceHtml } from "../evidence/html.js";
 import { isSafeJobId, readJobEvents, readJobManifest } from "../evidence/store.js";
 import { summarizeEvents } from "../evidence/summary.js";
+import { personMayReadJobEvidence } from "../identity/evidence-access.js";
+import { getHttpPerson } from "../identity/http.js";
 import { sendJson } from "./http-common.js";
 import { getHttpPrincipal } from "./pair-auth.js";
 import { sessionAllowed, sessionIdentityFromKey } from "./session-allowlist.js";
@@ -81,6 +85,18 @@ export function createEvidenceHttpHandlers(
     const allowlist = allowlistOf(getHttpPrincipal(req));
     if (allowlist && !sessionAllowed(allowlist, sessionIdentityFromKey(sessionKey))) {
       return notFound();
+    }
+    // An SSO person reads only jobs the Project access policy lets them see (404 otherwise, as
+    // for a restricted pairing credential): attach scope alone is not enough.
+    const person = getHttpPerson(req);
+    if (person) {
+      const projectId = events[0].type === "job.start" ? events[0].data.projectId : null;
+      const job = { sessionKey, projectId: typeof projectId === "string" ? projectId : null };
+      if (
+        !personMayReadJobEvidence(person, job, { home: env ? resolveKoloHome({ env }) : undefined })
+      ) {
+        return notFound();
+      }
     }
     return { id, events, manifest: readJobManifest(id, env) };
   };
@@ -162,7 +178,9 @@ export function createEvidenceHttpHandlers(
       });
       void auditSafe(
         {
-          identity: getHttpPrincipal(req)?.kind === "pair" ? "pair-credential" : "owner",
+          identity:
+            getHttpPerson(req)?.principal ??
+            (getHttpPrincipal(req)?.kind === "pair" ? "pair-credential" : "owner"),
           scope: loaded.manifest?.sessionKey ?? null,
           action: "evidence.export",
           outcome: "ok",

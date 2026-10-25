@@ -41,6 +41,12 @@ export type KoLoConfig = {
     /** ISO timestamp when this config was last written. */
     lastTouchedAt?: string;
   };
+  /**
+   * Release profile. "enterprise" refuses excluded and unclassified plugins
+   * (src/plugins/profile-gate.ts, docs/security/enterprise-profile.md); `KURAHI_PROFILE=enterprise`
+   * has the same effect. Unset or "standard": no profile restrictions.
+   */
+  profile?: "standard" | "enterprise";
   auth?: AuthConfig;
   env?: {
     /** Opt-in: import missing secrets from a login shell environment (exec `$SHELL -l -c 'env -0'`). */
@@ -157,6 +163,24 @@ export type KoLoConfig = {
    */
   policy?: {
     mode?: "enforce" | "audit" | "off";
+  };
+  /**
+   * Inbound file security (docs/security/attachment-intake.md). Attachments a connector fetches
+   * are quarantined, checked by a static policy, scanned and only then stored in the Project.
+   */
+  security?: {
+    attachments?: {
+      /** Malware scanner: auto (ClamAV, then Microsoft Defender, else none), or one of them. */
+      scanner?: "auto" | "clamav" | "defender" | "none";
+      /** Refuse files no scanner checked (default true). */
+      requireScan?: boolean;
+      /** Wall clock per scan (default 120, at most 600). */
+      scanTimeoutSeconds?: number;
+      /** Wall clock of the isolated text extraction (default 30, at most 300). */
+      extractTimeoutSeconds?: number;
+      /** V8 heap of the extraction child, MB (default 256). */
+      extractMaxOldSpaceMb?: number;
+    };
   };
   /**
    * KIP headless engine bridge (KoLo 2.0, M5b). Powers the `kip_engine_task` agent tool.

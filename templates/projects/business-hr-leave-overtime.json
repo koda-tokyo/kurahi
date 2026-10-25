@@ -52,5 +52,6 @@
       "en": "List employees forecast to exceed the limit this month."
     }
   ],
-  "terminalProfile": "data"
+  "terminalProfile": "data",
+  "plugins": ["office"]
 }

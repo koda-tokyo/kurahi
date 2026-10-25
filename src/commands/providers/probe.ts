@@ -1,6 +1,7 @@
 // One tiny request against a provider (KoLo 2.0, M9c): `kurahi providers test` and
 // `kurahi models list --live`. Never logs the key; reports latency and the models seen.
 import { fetchJson } from "../../infra/provider-usage.fetch.shared.js";
+import { exchangeIbmIamToken, IbmIamError } from "../../providers/ibm-iam.js";
 import {
   type ProviderRegistryEntry,
   registryBaseUrlForConfig,
@@ -34,6 +35,9 @@ function authHeaders(entry: ProviderRegistryEntry, apiKey?: string): Record<stri
       return { "x-goog-api-key": apiKey };
     case "api-key":
       return { "api-key": apiKey };
+    case "ibm-iam":
+      // apiKey is the bearer token exchanged by probeProvider.
+      return { Authorization: `Bearer ${apiKey}` };
   }
 }
 
@@ -46,9 +50,11 @@ function extractModelIds(entry: ProviderRegistryEntry, body: unknown): string[] 
     ? rec.data
     : Array.isArray(rec.models)
       ? rec.models
-      : Array.isArray(body)
-        ? (body as unknown[])
-        : [];
+      : Array.isArray(rec.resources)
+        ? rec.resources
+        : Array.isArray(body)
+          ? (body as unknown[])
+          : [];
   const ids: string[] = [];
   for (const item of list) {
     if (!item || typeof item !== "object") {
@@ -56,13 +62,15 @@ function extractModelIds(entry: ProviderRegistryEntry, body: unknown): string[] 
     }
     const m = item as Record<string, unknown>;
     const raw =
-      typeof m.id === "string"
-        ? m.id
-        : typeof m.name === "string"
-          ? m.name
-          : typeof m.model === "string"
-            ? m.model
-            : "";
+      typeof m.model_id === "string"
+        ? m.model_id
+        : typeof m.id === "string"
+          ? m.id
+          : typeof m.name === "string"
+            ? m.name
+            : typeof m.model === "string"
+              ? m.model
+              : "";
     if (!raw) {
       continue;
     }
@@ -124,9 +132,25 @@ export async function probeProvider(params: ProbeParams): Promise<ProbeResult> {
   const { entry } = params;
   const fetchFn = params.fetchFn ?? fetch;
   const timeoutMs = params.timeoutMs ?? 10_000;
+  let credential = params.apiKey;
+  if (entry.authHeader === "ibm-iam" && credential) {
+    // The stored key is an IBM Cloud API key: exchanging it is the authentication check.
+    const started = performance.now();
+    try {
+      credential = (await exchangeIbmIamToken({ apiKey: credential, fetchFn, timeoutMs })).token;
+    } catch (err) {
+      const status = err instanceof IbmIamError ? err.status : undefined;
+      return {
+        ok: false,
+        latencyMs: Math.round(performance.now() - started),
+        exitCode: status ? PROVIDERS_EXIT.auth : PROVIDERS_EXIT.unreachable,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
   const headers: Record<string, string> = {
     "content-type": "application/json",
-    ...authHeaders(entry, params.apiKey),
+    ...authHeaders(entry, credential),
   };
   const modelsUrl = registryModelsUrl(entry, params.baseUrl);
   const via: "models" | "chat" = modelsUrl ? "models" : "chat";

@@ -1,0 +1,62 @@
+# 秘書 / Secretariat autopilot, full chain (starter routine; see docs/autopilot.md).
+# L1 Prepare. Every new email is filed as a case in its department's queue (email intake: a
+# reference to the message, never its body; flags only a person clears). Clean, routine mail
+# gets a reply DRAFT in Outlook; when the email explicitly asks for a document, the model writes
+# a Word document from the approved company facts in knowledge/ (read-only, written by people),
+# the office plugin renders it into output/ and it is attached to the draft. Nothing is sent: a
+# person reviews the drafts in Outlook. Flagged mail (fraud, phishing, prompt injection, unknown
+# senders) is never answered; it goes to a person.
+# Needs the Microsoft 365 connector with mail read and `write.mailDraft`, the office plugin
+# enabled for the gateway (the engine calls tools through the gateway tool path, which sees
+# gateway plugins, not a template's per-Project plugins) and the Project in 実行 Act mode.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: secretariat-inbox-full
+    edition: business
+    area: secretariat
+    name:
+      { ja: 受信メールの起票・返信下書き・文書添付, en: Inbox cases, reply drafts and documents }
+    # New mail starts a run within seconds (Graph delta query); the hourly schedule is the
+    # safety net when the mail trigger is degraded (sign-in expired) or the gateway restarted.
+    trigger:
+      schedule: "0 8-19 * * 1-5"
+      tz: Asia/Tokyo
+      event: [{ source: m365.mail, folder: inbox }]
+      debounceSeconds: 30
+      maxRunsPerHour: 12
+    gather:
+      - id: inbox
+        tool: m365_mail_list
+        args: { top: 25 }
+      - id: mail
+        tool: m365_mail_read
+        args: { maxChars: 12000 }
+        each: { from: inbox, match: "id: (\\S+)", arg: id, max: 15 }
+    reasoning:
+      prompt: mail-secretariat
+      schema: autopilot.plan.v1
+    actions: [workitem.intake, mail.draft, office.create, mail.attach]
+    knowledge: [knowledge/company-facts.md]
+    level: L1
+    limits: { maxItemsPerRun: 15, maxActionsPerDay: 400 }
+    queue: secretariat-work
+    metrics: { baselineMinutes: 6 }
+  # 朝のブリーフ / Morning brief (L1 Prepare). Weekdays 07:30: one brief per Project member
+  # (work queue policy access.members), built by the engine from recorded data only (no model):
+  # what the routines handled, documents prepared, decisions and flagged items waiting for that
+  # person, proposals they may accept, commitments due and routine problems. Drafted in Outlook
+  # to the member's own `email` (needs `write.mailDraft`), or written to output/briefs/ when the
+  # member has none. Nothing is sent.
+  - id: morning-brief
+    edition: business
+    area: secretariat
+    name: { ja: 朝のブリーフ, en: Morning brief }
+    trigger: { schedule: "30 7 * * 1-5", tz: Asia/Tokyo }
+    reasoning:
+      prompt: morning-brief
+      schema: autopilot.plan.v1
+    actions: [brief.deliver]
+    level: L1
+    limits: { maxItemsPerRun: 50, maxActionsPerDay: 100 }

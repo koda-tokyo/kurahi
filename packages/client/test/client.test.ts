@@ -357,5 +357,20 @@ describe("discover()", () => {
     await client.getOpenApiDocument();
     expect(m.calls[0].url).toBe("http://127.0.0.1:18871/doc");
     expect(header(m.calls[0], "authorization")).toBe("Bearer tok");
+    // No break-glass header unless KOLO_BREAK_GLASS states a reason.
+    expect(header(m.calls[0], "x-kolo-break-glass")).toBeNull();
+  });
+
+  it("KoloClient.local() sends KOLO_BREAK_GLASS with the owner token (percent-encoded)", async () => {
+    const home = makeHome();
+    fs.writeFileSync(path.join(home, "run", "gateway.lock"), JSON.stringify({ port: 18872 }));
+    fs.writeFileSync(path.join(home, "secrets", "gateway.token"), "tok");
+    const m = mockFetch(() => json(200, {}));
+    const client = await KoloClient.local({
+      fetch: m.fetch,
+      discover: { env: { KOLO_HOME: home, KOLO_BREAK_GLASS: "IdP 障害 #42" } },
+    });
+    await client.getOpenApiDocument();
+    expect(header(m.calls[0], "x-kolo-break-glass")).toBe(encodeURIComponent("IdP 障害 #42"));
   });
 });

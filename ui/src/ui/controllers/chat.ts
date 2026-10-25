@@ -43,26 +43,44 @@ function readReasoning(payload: ChatEventPayload): ChatStreamReasoning | null {
   };
 }
 
+const historyRequests = new WeakMap<ChatState, object>();
+const sendRequests = new WeakMap<ChatState, object>();
+
 export async function loadChatHistory(state: ChatState) {
   if (!state.client || !state.connected) {
     return;
   }
+  const client = state.client;
+  const sessionKey = state.sessionKey;
+  const request = {};
+  historyRequests.set(state, request);
+  const isCurrent = () =>
+    state.client === client &&
+    state.sessionKey === sessionKey &&
+    historyRequests.get(state) === request;
   state.chatLoading = true;
   state.lastError = null;
   try {
-    const res = await state.client.request<{ messages?: unknown[]; thinkingLevel?: string | null }>(
+    const res = await client.request<{ messages?: unknown[]; thinkingLevel?: string | null }>(
       "chat.history",
       {
-        sessionKey: state.sessionKey,
+        sessionKey,
         limit: 200,
       },
     );
+    if (!isCurrent()) {
+      return;
+    }
     state.chatMessages = Array.isArray(res.messages) ? res.messages : [];
     state.chatThinkingLevel = res.thinkingLevel ?? null;
   } catch (err) {
-    state.lastError = String(err);
+    if (isCurrent()) {
+      state.lastError = String(err);
+    }
   } finally {
-    state.chatLoading = false;
+    if (isCurrent()) {
+      state.chatLoading = false;
+    }
   }
 }
 
@@ -88,6 +106,17 @@ export async function sendChatMessage(
     return null;
   }
 
+  const client = state.client;
+  const sessionKey = state.sessionKey;
+  const request = {};
+  sendRequests.set(state, request);
+  const isCurrent = () =>
+    state.client === client &&
+    state.sessionKey === sessionKey &&
+    sendRequests.get(state) === request;
+  // An earlier history snapshot must not replace this optimistic message.
+  historyRequests.delete(state);
+  state.chatLoading = false;
   const now = Date.now();
 
   // Build user message content blocks
@@ -140,15 +169,18 @@ export async function sendChatMessage(
     : undefined;
 
   try {
-    await state.client.request("chat.send", {
-      sessionKey: state.sessionKey,
+    await client.request("chat.send", {
+      sessionKey,
       message: msg,
       deliver: false,
       idempotencyKey: runId,
       attachments: apiAttachments,
     });
-    return runId;
+    return isCurrent() && (state.chatRunId === runId || state.chatRunId === null) ? runId : null;
   } catch (err) {
+    if (!isCurrent() || state.chatRunId !== runId) {
+      return null;
+    }
     const error = String(err);
     state.chatRunId = null;
     state.chatStream = null;
@@ -164,7 +196,9 @@ export async function sendChatMessage(
     ];
     return null;
   } finally {
-    state.chatSending = false;
+    if (isCurrent() && (state.chatRunId === runId || state.chatRunId === null)) {
+      state.chatSending = false;
+    }
   }
 }
 

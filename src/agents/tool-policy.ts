@@ -59,6 +59,7 @@ export const TOOL_GROUPS: Record<string, string[]> = {
     "lsp_definition",
     "lsp_references",
     "lsp_hover",
+    "workitems_intake_email",
   ],
 };
 

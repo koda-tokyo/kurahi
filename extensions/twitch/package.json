@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/twitch",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Kurahi Twitch channel plugin",
   "type": "module",
   "dependencies": {

@@ -50,7 +50,12 @@
     {
       "ja": "適格請求書の記載事項が揃っているか確認してください。",
       "en": "Check that the invoice carries every item required for a qualified invoice."
+    },
+    {
+      "ja": "この支出申請の稟議書を下書きしてください（目的・金額・費用対効果・代替案）。",
+      "en": "Draft the ringi document for this spending request (purpose, amount, benefit, alternatives)."
     }
   ],
-  "terminalProfile": "data"
+  "terminalProfile": "data",
+  "plugins": ["office"]
 }

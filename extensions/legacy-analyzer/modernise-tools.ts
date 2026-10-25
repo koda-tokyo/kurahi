@@ -75,22 +75,29 @@ export function moderniseTools({ root, pathParam, env }: Deps) {
     },
     {
       name: "modernise_inventory",
-      label: "Java, SQL, FORTRAN and PL/I inventory",
+      label: "Java, SQL, FORTRAN, PL/I and PLC inventory",
       description:
         "Java types (kind java), SQL tables and views (kind sql), FORTRAN units and COMMON blocks (kind fortran) or " +
-        "PL/I procedures and structures (kind pli): the list, or with name one entry in full (Java: annotations, " +
+        "PL/I procedures and structures (kind pli) or PLC POUs and the I/O map (kind plc): the list, or with name one entry in full (Java: annotations, " +
         "fields, methods, calls, table access; SQL: columns with type, NULL, default and comment, constraints, " +
         "indexes; FORTRAN: declarations, COMMON layouts, calls and callers, file I/O; PL/I: declarations, files, " +
-        "calls, EXEC SQL, ON-units). Every fact at path:line.",
+        "calls, EXEC SQL, ON-units; PLC: variables, instances, calls, writes, or a %I/%Q/%M address). " +
+        "Every fact at path:line.",
       parameters: Type.Object({
         path: pathParam,
-        kind: Type.String({ description: "java, sql, fortran or pli" }),
+        kind: Type.String({ description: "java, sql, fortran, pli or plc" }),
         name: Type.Optional(Type.String()),
       }),
       execute: run((p) => {
         const kind = str(p.kind);
-        if (kind !== "java" && kind !== "sql" && kind !== "fortran" && kind !== "pli") {
-          throw new Error('kind must be "java", "sql", "fortran" or "pli".');
+        if (
+          kind !== "java" &&
+          kind !== "sql" &&
+          kind !== "fortran" &&
+          kind !== "pli" &&
+          kind !== "plc"
+        ) {
+          throw new Error('kind must be "java", "sql", "fortran", "pli" or "plc".');
         }
         return legacyInventory(root(p), kind, str(p.name) || undefined, env);
       }),

@@ -1,0 +1,11 @@
+{
+  "id": "office",
+  "name": "Office documents",
+  "description": "Create PowerPoint, Word and Excel files in the current Project folder from a structured spec. Local rendering only; nothing is sent anywhere. Needs a Project in Act mode.",
+  "projectScope": true,
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

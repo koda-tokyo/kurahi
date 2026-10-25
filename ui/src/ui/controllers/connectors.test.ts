@@ -18,12 +18,18 @@ const localize = (id: string) =>
   })[id] ?? id;
 
 describe("connector catalogue", () => {
-  it("starts the three business entries as planned with declared capabilities", () => {
+  it("starts the business entries as planned with declared capabilities", () => {
     const rows = connectorRows(null, null, null);
     expect(rows.map(({ name, status }) => [name, status])).toEqual([
       ["Microsoft 365", "planned"],
       ["Gmail", "planned"],
       ["Microsoft Entra ID", "planned"],
+      ["kintone", "planned"],
+      ["freee 会計", "planned"],
+      ["マネーフォワード クラウド", "planned"],
+      ["SmartHR", "planned"],
+      ["LINE WORKS", "planned"],
+      ["Box", "planned"],
     ]);
     expect(rows[0].capabilities).toEqual([
       "connectors.capability.mail",
@@ -137,8 +143,49 @@ describe("connector catalogue", () => {
     expect(filterConnectorRows(rows, "カレンダー", "all", localize).map((row) => row.name)).toEqual(
       ["Microsoft 365"],
     );
-    expect(filterConnectorRows(rows, "", "planned", localize)).toHaveLength(3);
+    expect(filterConnectorRows(rows, "", "planned", localize)).toHaveLength(9);
     expect(filterConnectorRows(rows, "missing", "all", localize)).toEqual([]);
+  });
+
+  it("lists the Japanese SaaS connectors and keeps them unverified until a live probe", () => {
+    const ids = ["kintone", "freee", "money-forward", "smarthr", "line-works", "box"] as const;
+    const planned = connectorRows(null, null, null);
+    for (const id of ids) {
+      expect(planned.find((row) => row.id === `business:${id}`)?.status).toBe("planned");
+    }
+    const entries = Object.fromEntries(ids.map((id) => [id, { enabled: true }]));
+    const configured = connectorRows(null, null, { plugins: { entries } });
+    for (const id of ids) {
+      expect(configured.find((row) => row.id === `business:${id}`)?.status, id).toBe("unverified");
+    }
+    const now = Date.parse("2026-10-25T00:00:00.000Z");
+    const probed = connectorRows(
+      null,
+      null,
+      { plugins: { entries } },
+      {
+        connectors: [
+          {
+            id: "kintone",
+            configured: true,
+            authenticated: true,
+            lastProbeOk: true,
+            lastProbeAt: "2026-10-24T23:50:00.000Z",
+          },
+          {
+            id: "smarthr",
+            configured: true,
+            authenticated: false,
+            lastProbeOk: null,
+            lastProbeAt: null,
+          },
+        ],
+      },
+      now,
+    );
+    expect(probed.find((row) => row.id === "business:kintone")?.status).toBe("active");
+    expect(probed.find((row) => row.id === "business:smarthr")?.status).toBe("unverified");
+    expect(probed.find((row) => row.id === "business:box")?.status).toBe("unverified");
   });
 
   it("applies exact plugin and MCP status rules", () => {
@@ -181,11 +228,9 @@ describe("connector status loading", () => {
     } as unknown as Parameters<typeof loadConnectors>[0];
     await loadConnectors(host);
     expect(host.enterprise.connectorsSource).toBe("unavailable");
-    expect(host.enterprise.connectors?.map((row) => row.status)).toEqual([
-      "planned",
-      "planned",
-      "planned",
-    ]);
+    expect(host.enterprise.connectors?.map((row) => row.status)).toEqual(
+      Array.from({ length: 9 }, () => "planned"),
+    );
   });
 });
 

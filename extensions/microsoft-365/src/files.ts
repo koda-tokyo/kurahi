@@ -1,6 +1,7 @@
 // Microsoft 365 file tools (opt-in): search OneDrive and shared files (Files.Read.All), search
 // SharePoint sites and their libraries (Sites.Read.All), read a file's text (PDF, DOCX, XLSX,
-// CSV, TXT, MD) with a size cap checked before download. Read-only.
+// CSV, TXT, MD) with a size cap checked before download. Read-only. A separate opt-in uploads a
+// Project file into the user's OneDrive app folder only (Files.ReadWrite.AppFolder).
 import { Type } from "@sinclair/typebox";
 import {
   asAgentTool,
@@ -13,6 +14,7 @@ import {
   graphUrl,
   intParam,
   odataString,
+  readProjectFile,
   runConnectorTool,
   strParam,
   textResult,
@@ -188,4 +190,58 @@ export function createFileTools(deps: FileToolDeps) {
       ),
   });
   return [search, read, sites];
+}
+
+/** Graph's limit for a simple (single PUT) upload; larger files need an upload session. */
+const UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Upload a Project file to the signed-in user's OneDrive app folder (`/me/drive/special/approot`,
+ * Graph's "App folder" for this app registration). A name clash gets a new name instead of
+ * overwriting. Never writes anywhere else and never creates a sharing link: sharing is a person's
+ * action in OneDrive. The audit row has the item id, byte count and kind, never the name or path.
+ */
+export function createFileUploadTool(deps: { runtime: ConnectorRuntime; ctx: ToolContext }) {
+  const { runtime, ctx } = deps;
+  return asAgentTool({
+    name: "m365_files_upload",
+    label: "Microsoft 365: upload file to the app folder",
+    description:
+      "Upload a file from the current Project folder (PDF, DOCX, XLSX, PPTX, CSV, TXT, MD or an image; at most 4 MB) to this app's folder in the user's OneDrive. Returns the item id and link. Does not share the file.",
+    parameters: Type.Object({
+      path: Type.String({ description: "File path relative to the Project folder" }),
+    }),
+    execute: (_id, params) =>
+      runConnectorTool(
+        runtime,
+        ctx,
+        "files.upload",
+        async () => {
+          const file = await readProjectFile(ctx, params.path, UPLOAD_MAX_BYTES);
+          const item = await runtime.json<DriveItem>({
+            url: graphUrl(`/me/drive/special/approot:/${encodeURIComponent(file.name)}:/content`, {
+              "@microsoft.graph.conflictBehavior": "rename",
+            }),
+            method: "PUT",
+            headers: { "content-type": "application/octet-stream" },
+            body: file.buf,
+            scopes: [SCOPES.filesAppFolder],
+          });
+          graphId(item.id, "item id");
+          const link =
+            typeof item.webUrl === "string" && item.webUrl.startsWith("https://")
+              ? item.webUrl
+              : undefined;
+          const text = [
+            `Uploaded ${file.buf.length} bytes (${file.kind}) to the OneDrive app folder as item ${item.id}; not shared.`,
+            ...(link ? [`Open in OneDrive: ${link}`] : []),
+          ].join("\n");
+          return {
+            value: { id: item.id, bytes: file.buf.length, kind: file.kind },
+            result: textResult(text, { id: item.id, ...(link ? { webUrl: link } : {}) }),
+          };
+        },
+        (v) => ({ ids: [v.id], count: 1, bytes: v.bytes, kind: v.kind }),
+      ),
+  });
 }

@@ -35,6 +35,12 @@ v1.0の形式で、ヘッダーがなければv0.3の形式で返します。
 - 呼び出し元ごとにクライアントとトークンを設定し、トークンはシークレットストアに保存します。
 - 既定ではループバックからの呼び出しだけを受け付けます。外部から受け付けるには `allowNonLoopback` の設定が必要です。
 - 既定（`allowTools: false`）では、ツールを使わずモデルの応答だけを返します。
+- `apiKeyHeader: true` にすると、`Authorization: Bearer` の代わりに `X-API-Key` ヘッダーで同じクライアントトークンを受け付けます。
+  Agent Cardには `bearer` の代替として `apiKey` が載ります（既定は無効）。
+- `rest: true` にすると、エージェントごとに `POST <basePath>/<slug>/ask`（本文 `{ "message": "...", "contextId": "..." }`）と、
+  そのOpenAPI 3.0の記述 `GET <basePath>/<slug>/openapi.json` を追加します。OpenAPIからツールを取り込む呼び出し元向けで、
+  ゲート、トークン、許可リスト、上限、分離されたセッション、信頼できないコンテンツの扱いはA2Aと同じです（既定は無効）。
+- エンタープライズのオーケストレーション基盤への登録手順は [watsonx Orchestrate連携](/ja/integrations/ibm-watsonx-orchestrate) を参照してください。
 
 ## クライアントのツール
 

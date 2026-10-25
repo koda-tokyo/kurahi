@@ -52,5 +52,6 @@
       "en": "Draft the order email to the vendor (do not send)."
     }
   ],
-  "terminalProfile": "data"
+  "terminalProfile": "data",
+  "plugins": ["office"]
 }

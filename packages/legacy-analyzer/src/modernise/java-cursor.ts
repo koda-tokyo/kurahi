@@ -151,7 +151,27 @@ export class P {
           strs.length > 0 && this.t.slice(from, e).every((x) => x.k === "str" || x.v === "+");
         args[key] = onlyStrings ? strs.map((x) => x.v).join("") : this.text(from, e);
       }
+      // Annotations inside the values keep their own names, values and lines, and the element
+      // they are the value of when it is named (`joinColumns = @JoinColumn(..)`).
+      const keyAt = (i: number) => {
+        const seg = segs.find(([s, e]) => i >= s && i < e);
+        const s = seg?.[0] ?? -1;
+        return this.t[s]?.k === "id" && this.t[s + 1]?.v === "=" ? this.t[s].v : undefined;
+      };
+      const nested: JavaAnnotation[] = [];
+      for (this.k++; this.k < close; ) {
+        if (this.at("@") && this.t[this.k + 1]?.k === "id") {
+          const element = keyAt(this.k);
+          const a = this.annotation();
+          nested.push(element ? { ...a, element } : a);
+        } else {
+          this.k++;
+        }
+      }
       this.k = close + 1;
+      if (nested.length > 0) {
+        return { file: this.file, line, name, args, nested };
+      }
     }
     return { file: this.file, line, name, args };
   }

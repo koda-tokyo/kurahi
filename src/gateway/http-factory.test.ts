@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { KoLoConfig } from "../config/config.js";
 import { __resetJobsForTest } from "../agents/jobs.js";
+import { flushAudit } from "../audit/audit-log.js";
 import { __resetFactoryRuntimeForTest } from "../factory/runtime.js";
 import { __resetFactoryForTest, createCard, getCard } from "../factory/store.js";
 import { createFactoryHttpHandlers } from "./http-factory.js";
@@ -84,10 +85,12 @@ describe("factory HTTP handlers", () => {
     handlers = createFactoryHttpHandlers({ getConfig: () => config, gatewayVersion: "test" });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Card handlers append audit entries without awaiting them; drain before removing home.
+    await flushAudit();
     __resetFactoryForTest();
     __resetFactoryRuntimeForTest();
-    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   test("boards and cards start empty, then reflect created cards with counts", async () => {

@@ -1,6 +1,6 @@
 {
   "name": "kurahi",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Kurahi: a resident agent runtime. One service per identity; terminal, web, messaging and paired devices are its clients.",
   "keywords": [
     "agent",

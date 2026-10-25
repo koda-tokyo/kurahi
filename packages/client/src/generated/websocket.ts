@@ -8,9 +8,9 @@ export const WS_PROTOCOL_VERSION = 3;
 /** The handshake method; it is not callable through call(). */
 export const WS_HANDSHAKE_METHOD = "connect";
 
-export const wsMethods = ["agent","agent.identity.get","agent.wait","agents.list","artifacts.get","artifacts.list","artifacts.save","artifacts.setStatus","artifacts.version","browser.request","channels.logout","channels.status","chat.abort","chat.history","chat.send","chats.archive","chats.archived","chats.search","codeMode.run","config.apply","config.get","config.patch","config.schema","config.set","connectors.status","cron.add","cron.list","cron.remove","cron.run","cron.runs","cron.status","cron.update","debug.profile","device.pair.approve","device.pair.list","device.pair.reject","device.token.revoke","device.token.rotate","exec.approval.request","exec.approval.resolve","exec.approvals.get","exec.approvals.node.get","exec.approvals.node.set","exec.approvals.set","files.upload.abort","files.upload.begin","files.upload.chunk","files.upload.commit","health","integrity.status","last-heartbeat","logs.tail","mcp.status","models.list","node.describe","node.event","node.invoke","node.invoke.result","node.list","node.pair.approve","node.pair.list","node.pair.reject","node.pair.request","node.pair.verify","node.rename","pair.approve","pair.devices","pair.invite","pair.list","pair.me","pair.nonce","pair.redeem","pair.refresh","pair.revoke","plugins.list","plugins.reload","policy.kill","policy.release","policy.status","projects.archive","projects.chatKey","projects.create","projects.files","projects.get","projects.list","projects.pack","projects.setMode","projects.templates","projects.update","send","session.attach","session.detach","sessions.compact","sessions.delete","sessions.discover","sessions.list","sessions.patch","sessions.preview","sessions.reset","set-heartbeats","sibling.history","sibling.read","sibling.send","sibling.subscribe","skills.bins","skills.install","skills.status","skills.update","status","system-event","system-presence","talk.mode","terminal.cancel","terminal.close","terminal.diff","terminal.input","terminal.open","terminal.replay","terminal.resize","tts.convert","tts.disable","tts.enable","tts.providers","tts.setProvider","tts.status","update.run","usage.cost","usage.status","voice.audio","voice.cancel","voice.speak","voice.start","voice.stop","voicewake.get","voicewake.set","wake","wizard.cancel","wizard.next","wizard.start","wizard.status","workitems.assignAgent","workitems.config","workitems.create","workitems.decide","workitems.evidence","workitems.get","workitems.list","workitems.update"] as const;
+export const wsMethods = ["agent","agent.identity.get","agent.wait","agents.list","artifacts.get","artifacts.list","artifacts.save","artifacts.setStatus","artifacts.version","autopilot.approvals.create","autopilot.approvals.list","autopilot.approvals.revoke","autopilot.autonomy.accept","autopilot.autonomy.decline","autopilot.autonomy.proposals","autopilot.brief.get","autopilot.pause","autopilot.reportError","autopilot.resume","autopilot.routines.list","autopilot.routines.sync","autopilot.run","autopilot.runs.get","autopilot.runs.list","autopilot.startAll","autopilot.stats","autopilot.stopAll","browser.request","channels.logout","channels.status","chat.abort","chat.history","chat.send","chats.archive","chats.archived","chats.search","codeMode.run","config.apply","config.get","config.patch","config.schema","config.set","connectors.status","cron.add","cron.list","cron.remove","cron.run","cron.runs","cron.status","cron.update","debug.profile","device.pair.approve","device.pair.list","device.pair.reject","device.token.revoke","device.token.rotate","exec.approval.request","exec.approval.resolve","exec.approvals.get","exec.approvals.node.get","exec.approvals.node.set","exec.approvals.set","files.upload.abort","files.upload.begin","files.upload.chunk","files.upload.commit","health","identity.groupMappings.remove","identity.groupMappings.set","identity.org.get","identity.org.update","identity.persons.link","identity.persons.restore","identity.persons.unlink","identity.roles.assign","identity.roles.revoke","identity.sessions.list","identity.sessions.revoke","identity.units.remove","identity.units.upsert","identity.whoami","integrity.status","last-heartbeat","logs.tail","mcp.status","models.list","node.describe","node.event","node.invoke","node.invoke.result","node.list","node.pair.approve","node.pair.list","node.pair.reject","node.pair.request","node.pair.verify","node.rename","pair.approve","pair.devices","pair.invite","pair.list","pair.me","pair.nonce","pair.redeem","pair.refresh","pair.revoke","plugins.list","plugins.reload","policy.kill","policy.release","policy.status","projects.archive","projects.chatKey","projects.create","projects.files","projects.get","projects.list","projects.pack","projects.setMode","projects.templates","projects.update","send","session.attach","session.detach","sessions.compact","sessions.delete","sessions.discover","sessions.list","sessions.patch","sessions.preview","sessions.reset","set-heartbeats","sibling.history","sibling.read","sibling.send","sibling.subscribe","skills.bins","skills.install","skills.status","skills.update","status","system-event","system-presence","talk.mode","terminal.cancel","terminal.close","terminal.diff","terminal.input","terminal.open","terminal.replay","terminal.resize","tts.convert","tts.disable","tts.enable","tts.providers","tts.setProvider","tts.status","update.run","usage.cost","usage.status","voice.audio","voice.cancel","voice.speak","voice.start","voice.stop","voicewake.get","voicewake.set","wake","wizard.cancel","wizard.next","wizard.start","wizard.status","workitems.assignAgent","workitems.clearFlag","workitems.config","workitems.create","workitems.decide","workitems.delegate","workitems.document","workitems.draftDiff","workitems.evidence","workitems.get","workitems.intakeEmail","workitems.list","workitems.stats","workitems.update"] as const;
 
-export const wsEvents = ["agent","chat","connect.challenge","cron","device.pair.requested","device.pair.resolved","exec.approval.requested","exec.approval.resolved","factory.card","health","heartbeat","node.invoke.request","node.pair.requested","node.pair.resolved","presence","shutdown","sibling","talk.mode","terminal.event","tick","voice.audio.out","voice.session.ended","voice.transcript.final","voice.transcript.partial","voicewake.changed","workitems.changed"] as const;
+export const wsEvents = ["agent","autopilot.changed","chat","connect.challenge","cron","device.pair.requested","device.pair.resolved","exec.approval.requested","exec.approval.resolved","factory.card","health","heartbeat","node.invoke.request","node.pair.requested","node.pair.resolved","presence","shutdown","sibling","talk.mode","terminal.event","tick","voice.audio.out","voice.session.ended","voice.transcript.final","voice.transcript.partial","voicewake.changed","workitems.changed"] as const;
 
 export type WsMethod = (typeof wsMethods)[number];
 export type WsEvent = (typeof wsEvents)[number];
@@ -52,6 +52,78 @@ export interface WsMethodMap {
   "artifacts.version": {
     params: unknown;
     result: unknown;
+  };
+  "autopilot.approvals.create": {
+    params: T.AutopilotApprovalsCreateParams;
+    result: T.AutopilotApprovalsCreateResult;
+  };
+  "autopilot.approvals.list": {
+    params: T.AutopilotApprovalsListParams;
+    result: T.AutopilotApprovalsListResult;
+  };
+  "autopilot.approvals.revoke": {
+    params: T.AutopilotApprovalsRevokeParams;
+    result: T.AutopilotApprovalsRevokeResult;
+  };
+  "autopilot.autonomy.accept": {
+    params: T.AutopilotAutonomyAcceptParams;
+    result: T.AutopilotAutonomyAcceptResult;
+  };
+  "autopilot.autonomy.decline": {
+    params: T.AutopilotAutonomyDeclineParams;
+    result: T.AutopilotAutonomyDeclineResult;
+  };
+  "autopilot.autonomy.proposals": {
+    params: T.AutopilotAutonomyProposalsParams;
+    result: T.AutopilotAutonomyProposalsResult;
+  };
+  "autopilot.brief.get": {
+    params: T.AutopilotBriefGetParams;
+    result: T.AutopilotBriefGetResult;
+  };
+  "autopilot.pause": {
+    params: T.AutopilotPauseParams;
+    result: T.AutopilotPauseResult;
+  };
+  "autopilot.reportError": {
+    params: T.AutopilotReportErrorParams;
+    result: T.AutopilotReportErrorResult;
+  };
+  "autopilot.resume": {
+    params: T.AutopilotResumeParams;
+    result: T.AutopilotResumeResult;
+  };
+  "autopilot.routines.list": {
+    params: T.AutopilotRoutinesListParams;
+    result: T.AutopilotRoutinesListResult;
+  };
+  "autopilot.routines.sync": {
+    params: T.AutopilotRoutinesSyncParams;
+    result: T.AutopilotRoutinesSyncResult;
+  };
+  "autopilot.run": {
+    params: T.AutopilotRunParams;
+    result: T.AutopilotRunResult;
+  };
+  "autopilot.runs.get": {
+    params: T.AutopilotRunsGetParams;
+    result: T.AutopilotRunsGetResult;
+  };
+  "autopilot.runs.list": {
+    params: T.AutopilotRunsListParams;
+    result: T.AutopilotRunsListResult;
+  };
+  "autopilot.startAll": {
+    params: T.AutopilotStartAllParams;
+    result: T.AutopilotStartAllResult;
+  };
+  "autopilot.stats": {
+    params: T.AutopilotStatsParams;
+    result: T.AutopilotStatsResult;
+  };
+  "autopilot.stopAll": {
+    params: T.AutopilotStopAllParams;
+    result: T.AutopilotStopAllResult;
   };
   "browser.request": {
     params: unknown;
@@ -212,6 +284,62 @@ export interface WsMethodMap {
   "health": {
     params: unknown;
     result: unknown;
+  };
+  "identity.groupMappings.remove": {
+    params: T.IdentityGroupMappingsRemoveParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.groupMappings.set": {
+    params: T.IdentityGroupMappingsSetParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.org.get": {
+    params: T.IdentityOrgGetParams;
+    result: T.IdentityOrgGetResult;
+  };
+  "identity.org.update": {
+    params: T.IdentityOrgUpdateParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.persons.link": {
+    params: T.IdentityPersonsLinkParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.persons.restore": {
+    params: T.IdentityPersonsRestoreParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.persons.unlink": {
+    params: T.IdentityPersonsUnlinkParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.roles.assign": {
+    params: T.IdentityRolesAssignParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.roles.revoke": {
+    params: T.IdentityRolesRevokeParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.sessions.list": {
+    params: T.IdentitySessionsListParams;
+    result: T.IdentitySessionsListResult;
+  };
+  "identity.sessions.revoke": {
+    params: T.IdentitySessionsRevokeParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.units.remove": {
+    params: T.IdentityUnitsRemoveParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.units.upsert": {
+    params: T.IdentityUnitsUpsertParams;
+    result: T.IdentityAdminResult;
+  };
+  "identity.whoami": {
+    params: T.IdentityWhoamiParams;
+    result: T.IdentityWhoamiResult;
   };
   "integrity.status": {
     params: unknown;
@@ -581,6 +709,10 @@ export interface WsMethodMap {
     params: T.WorkitemsAssignAgentParams;
     result: T.WorkitemsAssignAgentResult;
   };
+  "workitems.clearFlag": {
+    params: T.WorkitemsClearFlagParams;
+    result: T.WorkitemsClearFlagResult;
+  };
   "workitems.config": {
     params: T.WorkitemsConfigParams;
     result: T.WorkitemsConfigResult;
@@ -593,6 +725,18 @@ export interface WsMethodMap {
     params: T.WorkitemsDecideParams;
     result: T.WorkitemsDecideResult;
   };
+  "workitems.delegate": {
+    params: T.WorkitemsDelegateParams;
+    result: T.WorkitemsDelegateResult;
+  };
+  "workitems.document": {
+    params: T.WorkitemsDocumentParams;
+    result: T.WorkitemsDocumentResult;
+  };
+  "workitems.draftDiff": {
+    params: T.WorkitemsDraftDiffParams;
+    result: T.WorkitemsDraftDiffResult;
+  };
   "workitems.evidence": {
     params: T.WorkitemsEvidenceParams;
     result: T.WorkitemsEvidenceResult;
@@ -601,9 +745,17 @@ export interface WsMethodMap {
     params: T.WorkitemsGetParams;
     result: T.WorkitemsGetResult;
   };
+  "workitems.intakeEmail": {
+    params: T.WorkitemsIntakeEmailParams;
+    result: T.WorkitemsIntakeEmailResult;
+  };
   "workitems.list": {
     params: T.WorkitemsListParams;
     result: T.WorkitemsListResult;
+  };
+  "workitems.stats": {
+    params: T.WorkitemsStatsParams;
+    result: T.WorkitemsStatsResult;
   };
   "workitems.update": {
     params: T.WorkitemsUpdateParams;
@@ -614,6 +766,7 @@ export interface WsMethodMap {
 /** Payload per server event. */
 export interface WsEventMap {
   "agent": T.AgentEvent;
+  "autopilot.changed": T.AutopilotChangedEvent;
   "chat": T.ChatEvent;
   "connect.challenge": unknown;
   "cron": unknown;

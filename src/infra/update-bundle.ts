@@ -22,6 +22,7 @@ import {
   readBundleManifest,
   verifyBundleSums,
   type BundleManifest,
+  type BundleProfile,
   type BundleTarget,
 } from "../packaging/bundle-manifest.js";
 import { compareSemverStrings } from "./update-check.js";
@@ -165,9 +166,11 @@ export async function fetchLatestRelease(params: {
 export function selectBundleAssets(
   release: GitHubRelease,
   target: BundleTarget,
+  profile: BundleProfile = "standard",
 ): { version: string; archive: GitHubReleaseAsset; sums: GitHubReleaseAsset | null } {
   const version = versionFromTag(release.tag_name);
-  const wanted = bundleArchiveName(version, target);
+  // An enterprise install only ever updates to the enterprise asset (never to the standard one).
+  const wanted = bundleArchiveName(version, target, profile);
   const archive = release.assets.find((a) => a.name === wanted);
   if (!archive) {
     throw new Error(
@@ -282,10 +285,17 @@ export function validateStagedBundle(params: {
   stagedDir: string;
   target: BundleTarget;
   expectedVersion: string;
+  expectedProfile?: BundleProfile;
 }): BundleManifest {
   const manifest = readBundleManifest(params.stagedDir);
   if (!manifest) {
     throw new Error("downloaded bundle has no readable manifest");
+  }
+  const profile = manifest.profile ?? "standard";
+  if (profile !== (params.expectedProfile ?? "standard")) {
+    throw new Error(
+      `downloaded bundle is a ${profile} bundle, this install is ${params.expectedProfile ?? "standard"}`,
+    );
   }
   if (manifest.os !== params.target.os || manifest.arch !== params.target.arch) {
     throw new Error(
@@ -468,7 +478,8 @@ export async function runBundleUpdate(params: BundleUpdateParams): Promise<Bundl
     });
     return { ...base, performed: false, apply: null, sha256: null };
   }
-  const { version, archive, sums } = selectBundleAssets(release, target);
+  const profile = params.manifest.profile ?? "standard";
+  const { version, archive, sums } = selectBundleAssets(release, target, profile);
   const cmp = compareSemverStrings(params.currentVersion, version);
   const check: BundleUpdateCheck = {
     ...base,
@@ -561,7 +572,7 @@ export async function runBundleUpdate(params: BundleUpdateParams): Promise<Bundl
   await extractBundleArchive(archiveFile, extractDir);
   const stagedDir = findExtractedBundleDir(extractDir);
   try {
-    validateStagedBundle({ stagedDir, target, expectedVersion: version });
+    validateStagedBundle({ stagedDir, target, expectedVersion: version, expectedProfile: profile });
   } catch (err) {
     audit({
       action: "update.refused",

@@ -1,0 +1,42 @@
+{
+  "id": "watsonx-orchestrate",
+  "name": "watsonx Orchestrate",
+  "description": "Call allowlisted watsonx Orchestrate agents through the Orchestrate chat API (optional tool orchestrate_agent_chat). Off by default; replies are untrusted content; audit rows carry ids and counts only.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "instanceUrl": {
+        "type": "string",
+        "description": "Service instance URL, e.g. https://api.<region>.watson-orchestrate.cloud.ibm.com/instances/<id>."
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "IBM Cloud API key (auth iam) or bearer token (auth bearer). Use a secret reference."
+      },
+      "auth": { "type": "string", "enum": ["iam", "bearer"], "default": "iam" },
+      "iamUrl": { "type": "string" },
+      "timeoutMs": { "type": "integer", "minimum": 1000 },
+      "maxResponseBytes": { "type": "integer", "minimum": 1024 },
+      "maxMessageChars": { "type": "integer", "minimum": 1 },
+      "agents": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "agentId"],
+          "properties": {
+            "name": { "type": "string" },
+            "agentId": { "type": "string" },
+            "description": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "uiHints": {
+    "instanceUrl": { "label": "Orchestrate instance URL" },
+    "apiKey": { "label": "API key", "sensitive": true, "help": "Use a secret reference." },
+    "agents": { "label": "Orchestrate agents the model may call" }
+  }
+}

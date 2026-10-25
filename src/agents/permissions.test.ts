@@ -174,6 +174,8 @@ describe("classifyToolCall", () => {
       "legacy_impact",
       "legacy_design_doc",
       "legacy_wave_plan",
+      "legacy_changes",
+      "legacy_baseline_advance",
       "modernise_plan",
       "modernise_crud",
       "modernise_impact",

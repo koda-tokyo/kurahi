@@ -1,0 +1,27 @@
+# Core autopilot (starter routine; see docs/autopilot.md). Copy into a Project's
+# context/autopilot.yaml (or <KOLO_HOME>/projects/<id>/autopilot.yaml).
+# L2 Act internal: the deterministic checks the ops jobs ran (disk, memory, clock, policy, evidence
+# signing) every 30 minutes; a work item for a person on every failed check. Never destructive
+# operations, never secret or access changes.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: platform-health
+    edition: core
+    area: platform-ops
+    name: { ja: 基盤ヘルスチェック, en: Platform health }
+    trigger: { interval: 30 }
+    gather:
+      - { id: disk, tool: health_disk, args: { minFreePercent: 10 } }
+      - { id: memory, tool: health_memory, args: { minFreePercent: 5 } }
+      - { id: clock, tool: health_clock }
+      - { id: policy, tool: health_policy }
+      - { id: evidence, tool: health_evidence }
+    reasoning:
+      prompt: platform-health
+      schema: autopilot.plan.v1
+    actions: [workitem.intake]
+    level: L2
+    limits: { maxItemsPerRun: 5, maxActionsPerDay: 48 }
+    metrics: { baselineMinutes: 5 }

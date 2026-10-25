@@ -3,6 +3,7 @@
 // tables a DML/query statement touches (FROM / JOIN / INTO / UPDATE / DELETE FROM / MERGE INTO /
 // USING). Names are folded to upper case and the schema is dropped, so `payroll.employee`,
 // `"EMPLOYEE"` and `EMPLOYEE` are one table; that is the documented join rule across languages.
+// `tableSchemas` keeps the schema a reference names, for tables two schemas define.
 
 export type SqlTok = {
   k: "word" | "qid" | "str" | "num" | "op";
@@ -169,6 +170,37 @@ export function sqlTables(text: string): { op: string; tables: string[] } {
 
 /** The tables a token run reads or writes (FROM, JOIN, UPDATE, INSERT/MERGE INTO, ...). */
 export function tablesIn(toks: SqlTok[]): string[] {
+  return [...new Set(tableAccess(toks).map((r) => r.table))].toSorted();
+}
+
+/**
+ * The schema each table of a query or DML statement is named with, for tables every reference
+ * to which names the same schema (`payroll.employee` twice). A table also named bare, or with two
+ * schemas, has no entry: which schema it means is not in the text.
+ */
+export function tableSchemas(text: string): Map<string, string> {
+  const seen = new Map<string, Set<string>>();
+  for (const r of tableAccess(lexSql(text))) {
+    seen.set(r.table, (seen.get(r.table) ?? new Set()).add(r.schema ?? ""));
+  }
+  const out = new Map<string, string>();
+  for (const [t, s] of seen) {
+    const [only] = [...s];
+    if (s.size === 1 && only) {
+      out.set(t, only);
+    }
+  }
+  return out;
+}
+
+export type TableRef = { table: string; schema?: string; line: number; op: string };
+
+/**
+ * Each table reference of a token run with its line and the operation it is: the target of an
+ * INSERT / MERGE INTO, UPDATE, DELETE FROM or TRUNCATE TABLE is that verb; every other reference
+ * (FROM, JOIN, MERGE ... USING) is a SELECT.
+ */
+export function tableAccess(toks: SqlTok[]): TableRef[] {
   const ctes = new Set<string>();
   for (let k = 0; k < toks.length; k++) {
     // WITH name AS ( ... ), name2 AS ( ... )
@@ -178,15 +210,17 @@ export function tablesIn(toks: SqlTok[]): string[] {
       }
     }
   }
-  const tables: string[] = [];
-  const add = (j: number): number => {
+  const tables: TableRef[] = [];
+  const add = (j: number, op: string): number => {
     const nm = readName(toks, j);
     if (nm.parts.length === 0 || STOP.has(nm.parts[nm.parts.length - 1])) {
       return j;
     }
     const t = canonical(nm.parts[nm.parts.length - 1]);
     if (!ctes.has(t) && t !== "DUAL") {
-      tables.push(t);
+      const schema = nm.parts.length > 1 ? canonical(nm.parts[nm.parts.length - 2]) : undefined;
+      const line = toks[j].line;
+      tables.push(schema ? { table: t, schema, line, op } : { table: t, line, op });
     }
     return nm.next;
   };
@@ -205,13 +239,22 @@ export function tablesIn(toks: SqlTok[]): string[] {
       if (isW(t, "USING") && !toks.slice(0, k).some((x) => isW(x, "MERGE"))) {
         continue; // JOIN ... USING (col)
       }
+      const op = intoAfter
+        ? prev.v
+        : isW(t, "UPDATE")
+          ? "UPDATE"
+          : isW(t, "FROM") && isW(prev, "DELETE")
+            ? "DELETE"
+            : isW(t, "TABLE")
+              ? "TRUNCATE"
+              : "SELECT";
       let j = k + 1;
       // A comma-separated list after FROM: name [AS] [alias], name ...
       for (;;) {
         if (toks[j]?.v === "(") {
           break; // a sub-query: its own FROM is found by the outer loop
         }
-        const after = add(j);
+        const after = add(j, op);
         if (after === j) {
           break;
         }
@@ -233,8 +276,11 @@ export function tablesIn(toks: SqlTok[]): string[] {
       }
     }
   }
-  return [...new Set(tables)].toSorted();
+  return tables;
 }
+
+/** JDBC call escape: `{call NAME(?)}` or `{? = call NAME(?)}`. */
+const JDBC_CALL = /^\{\s*(?:\?\s*=\s*)?call\s/i;
 
 /** Text that reads as a SQL statement (used to pick SQL out of Java string literals). */
 export function looksLikeSql(text: string): boolean {
@@ -242,6 +288,23 @@ export function looksLikeSql(text: string): boolean {
   return (
     /^(SELECT|INSERT\s+INTO|UPDATE\s+\S+\s+SET|DELETE\s+FROM|MERGE\s+INTO|WITH\s+\w+\s+AS|CALL\s)/i.test(
       t,
-    ) || /^(SELECT)\b[\s\S]*\bFROM\b/i.test(t)
+    ) ||
+    /^(SELECT)\b[\s\S]*\bFROM\b/i.test(t) ||
+    JDBC_CALL.test(t)
   );
+}
+
+/**
+ * The routine a CALL statement names, as canonical name parts (`["PKG", "PROC"]` for
+ * `CALL pkg.proc(?)`). Reads `CALL NAME(...)` and the JDBC escapes `{call NAME(?)}` and
+ * `{? = call NAME(?)}`; anything else is not a call.
+ */
+export function routineCall(text: string): string[] | undefined {
+  const t = text.trim();
+  const toks = lexSql(JDBC_CALL.test(t) ? t.replace(/^\{\s*(?:\?\s*=\s*)?/, "") : t);
+  if (!isW(toks[0], "CALL")) {
+    return undefined;
+  }
+  const n = readName(toks, 1);
+  return n.parts.length > 0 ? n.parts.map(canonical) : undefined;
 }

@@ -14,6 +14,9 @@ import {
   legacyWavePlan,
   parseLang,
 } from "../../packages/legacy-analyzer/src/index.js";
+import { optionalStringEnum } from "../../src/agents/schema/typebox.js";
+import { changesTools } from "./changes-tools.js";
+import { writeDesignDocx } from "./design-doc-docx.js";
 import { moderniseTools } from "./modernise-tools.js";
 import { failure, markdownResult, result, str } from "./results.js";
 
@@ -21,7 +24,9 @@ import { failure, markdownResult, result, str } from "./results.js";
 // permission guard classifies these calls as reads of that path, so a project session can only
 // analyse its own folder. The only files written are the analyser's cache folder
 // (output/.legacy-index/ of the project, or the state directory): the index, and the latest
-// design document and wave plan.
+// design document and wave plan, and the change-detection baseline (changes-tools.ts). The one
+// write outside the cache is the 設計書 as Word (output_format docx), into the Project's
+// output/design-docs/ under the office path guards (design-doc-docx.ts).
 
 function langParam(v: unknown) {
   const s = str(v);
@@ -171,7 +176,8 @@ export default function register(api: KoLoPluginApi) {
           "Java class specifications, FORTRAN program units (with the COMMON block map), PL/I procedure specifications " +
           "(structures, files, ON-units) and table definitions are added when the folder has them. " +
           `Optional section (comma list of ${ALL_DOC_SECTIONS.join(", ")}) and program narrow it. ` +
-          "Read-only on the sources; the document is also saved in the analyser cache folder.",
+          "Read-only on the sources; the document is also saved in the analyser cache folder. output_format docx " +
+          "also writes it as a Word file into the Project's output/design-docs/ (never over an existing file).",
         parameters: Type.Object({
           path: pathParam,
           lang: Type.Optional(Type.String({ description: "ja (default) or en" })),
@@ -179,9 +185,19 @@ export default function register(api: KoLoPluginApi) {
             Type.String({ description: `Comma list of: ${ALL_DOC_SECTIONS.join(", ")}` }),
           ),
           program: Type.Optional(Type.String({ description: "Only this program's specification" })),
+          output_format: optionalStringEnum(["md", "docx"] as const, {
+            description:
+              "md (default): Markdown only. docx: also a Word file in the Project's output/design-docs/ " +
+              "(設計書_YYYYMMDD.docx, EN design-doc_YYYYMMDD.docx; never overwritten: -2, -3 …).",
+          }),
         }),
         async execute(_id: string, params: Record<string, unknown>) {
           try {
+            // `format` is accepted as an alias (tool schemas avoid that property name).
+            const fmt = str(params.output_format) || str(params.format) || "md";
+            if (fmt !== "md" && fmt !== "docx") {
+              throw new Error('output_format must be "md" or "docx".');
+            }
             const doc = legacyDesignDoc(
               root(params),
               {
@@ -191,15 +207,36 @@ export default function register(api: KoLoPluginApi) {
               },
               env,
             );
-            return markdownResult(
+            const word =
+              fmt === "docx"
+                ? await writeDesignDocx({
+                    markdown: doc.markdown,
+                    lang: doc.lang,
+                    sessionKey: ctx.sessionKey,
+                    now: new Date(),
+                  })
+                : null;
+            const res = markdownResult(
               [
                 `Design document (${doc.lang}), sections: ${doc.sections.join(", ")}.`,
                 `Fact lines: ${doc.stats.factLines}; placeholders: ${doc.stats.placeholders}; open questions: ${doc.stats.gaps}.`,
                 `Saved: ${doc.savedTo}`,
+                ...(word ? [`Word document: ${word.path} (${word.bytes} bytes)`] : []),
               ],
               doc.markdown,
               doc.savedTo,
             );
+            return word
+              ? {
+                  ...res,
+                  details: {
+                    ...res.details,
+                    output_format: "docx",
+                    path: word.path,
+                    bytes: word.bytes,
+                  },
+                }
+              : res;
           } catch (err) {
             return failure(err);
           }
@@ -238,6 +275,7 @@ export default function register(api: KoLoPluginApi) {
           }
         },
       },
+      ...changesTools({ root, pathParam, env }),
       ...moderniseTools({ root, pathParam, env }),
     ];
   });

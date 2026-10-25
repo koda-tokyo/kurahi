@@ -5,7 +5,7 @@ import type { OperationSpec } from "../operation-spec.js";
 import type * as T from "./types.js";
 
 /** info.version of the spec this client was generated from. */
-export const SPEC_VERSION = "2.1.0";
+export const SPEC_VERSION = "2.2.0";
 /** OpenAPI version of the source document. */
 export const OPENAPI_VERSION = "3.1.0";
 /** Default gateway port (servers[0].variables.port.default). */
@@ -20,7 +20,7 @@ export const operations = {
   getAdminStatus: {"operationId":"getAdminStatus","method":"GET","path":"/api/admin/status","summary":"System status (database, build, features)","tags":["admin"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[],"body":null,"response":"json"},
   listUsers: {"operationId":"listUsers","method":"GET","path":"/api/admin/users","summary":"List users and their workspace memberships","tags":["admin"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"workspaceId","in":"query","required":false}],"body":null,"response":"json"},
   listWorkspaces: {"operationId":"listWorkspaces","method":"GET","path":"/api/admin/workspaces","summary":"List workspaces","tags":["admin"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[],"body":null,"response":"json"},
-  getAuditChain: {"operationId":"getAuditChain","method":"GET","path":"/api/audit/chain","summary":"Verify the local hash-chained audit log and read its head","tags":["audit"],"security":[["gatewayToken"],["pairToken"]],"params":[{"name":"seq","in":"query","required":false}],"body":null,"response":"json"},
+  getAuditChain: {"operationId":"getAuditChain","method":"GET","path":"/api/audit/chain","summary":"Verify the local hash-chained audit log and read its head","tags":["audit"],"security":[["gatewayToken"],["pairToken"],["ssoSession"]],"params":[{"name":"seq","in":"query","required":false}],"body":null,"response":"json"},
   logout: {"operationId":"logout","method":"POST","path":"/api/auth/logout","summary":"End the current session","tags":["auth"],"security":[],"params":[],"body":null,"response":"json"},
   getSessionUser: {"operationId":"getSessionUser","method":"GET","path":"/api/auth/me","summary":"Current session user","tags":["auth"],"security":[],"params":[],"body":null,"response":"json"},
   redeemInvite: {"operationId":"redeemInvite","method":"POST","path":"/api/auth/redeem","summary":"Redeem an invite token; sets the kolo_session cookie","tags":["auth"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
@@ -37,12 +37,20 @@ export const operations = {
   moveFactoryCard: {"operationId":"moveFactoryCard","method":"POST","path":"/api/factory/cards/{id}/move","summary":"Move a card to another column (audited; the state machine decides)","tags":["factory"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   runFactoryCard: {"operationId":"runFactoryCard","method":"POST","path":"/api/factory/cards/{id}/run","summary":"Run a card on the KIP engine","tags":["factory"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   getBuildHealth: {"operationId":"getBuildHealth","method":"GET","path":"/api/health","summary":"Lightweight build probe","tags":["health"],"security":[],"params":[],"body":null,"response":"json"},
+  logoutIdentity: {"operationId":"logoutIdentity","method":"POST","path":"/api/identity/logout","summary":"End the SSO session (and get the IdP logout URL for OIDC)","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
+  getIdentitySession: {"operationId":"getIdentitySession","method":"GET","path":"/api/identity/session","summary":"The signed-in person, roles and session expiry","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
+  getSsoConfig: {"operationId":"getSsoConfig","method":"GET","path":"/api/identity/sso","summary":"SSO providers the console offers, and whether SSO is required","tags":["identity"],"security":[],"params":[],"body":null,"response":"json"},
+  exchangeSsoCode: {"operationId":"exchangeSsoCode","method":"POST","path":"/api/identity/sso/exchange","summary":"Exchange the sign-in's one-time code for the session token","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  samlAcs: {"operationId":"samlAcs","method":"POST","path":"/api/identity/sso/{provider}/acs","summary":"SAML assertion consumer service (HTTP-POST binding)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true}],"body":{"contentType":"application/x-www-form-urlencoded","required":true},"response":"json"},
+  ssoCallback: {"operationId":"ssoCallback","method":"GET","path":"/api/identity/sso/{provider}/callback","summary":"OIDC redirect URI (authorization code callback)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true},{"name":"code","in":"query","required":false},{"name":"state","in":"query","required":false},{"name":"error","in":"query","required":false}],"body":null,"response":"json"},
+  startSsoLogin: {"operationId":"startSsoLogin","method":"GET","path":"/api/identity/sso/{provider}/login","summary":"Start a sign-in (redirect to the identity provider)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true},{"name":"returnTo","in":"query","required":false}],"body":null,"response":"json"},
+  getSamlMetadata: {"operationId":"getSamlMetadata","method":"GET","path":"/api/identity/sso/{provider}/metadata","summary":"SAML service provider metadata (entity id, ACS URL)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true}],"body":null,"response":"binary"},
   listJobs: {"operationId":"listJobs","method":"GET","path":"/api/jobs","summary":"List agent-run jobs (newest first)","tags":["jobs"],"security":[["gatewayToken"],["adminSession"]],"params":[{"name":"agent","in":"query","required":false},{"name":"status","in":"query","required":false},{"name":"limit","in":"query","required":false}],"body":null,"response":"json"},
   getJob: {"operationId":"getJob","method":"GET","path":"/api/jobs/{id}","summary":"Fetch one agent-run job","tags":["jobs"],"security":[["gatewayToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
   cancelJob: {"operationId":"cancelJob","method":"POST","path":"/api/jobs/{id}/cancel","summary":"Cancel a queued or running job","tags":["jobs"],"security":[["gatewayToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
-  getJobEvidence: {"operationId":"getJobEvidence","method":"GET","path":"/api/jobs/{id}/evidence","summary":"Evidence summary and signed manifest of one job","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
-  listJobEvidenceEvents: {"operationId":"listJobEvidenceEvents","method":"GET","path":"/api/jobs/{id}/evidence/events","summary":"Page through a job's evidence events","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true},{"name":"from","in":"query","required":false},{"name":"limit","in":"query","required":false}],"body":null,"response":"json"},
-  exportJobEvidence: {"operationId":"exportJobEvidence","method":"POST","path":"/api/jobs/{id}/evidence/export","summary":"Write a signed evidence bundle for a finished job","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
+  getJobEvidence: {"operationId":"getJobEvidence","method":"GET","path":"/api/jobs/{id}/evidence","summary":"Evidence summary and signed manifest of one job","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"],["ssoSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
+  listJobEvidenceEvents: {"operationId":"listJobEvidenceEvents","method":"GET","path":"/api/jobs/{id}/evidence/events","summary":"Page through a job's evidence events","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"],["ssoSession"]],"params":[{"name":"id","in":"path","required":true},{"name":"from","in":"query","required":false},{"name":"limit","in":"query","required":false}],"body":null,"response":"json"},
+  exportJobEvidence: {"operationId":"exportJobEvidence","method":"POST","path":"/api/jobs/{id}/evidence/export","summary":"Write a signed evidence bundle for a finished job","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"],["ssoSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   listMcpServers: {"operationId":"listMcpServers","method":"GET","path":"/api/mcp/servers","summary":"Configured MCP servers and their live state","tags":["mcp"],"security":[["gatewayToken"],["pairToken"]],"params":[],"body":null,"response":"json"},
   recallMemory: {"operationId":"recallMemory","method":"GET","path":"/api/memory/recall","summary":"Deterministic keyword recall over a resident's memory files","tags":["memory"],"security":[["gatewayToken"],["pairToken"]],"params":[{"name":"agent","in":"query","required":false},{"name":"q","in":"query","required":true},{"name":"limit","in":"query","required":false}],"body":null,"response":"json"},
   runDatabaseMigration: {"operationId":"runDatabaseMigration","method":"POST","path":"/api/migrate","summary":"Apply the invite-flow database schema","tags":["migrate"],"security":[["migrateKey"]],"params":[{"name":"X-Migrate-Key","in":"header","required":true}],"body":null,"response":"json"},
@@ -67,13 +75,28 @@ export const operations = {
   restoreSnapshot: {"operationId":"restoreSnapshot","method":"POST","path":"/api/sessions/{id}/snapshots/restore","summary":"Undo, redo, or restore the files of a session to a snapshot","tags":["sessions"],"security":[["gatewayToken"],["pairToken"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   getOpenApiDocument: {"operationId":"getOpenApiDocument","method":"GET","path":"/doc","summary":"This OpenAPI document","tags":["meta"],"security":[["gatewayToken"],["pairToken"]],"params":[],"body":null,"response":"json"},
   getApiViewer: {"operationId":"getApiViewer","method":"GET","path":"/doc/","summary":"Minimal HTML viewer for /doc","tags":["meta"],"security":[],"params":[],"body":null,"response":"text"},
-  getEvidenceView: {"operationId":"getEvidenceView","method":"GET","path":"/evidence/{id}","summary":"Read-only HTML timeline of a job's evidence","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"text"},
+  getEvidenceView: {"operationId":"getEvidenceView","method":"GET","path":"/evidence/{id}","summary":"Read-only HTML timeline of a job's evidence","tags":["evidence"],"security":[["gatewayToken"],["pairToken"],["adminSession"],["ssoSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"text"},
   getFactoryView: {"operationId":"getFactoryView","method":"GET","path":"/factory","summary":"Kanban view of the factory boards","tags":["factory"],"security":[],"params":[],"body":null,"response":"text"},
   getHealth: {"operationId":"getHealth","method":"GET","path":"/health","summary":"Health and readiness","tags":["health"],"security":[],"params":[],"body":null,"response":"json"},
   hookAgent: {"operationId":"hookAgent","method":"POST","path":"/hooks/agent","summary":"Run an agent turn from a webhook","tags":["hooks"],"security":[["hookToken"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
   hookWake: {"operationId":"hookWake","method":"POST","path":"/hooks/wake","summary":"Queue a system wake event","tags":["hooks"],"security":[["hookToken"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
   hookMapped: {"operationId":"hookMapped","method":"POST","path":"/hooks/{mapping}","summary":"Mapped hook (hooks.mappings) → wake or agent action","tags":["hooks"],"security":[["hookToken"]],"params":[{"name":"mapping","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   getMetrics: {"operationId":"getMetrics","method":"GET","path":"/metrics","summary":"Prometheus metrics","tags":["admin"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[],"body":null,"response":"text"},
+  listScimGroups: {"operationId":"listScimGroups","method":"GET","path":"/scim/v2/Groups","summary":"List groups (filter displayName eq / externalId eq)","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"filter","in":"query","required":false},{"name":"startIndex","in":"query","required":false},{"name":"count","in":"query","required":false},{"name":"excludedAttributes","in":"query","required":false}],"body":null,"response":"json"},
+  createScimGroup: {"operationId":"createScimGroup","method":"POST","path":"/scim/v2/Groups","summary":"Provision a group","tags":["scim"],"security":[["scimToken"]],"params":[],"body":{"contentType":"application/scim+json","required":true},"response":"json"},
+  getScimGroup: {"operationId":"getScimGroup","method":"GET","path":"/scim/v2/Groups/{id}","summary":"Read a group","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
+  replaceScimGroup: {"operationId":"replaceScimGroup","method":"PUT","path":"/scim/v2/Groups/{id}","summary":"Replace a group","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/scim+json","required":true},"response":"json"},
+  deleteScimGroup: {"operationId":"deleteScimGroup","method":"DELETE","path":"/scim/v2/Groups/{id}","summary":"Delete a group","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
+  patchScimGroup: {"operationId":"patchScimGroup","method":"PATCH","path":"/scim/v2/Groups/{id}","summary":"Patch a group (members add / remove)","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/scim+json","required":true},"response":"json"},
+  listScimResourceTypes: {"operationId":"listScimResourceTypes","method":"GET","path":"/scim/v2/ResourceTypes","summary":"SCIM resource types","tags":["scim"],"security":[["scimToken"]],"params":[],"body":null,"response":"json"},
+  listScimSchemas: {"operationId":"listScimSchemas","method":"GET","path":"/scim/v2/Schemas","summary":"SCIM schemas","tags":["scim"],"security":[["scimToken"]],"params":[],"body":null,"response":"json"},
+  getScimServiceProviderConfig: {"operationId":"getScimServiceProviderConfig","method":"GET","path":"/scim/v2/ServiceProviderConfig","summary":"SCIM service provider configuration","tags":["scim"],"security":[["scimToken"]],"params":[],"body":null,"response":"json"},
+  listScimUsers: {"operationId":"listScimUsers","method":"GET","path":"/scim/v2/Users","summary":"List users (filter userName eq / externalId eq)","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"filter","in":"query","required":false},{"name":"startIndex","in":"query","required":false},{"name":"count","in":"query","required":false},{"name":"excludedAttributes","in":"query","required":false}],"body":null,"response":"json"},
+  createScimUser: {"operationId":"createScimUser","method":"POST","path":"/scim/v2/Users","summary":"Provision a user","tags":["scim"],"security":[["scimToken"]],"params":[],"body":{"contentType":"application/scim+json","required":true},"response":"json"},
+  getScimUser: {"operationId":"getScimUser","method":"GET","path":"/scim/v2/Users/{id}","summary":"Read a user","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
+  replaceScimUser: {"operationId":"replaceScimUser","method":"PUT","path":"/scim/v2/Users/{id}","summary":"Replace a user","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/scim+json","required":true},"response":"json"},
+  deleteScimUser: {"operationId":"deleteScimUser","method":"DELETE","path":"/scim/v2/Users/{id}","summary":"Delete a user (ends sessions)","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
+  patchScimUser: {"operationId":"patchScimUser","method":"PATCH","path":"/scim/v2/Users/{id}","summary":"Patch a user (active: false deprovisions)","tags":["scim"],"security":[["scimToken"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/scim+json","required":true},"response":"json"},
   invokeTool: {"operationId":"invokeTool","method":"POST","path":"/tools/invoke","summary":"Invoke one agent tool under the session's tool policy","tags":["tools"],"security":[["gatewayToken"],["pairToken"]],"params":[{"name":"X-KoLo-Message-Channel","in":"header","required":false},{"name":"X-KoLo-Account-Id","in":"header","required":false}],"body":{"contentType":"application/json","required":true},"response":"json"},
   createChatCompletion: {"operationId":"createChatCompletion","method":"POST","path":"/v1/chat/completions","summary":"OpenAI Chat Completions-compatible agent turn","tags":["openai-compat"],"security":[["gatewayToken"],["pairToken"]],"params":[{"name":"X-KoLo-Agent-Id","in":"header","required":false},{"name":"X-KoLo-Session-Key","in":"header","required":false}],"body":{"contentType":"application/json","required":true},"response":"json"},
   createResponse: {"operationId":"createResponse","method":"POST","path":"/v1/responses","summary":"OpenResponses-compatible agent turn","tags":["openai-compat"],"security":[["gatewayToken"],["pairToken"]],"params":[{"name":"X-KoLo-Agent-Id","in":"header","required":false},{"name":"X-KoLo-Session-Key","in":"header","required":false}],"body":{"contentType":"application/json","required":true},"response":"json"},
@@ -232,6 +255,54 @@ export interface OperationTypes {
     body: T.GetBuildHealthBody;
     response: T.GetBuildHealthResponse;
     error: T.GetBuildHealthErrorBody;
+  };
+  logoutIdentity: {
+    params: T.LogoutIdentityParams;
+    body: T.LogoutIdentityBody;
+    response: T.LogoutIdentityResponse;
+    error: T.LogoutIdentityErrorBody;
+  };
+  getIdentitySession: {
+    params: T.GetIdentitySessionParams;
+    body: T.GetIdentitySessionBody;
+    response: T.GetIdentitySessionResponse;
+    error: T.GetIdentitySessionErrorBody;
+  };
+  getSsoConfig: {
+    params: T.GetSsoConfigParams;
+    body: T.GetSsoConfigBody;
+    response: T.GetSsoConfigResponse;
+    error: T.GetSsoConfigErrorBody;
+  };
+  exchangeSsoCode: {
+    params: T.ExchangeSsoCodeParams;
+    body: T.ExchangeSsoCodeBody;
+    response: T.ExchangeSsoCodeResponse;
+    error: T.ExchangeSsoCodeErrorBody;
+  };
+  samlAcs: {
+    params: T.SamlAcsParams;
+    body: T.SamlAcsBody;
+    response: T.SamlAcsResponse;
+    error: T.SamlAcsErrorBody;
+  };
+  ssoCallback: {
+    params: T.SsoCallbackParams;
+    body: T.SsoCallbackBody;
+    response: T.SsoCallbackResponse;
+    error: T.SsoCallbackErrorBody;
+  };
+  startSsoLogin: {
+    params: T.StartSsoLoginParams;
+    body: T.StartSsoLoginBody;
+    response: T.StartSsoLoginResponse;
+    error: T.StartSsoLoginErrorBody;
+  };
+  getSamlMetadata: {
+    params: T.GetSamlMetadataParams;
+    body: T.GetSamlMetadataBody;
+    response: T.GetSamlMetadataResponse;
+    error: T.GetSamlMetadataErrorBody;
   };
   listJobs: {
     params: T.ListJobsParams;
@@ -454,6 +525,96 @@ export interface OperationTypes {
     body: T.GetMetricsBody;
     response: T.GetMetricsResponse;
     error: T.GetMetricsErrorBody;
+  };
+  listScimGroups: {
+    params: T.ListScimGroupsParams;
+    body: T.ListScimGroupsBody;
+    response: T.ListScimGroupsResponse;
+    error: T.ListScimGroupsErrorBody;
+  };
+  createScimGroup: {
+    params: T.CreateScimGroupParams;
+    body: T.CreateScimGroupBody;
+    response: T.CreateScimGroupResponse;
+    error: T.CreateScimGroupErrorBody;
+  };
+  getScimGroup: {
+    params: T.GetScimGroupParams;
+    body: T.GetScimGroupBody;
+    response: T.GetScimGroupResponse;
+    error: T.GetScimGroupErrorBody;
+  };
+  replaceScimGroup: {
+    params: T.ReplaceScimGroupParams;
+    body: T.ReplaceScimGroupBody;
+    response: T.ReplaceScimGroupResponse;
+    error: T.ReplaceScimGroupErrorBody;
+  };
+  deleteScimGroup: {
+    params: T.DeleteScimGroupParams;
+    body: T.DeleteScimGroupBody;
+    response: T.DeleteScimGroupResponse;
+    error: T.DeleteScimGroupErrorBody;
+  };
+  patchScimGroup: {
+    params: T.PatchScimGroupParams;
+    body: T.PatchScimGroupBody;
+    response: T.PatchScimGroupResponse;
+    error: T.PatchScimGroupErrorBody;
+  };
+  listScimResourceTypes: {
+    params: T.ListScimResourceTypesParams;
+    body: T.ListScimResourceTypesBody;
+    response: T.ListScimResourceTypesResponse;
+    error: T.ListScimResourceTypesErrorBody;
+  };
+  listScimSchemas: {
+    params: T.ListScimSchemasParams;
+    body: T.ListScimSchemasBody;
+    response: T.ListScimSchemasResponse;
+    error: T.ListScimSchemasErrorBody;
+  };
+  getScimServiceProviderConfig: {
+    params: T.GetScimServiceProviderConfigParams;
+    body: T.GetScimServiceProviderConfigBody;
+    response: T.GetScimServiceProviderConfigResponse;
+    error: T.GetScimServiceProviderConfigErrorBody;
+  };
+  listScimUsers: {
+    params: T.ListScimUsersParams;
+    body: T.ListScimUsersBody;
+    response: T.ListScimUsersResponse;
+    error: T.ListScimUsersErrorBody;
+  };
+  createScimUser: {
+    params: T.CreateScimUserParams;
+    body: T.CreateScimUserBody;
+    response: T.CreateScimUserResponse;
+    error: T.CreateScimUserErrorBody;
+  };
+  getScimUser: {
+    params: T.GetScimUserParams;
+    body: T.GetScimUserBody;
+    response: T.GetScimUserResponse;
+    error: T.GetScimUserErrorBody;
+  };
+  replaceScimUser: {
+    params: T.ReplaceScimUserParams;
+    body: T.ReplaceScimUserBody;
+    response: T.ReplaceScimUserResponse;
+    error: T.ReplaceScimUserErrorBody;
+  };
+  deleteScimUser: {
+    params: T.DeleteScimUserParams;
+    body: T.DeleteScimUserBody;
+    response: T.DeleteScimUserResponse;
+    error: T.DeleteScimUserErrorBody;
+  };
+  patchScimUser: {
+    params: T.PatchScimUserParams;
+    body: T.PatchScimUserBody;
+    response: T.PatchScimUserResponse;
+    error: T.PatchScimUserErrorBody;
   };
   invokeTool: {
     params: T.InvokeToolParams;

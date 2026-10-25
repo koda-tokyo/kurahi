@@ -93,13 +93,61 @@ import {
 } from "./controllers/artifacts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity";
 import {
+  reportAutopilotError,
+  setAutopilotReportReason,
+  changeAutopilotRoutine,
+  setAutopilotRoutineReason,
+  closeAutopilotRun,
+  declineAutonomy,
+  acceptAutonomy,
+  canDeclineAutonomy,
+  setAutonomyDeclineReason,
+  inspectAutopilotRun,
+  emptyAutopilot,
+  loadAutopilot,
+  resetAutopilot,
+  setAutopilotFilters,
+  type AutopilotFilters,
+} from "./controllers/autopilot";
+import {
+  beginBusinessDecision as beginBusinessDecisionInternal,
+  editBusinessDecision as editBusinessDecisionInternal,
+  cancelBusinessDecision as cancelBusinessDecisionInternal,
+  submitBusinessDecision as submitBusinessDecisionInternal,
+  type BusinessDecisionForm,
   emptyBusiness,
   isBusinessProject,
   loadBusiness,
   loadBusinessItem,
   resetBusiness,
   selectBusinessQueue as selectBusinessQueueInternal,
+  selectBusinessDepartment as selectBusinessDepartmentInternal,
+  setBusinessOrganizationMode as setBusinessOrganizationModeInternal,
+  filterBusiness as filterBusinessInternal,
+  type BusinessState,
 } from "./controllers/business";
+import {
+  departmentOfChat,
+  startBusinessChat as startBusinessChatInternal,
+} from "./controllers/business-chat";
+import { loadBusinessDraft } from "./controllers/business-draft";
+import { verifyBusinessEvidence } from "./controllers/business-evidence";
+import {
+  beginBusinessExpense as beginBusinessExpenseInternal,
+  editBusinessExpense as editBusinessExpenseInternal,
+  cancelBusinessExpense as cancelBusinessExpenseInternal,
+  createBusinessExpense as createBusinessExpenseInternal,
+  acknowledgeExpenseOutcome as acknowledgeExpenseOutcomeInternal,
+  type ExpenseForm,
+} from "./controllers/business-intake";
+import {
+  beginBusinessWork as beginBusinessWorkInternal,
+  editBusinessWork as editBusinessWorkInternal,
+  cancelBusinessWork as cancelBusinessWorkInternal,
+  createBusinessWork as createBusinessWorkInternal,
+  acknowledgeBusinessWorkOutcome as acknowledgeBusinessWorkOutcomeInternal,
+  type BusinessWorkForm,
+} from "./controllers/business-work-intake";
 import { loadChatHistory as loadChatHistoryInternal } from "./controllers/chat";
 import {
   archiveChat as archiveChatInternal,
@@ -155,6 +203,15 @@ import {
 } from "./controllers/voice";
 import { getLocale, osLocales, resolveLocale, setLocale, t } from "./i18n";
 import { audienceFromAuth, type Audience } from "./navigation";
+import {
+  clearSsoToken,
+  loadSsoToken,
+  ssoLoginHref,
+  ssoLogout,
+  type SsoConfig,
+  type SsoProvider,
+  type WhoAmI,
+} from "./sso";
 import { loadSettings, type UiSettings } from "./storage";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types";
 
@@ -190,6 +247,9 @@ export class KoLoApp extends LitElement {
   @state() themeResolved: ResolvedTheme = "dark";
   @state() hello: GatewayHelloOk | null = null;
   @state() lastError: string | null = null;
+  /** Organisation sign-in (enterprise identity): providers offered, and who is connected. */
+  @state() ssoConfig: SsoConfig | null = null;
+  @state() identity: WhoAmI | null = null;
   @state() eventLog: EventLogEntry[] = [];
   private eventLogBuffer: EventLogEntry[] = [];
   private toolStreamSyncTimer: number | null = null;
@@ -242,6 +302,12 @@ export class KoLoApp extends LitElement {
   @state() voiceCapture: VoiceHost["voiceCapture"] = null;
   @state() terminal = emptyTerminal();
   @state() business = emptyBusiness();
+  @state() autopilot = emptyAutopilot();
+  businessChatGeneration = 0;
+  chatSessionGeneration = 0;
+  @state() businessChatDraft = "";
+  @state() businessChatOpening = false;
+  @state() businessChatError: string | null = null;
   @state() projects: ProjectsState = { ...DEFAULT_PROJECTS_STATE };
   @state() artifacts: ArtifactsState = { ...DEFAULT_ARTIFACTS_STATE };
   @state() chatHistory: ChatHistoryState = { ...DEFAULT_CHAT_HISTORY_STATE };
@@ -379,6 +445,7 @@ export class KoLoApp extends LitElement {
 
   disconnectedCallback() {
     resetBusiness(this);
+    resetAutopilot(this);
     cancelVoice(this);
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
     super.disconnectedCallback();
@@ -399,6 +466,23 @@ export class KoLoApp extends LitElement {
 
   connect() {
     connectGatewayInternal(this as unknown as Parameters<typeof connectGatewayInternal>[0]);
+  }
+
+  ssoSignIn(provider: SsoProvider) {
+    const returnTo = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(ssoLoginHref(window.location.origin, provider, returnTo));
+  }
+
+  async ssoSignOut() {
+    const token = loadSsoToken();
+    clearSsoToken();
+    this.identity = null;
+    const endSessionUrl = token ? await ssoLogout(window.location.origin, token) : null;
+    if (endSessionUrl) {
+      window.location.assign(endSessionUrl);
+      return;
+    }
+    this.connect();
   }
 
   handleChatScroll(event: Event) {
@@ -645,6 +729,11 @@ export class KoLoApp extends LitElement {
 
   /** Switch the chat to another conversation (same steps as the session selector). */
   switchSession(next: string) {
+    this.chatSessionGeneration++;
+    this.chatMessages = [];
+    this.chatLoading = false;
+    this.chatSending = false;
+    this.lastError = null;
     this.sessionKey = next;
     this.chatMessage = "";
     this.chatAttachments = [];
@@ -731,7 +820,11 @@ export class KoLoApp extends LitElement {
   }
 
   openProject(id: string | null) {
+    this.businessChatGeneration++;
+    this.businessChatDraft = "";
+    this.businessChatError = null;
     resetBusiness(this);
+    resetAutopilot(this);
     cancelVoice(this);
     const project = this.projects.projects.find((entry) => entry.id === id);
     const view = project && isBusinessProject(project) ? "business" : "chat";
@@ -743,17 +836,221 @@ export class KoLoApp extends LitElement {
     }
   }
 
+  async beginBusinessExpense(action?: "edit" | "submit") {
+    beginBusinessExpenseInternal(this, action);
+    const form = this.business.expenseForm;
+    if (!form) {
+      return;
+    }
+    await this.updateComplete;
+    if (this.business.expenseForm === form) {
+      this.renderRoot
+        .querySelector<HTMLElement>(
+          action === "submit"
+            ? '.business-intake button[type="submit"]'
+            : '.business-intake input[name="title"]',
+        )
+        ?.focus();
+    }
+  }
+  editBusinessExpense(update: Partial<ExpenseForm>) {
+    editBusinessExpenseInternal(this, update);
+  }
+  async cancelBusinessExpense() {
+    const projectId = this.business.projectId;
+    const action = this.business.expenseForm?.target?.action;
+    cancelBusinessExpenseInternal(this);
+    await this.updateComplete;
+    if (!this.business.expenseForm && this.business.projectId === projectId) {
+      const origin = action
+        ? this.renderRoot.querySelector<HTMLButtonElement>(`[data-business-expense-${action}]`)
+        : null;
+      (origin && !origin.disabled
+        ? origin
+        : this.renderRoot.querySelector<HTMLButtonElement>("[data-business-expense]")
+      )?.focus();
+    }
+  }
+  async createBusinessExpense() {
+    await createBusinessExpenseInternal(this);
+  }
+  acknowledgeExpenseOutcome() {
+    acknowledgeExpenseOutcomeInternal(this);
+  }
+
+  async beginBusinessDecision(decision: BusinessDecisionForm["decision"]) {
+    beginBusinessDecisionInternal(this, decision);
+    const form = this.business.decisionForm;
+    if (!form) {
+      return;
+    }
+    await this.updateComplete;
+    if (this.business.decisionForm === form) {
+      this.renderRoot
+        .querySelector<HTMLTextAreaElement>(".business-decision__form textarea")
+        ?.focus();
+    }
+  }
+  editBusinessDecision(
+    update: Partial<Pick<BusinessDecisionForm, "comment" | "override" | "overrideReason">>,
+  ) {
+    editBusinessDecisionInternal(this, update);
+  }
+  async cancelBusinessDecision() {
+    const form = this.business.decisionForm;
+    cancelBusinessDecisionInternal(this);
+    if (!form || this.business.decisionForm) {
+      return;
+    }
+    await this.updateComplete;
+    if (!this.business.decisionForm && this.business.selectedId === form.id) {
+      this.renderRoot
+        .querySelector<HTMLButtonElement>(`[data-business-decision="${form.decision}"]`)
+        ?.focus();
+    }
+  }
+  async submitBusinessDecision() {
+    await submitBusinessDecisionInternal(this);
+  }
+  async verifyBusinessEvidence() {
+    await verifyBusinessEvidence(this);
+  }
+  async loadBusinessDraft() {
+    await loadBusinessDraft(this);
+  }
   async refreshBusiness() {
     await loadBusiness(this);
+  }
+  async beginBusinessWork() {
+    beginBusinessWorkInternal(this);
+    await this.updateComplete;
+    if (this.business.workForm) {
+      this.renderRoot.querySelector<HTMLInputElement>(".business-work-intake input")?.focus();
+    }
+  }
+  editBusinessWork(update: Partial<BusinessWorkForm>) {
+    editBusinessWorkInternal(this, update);
+  }
+  async cancelBusinessWork() {
+    cancelBusinessWorkInternal(this);
+    await this.updateComplete;
+    if (!this.business.workForm) {
+      this.renderRoot.querySelector<HTMLButtonElement>("[data-business-work-new]")?.focus();
+    }
+  }
+  async createBusinessWork() {
+    await createBusinessWorkInternal(this);
+  }
+  acknowledgeBusinessWorkOutcome() {
+    acknowledgeBusinessWorkOutcomeInternal(this);
   }
   async selectBusinessQueue(queue: string) {
     await selectBusinessQueueInternal(this, queue);
   }
+  async selectBusinessDepartment(department: string) {
+    if (this.businessChatOpening) {
+      return;
+    }
+    const previous = this.business.department;
+    await selectBusinessDepartmentInternal(this, department);
+    if (this.business.department !== previous) {
+      this.businessChatGeneration++;
+      this.businessChatDraft = "";
+      this.businessChatError = null;
+    }
+  }
+  async openBusinessChatWork() {
+    const projectId = projectIdOfSession(this.sessionKey);
+    const department = departmentOfChat(this.sessionKey);
+    if (!projectId || !department) {
+      return;
+    }
+    this.openProject(projectId);
+    await loadBusiness(this);
+    if (
+      this.tab === "projects" &&
+      this.projects.selectedId === projectId &&
+      this.projects.view === "business"
+    ) {
+      await this.selectBusinessDepartment(department.id);
+    }
+  }
+  editBusinessChatDraft(text: string) {
+    if (!this.businessChatOpening) {
+      this.businessChatDraft = text;
+    }
+  }
+  async startBusinessChat(projectId: string, message?: string) {
+    await startBusinessChatInternal(this, projectId, message);
+  }
+  setBusinessOrganizationMode(mode: "enterprise" | "sme") {
+    setBusinessOrganizationModeInternal(this, mode);
+  }
+  async filterBusiness(search: string, status: BusinessState["status"]) {
+    await filterBusinessInternal(this, search, status);
+  }
   async selectBusinessItem(id: string) {
     await loadBusinessItem(this, id);
+    await this.updateComplete;
+    if (
+      this.business.department !== "all" &&
+      this.business.selectedId === id &&
+      this.business.item?.id === id
+    ) {
+      const detail = this.renderRoot.querySelector<HTMLElement>(".business-detail-panel");
+      detail?.focus();
+    }
   }
   async loadMoreBusiness() {
     await loadBusiness(this, true);
+  }
+
+  setAutopilotRoutineReason(routineId: string, reason: string) {
+    setAutopilotRoutineReason(this, routineId, reason);
+  }
+
+  async changeAutopilotRoutine(routineId: string, action: "pause" | "resume") {
+    await changeAutopilotRoutine(this, routineId, action);
+  }
+
+  get canDeclineAutonomy() {
+    return canDeclineAutonomy(this);
+  }
+
+  setAutonomyDeclineReason(routineId: string, reason: string) {
+    setAutonomyDeclineReason(this, routineId, reason);
+  }
+
+  setAutopilotReportReason(itemId: string, reason: string) {
+    setAutopilotReportReason(this, itemId, reason);
+  }
+
+  async reportAutopilotError(itemId: string) {
+    await reportAutopilotError(this, itemId);
+  }
+
+  async acceptAutonomy(routineId: string) {
+    await acceptAutonomy(this, routineId);
+  }
+
+  async declineAutonomy(routineId: string) {
+    await declineAutonomy(this, routineId);
+  }
+
+  async setAutopilotFilters(filters: AutopilotFilters) {
+    await setAutopilotFilters(this, filters);
+  }
+
+  closeAutopilotRun() {
+    closeAutopilotRun(this);
+  }
+
+  async inspectAutopilotRun(id: string) {
+    await inspectAutopilotRun(this, id);
+  }
+
+  async refreshAutopilot(cursor?: string) {
+    await loadAutopilot(this, cursor);
   }
 
   setProjectView(view: ProjectView) {
@@ -762,8 +1059,12 @@ export class KoLoApp extends LitElement {
     }
     if (view !== this.projects.view) {
       resetBusiness(this);
+      resetAutopilot(this);
     }
     this.patchProjects({ view });
+    if (view === "autopilot") {
+      void loadAutopilot(this);
+    }
     if (view === "business") {
       void loadBusiness(this);
     }
@@ -868,7 +1169,14 @@ export class KoLoApp extends LitElement {
     const projectId = projectIdOfSession(this.sessionKey);
     const agentId =
       /^agent:([^:]+):/.exec(this.sessionKey)?.[1] ?? this.agentsList?.defaultId ?? "main";
-    const key = projectId ? await newProjectChatKey(this, projectId, agentId) : newChatKey(agentId);
+    const previousSession = this.sessionKey;
+    const client = this.client;
+    const key = projectId
+      ? await newProjectChatKey(this, projectId, agentId, departmentOfChat(previousSession)?.id)
+      : newChatKey(agentId);
+    if (this.sessionKey !== previousSession || this.client !== client || !this.connected) {
+      return;
+    }
     if (key) {
       this.openChatSession(key);
       void this.refreshChatHistoryPanel();
@@ -888,9 +1196,14 @@ export class KoLoApp extends LitElement {
 
   async pickAgent(agentId: string) {
     const projectId = projectIdOfSession(this.sessionKey);
+    const previousSession = this.sessionKey;
+    const client = this.client;
     const key = projectId
-      ? await newProjectChatKey(this, projectId, agentId)
+      ? await newProjectChatKey(this, projectId, agentId, departmentOfChat(previousSession)?.id)
       : sessionKeyForAgent(this.sessionKey, agentId);
+    if (this.sessionKey !== previousSession || this.client !== client || !this.connected) {
+      return;
+    }
     if (key) {
       this.openChatSession(key);
     }
@@ -937,7 +1250,7 @@ export class KoLoApp extends LitElement {
       };
       this.execApprovalQueue = this.execApprovalQueue.filter((q) => q.id !== id);
     } catch (err) {
-      this.execApprovalError = `${String(err)}`;
+      this.execApprovalError = String(err);
     } finally {
       this.execApprovalBusy = false;
     }

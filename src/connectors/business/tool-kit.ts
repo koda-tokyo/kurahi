@@ -1,7 +1,19 @@
 // Business connectors: helpers for agent tools (params, results, audited execution, documents).
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { AnyAgentTool } from "../../agents/pi-tools.types.js";
 import type { ConnectorRuntime } from "./runtime.js";
-import { extractText, validateDocument } from "../../projects/documents.js";
+import {
+  ACCEPTED_EXTENSIONS,
+  DOCUMENT_MIME_TYPES,
+  extractText,
+  type OutgoingDocumentKind,
+  safeFileName,
+  validateDocument,
+  validateOutgoingDocument,
+} from "../../projects/documents.js";
+import { parseProjectSessionKey, resolveProjectFile } from "../../projects/scope.js";
+import { getProject } from "../../projects/store.js";
 import { ConnectorError, describeConnectorError, errorCodeOf } from "./errors.js";
 import { audited, type ConnectorCallAudit } from "./guardrails.js";
 
@@ -91,7 +103,7 @@ export async function runConnectorTool<T>(
   ctx: ToolContext,
   op: string,
   body: () => Promise<{ value: T; result: ToolResult }>,
-  meta?: (value: T) => Pick<ConnectorCallAudit, "ids" | "count" | "bytes">,
+  meta?: (value: T) => Pick<ConnectorCallAudit, "ids" | "count" | "bytes" | "kind">,
 ): Promise<ToolResult> {
   try {
     const out = await audited(
@@ -117,6 +129,74 @@ export async function extractDocumentText(name: string, buf: Buffer): Promise<st
     throw new ConnectorError("unsupported", "images have no text to extract");
   }
   return extractText(check.kind, buf);
+}
+
+export type ProjectFile = {
+  buf: Buffer;
+  /** Base name made safe (`safeFileName`); sent to the provider, never audited. */
+  name: string;
+  kind: OutgoingDocumentKind;
+  mimeType: string;
+};
+
+/**
+ * A document from the current Project folder, for a tool that sends it to the provider. Only in a
+ * Project chat; the path must stay inside the folder (`resolveProjectFile`), the file must be at
+ * most `maxBytes` (checked before reading) and of an accepted document type (or `.pptx`), with
+ * content that matches its extension. Refusals say why without echoing the path or name.
+ */
+export async function readProjectFile(
+  ctx: ToolContext,
+  rawPath: unknown,
+  maxBytes: number,
+): Promise<ProjectFile> {
+  const ref = parseProjectSessionKey(ctx.sessionKey);
+  const project = ref ? getProject(ref.projectId) : null;
+  if (!project || project.archived) {
+    throw new ConnectorError(
+      "unsupported",
+      "not in a project session",
+      undefined,
+      "files can be sent only from a Project chat",
+    );
+  }
+  let real: string;
+  try {
+    real = resolveProjectFile(project.folder, rawPath);
+  } catch (err) {
+    const why = err instanceof Error ? err.message : "the path was refused";
+    throw new ConnectorError("bad_request", "path refused", undefined, why);
+  }
+  const name = safeFileName(path.basename(real));
+  const limit = `files are limited to ${Math.floor(maxBytes / 1024 / 1024)} MB`;
+  // O_NOFOLLOW: a final component swapped for a link after the check is not followed.
+  const handle = await fs.open(real, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  let buf: Buffer;
+  try {
+    const st = await handle.stat();
+    if (!st.isFile()) {
+      throw new ConnectorError("bad_request", "not a file", undefined, "the path is not a file");
+    }
+    if (st.size > maxBytes) {
+      throw new ConnectorError("too_large", "file too large", undefined, limit);
+    }
+    buf = await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+  if (buf.length > maxBytes) {
+    throw new ConnectorError("too_large", "file too large", undefined, limit);
+  }
+  const check = await validateOutgoingDocument(name, buf);
+  if (!check.ok) {
+    throw new ConnectorError(
+      "unsupported",
+      "unsupported file type",
+      undefined,
+      `unsupported or mismatched file type (accepted: ${[...ACCEPTED_EXTENSIONS, "pptx"].join(", ")})`,
+    );
+  }
+  return { buf, name, kind: check.kind, mimeType: DOCUMENT_MIME_TYPES[check.kind] };
 }
 
 /** Narrow a plugin-built tool to the runtime's tool type. */

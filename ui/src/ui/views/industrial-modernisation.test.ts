@@ -1,5 +1,6 @@
 import { render } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 import type { AppViewState } from "../app-view-state";
 import type { Project } from "../controllers/projects";
 import { setLocale } from "../i18n";
@@ -100,7 +101,7 @@ describe("Industrial modernization workbench", () => {
       ),
       root,
     );
-    for (const id of ["batch", "plc", "maintenance", "cybersecurity"]) {
+    for (const id of ["batch", "maintenance", "cybersecurity"]) {
       const card = root.querySelector(`[data-capability="${id}"]`)!;
       expect(card.textContent).toContain("Planned");
       const button = card.querySelector("button")!;
@@ -109,7 +110,8 @@ describe("Industrial modernization workbench", () => {
       button.dispatchEvent(new MouseEvent("click"));
     }
     expect(startProjectChat).not.toHaveBeenCalled();
-    expect(root.querySelectorAll(".industrial-capability .ent-status--active")).toHaveLength(5);
+    // PLC is a deterministic engine since the PLCopen XML reader (engine registry: plc-iec61131 active).
+    expect(root.querySelectorAll(".industrial-capability .ent-status--active")).toHaveLength(6);
   });
 
   it("blocks assessment and pack actions without a gateway and localizes the mode", () => {
@@ -276,3 +278,39 @@ it.each([
     );
   },
 );
+
+describe("Industrial action accessibility", () => {
+  it.each(["en", "ja"])("names every domain and pack action in %s", async (locale) => {
+    setLocale(locale);
+    const root = document.createElement("div");
+    document.body.append(root);
+    const startProjectChat = vi.fn();
+    render(
+      renderIndustrialModernisation(
+        { locale, connected: true, startProjectChat } as unknown as AppViewState,
+        project,
+      ),
+      root,
+    );
+    const names = new Set<string>();
+    for (const card of root.querySelectorAll(".industrial-capability, .industrial-pack")) {
+      const button = card.querySelector("button")!;
+      const action = button.textContent!.trim();
+      const domain = card.querySelector("strong")!.textContent!.trim();
+      const name = `${action}: ${domain}`;
+      await expect.element(page.getByRole("button", { name, exact: true })).toBeInTheDocument();
+      names.add(name);
+      expect(button.type).toBe("button");
+    }
+    expect(names.size).toBe(14);
+
+    const assessment = page.getByRole("button", {
+      name: locale === "ja" ? "評価を開始: FORTRAN" : "Start assessment: FORTRAN",
+      exact: true,
+    });
+    (assessment.element() as HTMLButtonElement).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(startProjectChat).toHaveBeenCalledOnce();
+    expect(startProjectChat).toHaveBeenCalledWith(project.id, expect.stringContaining("FORTRAN"));
+  });
+});

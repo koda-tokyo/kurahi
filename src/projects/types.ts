@@ -75,6 +75,11 @@ export type ProjectTemplate = {
   suggestedSkills: string[];
   /** Plugins enabled for projects made from this template (project scope only). */
   plugins: string[];
+  /**
+   * Fill-in text files copied from `packs/<id>/starter/` into a new project's read-only folders
+   * when nothing is there yet (e.g. knowledge/research-profile.md).
+   */
+  starterFiles?: string[];
   starterPrompts: LocalizedText[];
   terminalProfile: string;
 };

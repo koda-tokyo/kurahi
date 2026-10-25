@@ -7,6 +7,7 @@ import { type LegacyEnv, getIndex } from "../api.js";
 import { type CrudOp, crudMatrix, viewOf } from "../crud.js";
 import { accessorLanguage } from "./lang.js";
 import { modernisePlan } from "./plan.js";
+import { plcInventory } from "./plc-inventory.js";
 import { buildPolyglotGraph } from "./poly-graph.js";
 import { crossImpact } from "./poly-impact.js";
 import { type Polyglot, analyseProject } from "./project.js";
@@ -65,7 +66,8 @@ export function crossCrud(
     for (const [target, ops] of m.cells.get(prog) ?? []) {
       const isTable = target.startsWith("table:");
       const tname = view.node.get(target)?.name ?? target.replace(/^[a-z-]+:/, "");
-      if (t && (isTable ? target !== `table:${t}` : tname.toUpperCase() !== t)) {
+      const umbrella = view.node.get(target)?.attrs?.umbrella;
+      if (t && (isTable ? target !== `table:${t}` && umbrella !== t : tname.toUpperCase() !== t)) {
         continue;
       }
       (isTable ? rows : files).push({
@@ -108,10 +110,16 @@ export function legacyCrossImpact(root: string, target: string, env: LegacyEnv) 
   return crossImpact(poly, graph, target);
 }
 
-export type InventoryKind = "java" | "sql" | "fortran" | "pli";
+export type InventoryKind = "java" | "sql" | "fortran" | "pli" | "plc";
 
-/** Java types, SQL tables, FORTRAN units or PL/I procedures: the list, or one entry in full. */
+/**
+ * Java types, SQL tables, FORTRAN units, PL/I procedures or PLC POUs: the list, or one entry in
+ * full.
+ */
 export function inventory(poly: Polyglot, kind: InventoryKind, name?: string) {
+  if (kind === "plc") {
+    return plcInventory(poly, name);
+  }
   if (kind === "fortran" || kind === "pli") {
     return sciInventory(poly, kind, name);
   }

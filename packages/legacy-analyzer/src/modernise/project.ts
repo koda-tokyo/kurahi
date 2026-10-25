@@ -1,5 +1,5 @@
 // One project, every active engine: the COBOL/JCL fact index (built by the caller, usually from
-// its cache), plus the Java, SQL DDL, FORTRAN and PL/I engines run on the files the registry
+// its cache), plus the Java, SQL DDL, FORTRAN, PL/I and PLC engines run on the files the registry
 // detects under the same root. INCLUDE and %INCLUDE members are looked up among all files of the
 // scan (same folder first). Deterministic: files are read in sorted order and no time or absolute
 // path is kept.
@@ -7,12 +7,16 @@
 import path from "node:path";
 import type { LegacyIndex } from "../types.js";
 import type { FortranFile } from "./fortran-types.js";
+import type { PlcAnalysis, PlcFile } from "./plc-st-types.js";
 import type { PliFile } from "./pli-types.js";
 import type { JavaFile, SqlModel } from "./types.js";
 import { parseFortranFile } from "./fortran-parser.js";
 import { type FortranAnalysis, analyseFortran } from "./fortran-resolve.js";
+import { parseMyBatisMapper } from "./java-mybatis.js";
 import { parseJavaFile } from "./java-parser.js";
 import { type JavaAnalysis, analyseJava } from "./java-resolve.js";
+import { analysePlc, parsePlcFile } from "./plc-st.js";
+import { parsePlcOpenXml } from "./plcopen-xml.js";
 import { parsePliFile } from "./pli-parser.js";
 import { type PliAnalysis, analysePli } from "./pli-resolve.js";
 import { type Detection, detectLanguages } from "./registry.js";
@@ -27,11 +31,16 @@ export type Polyglot = {
   sql: SqlModel;
   fortran: FortranAnalysis;
   pli: PliAnalysis;
+  plc: PlcAnalysis;
+  /** PLC files detected but not read: vendor ladder exports and non-PLCopen XML (counted only). */
+  plcExports: string[];
   /** Files an active engine would read but could not (too large, unreadable). */
   unread: string[];
 };
 
 const FORTRAN_INC = ["", ".inc", ".h", ".cmn", ".fi", ".f", ".for"];
+/** PLC exports: PLCopen XML is read by its own reader; vendor ladder exports are counted only. */
+const PLC_EXPORT = /\.(l5x|l5k|tia|exp|xml)$/i;
 const PLI_INC = [".plinc", ".pli", ".pl1", ".inc", ".cpy", ".copy", "", ".txt"];
 
 /**
@@ -79,10 +88,33 @@ export function analyseProject(index: LegacyIndex): Polyglot {
     }
     return out;
   };
-  const javaFiles: JavaFile[] = read("java", parseJavaFile);
+  const javaInputs = read("java", (p, text) => ({ path: p, text }));
+  const isXml = (p: string) => /\.xml$/i.test(p);
+  const javaFiles: JavaFile[] = javaInputs
+    .filter((f) => !isXml(f.path))
+    .map((f) => parseJavaFile(f.path, f.text));
+  const mappers = javaInputs
+    .filter((f) => isXml(f.path))
+    .flatMap((f) => parseMyBatisMapper(f.path, f.text) ?? []);
   const sqlInputs = read("sql-ddl", (p, text) => ({ path: p, text }));
   const fortranFiles: FortranFile[] = read("fortran", parseFortranFile);
   const pliFiles: PliFile[] = read("pli", parsePliFile);
+  const plcExports: string[] = [];
+  const plcFiles: PlcFile[] = [];
+  for (const f of byLanguage.get("plc-iec61131") ?? []) {
+    const xml = /\.xml$/i.test(f.path);
+    const text = PLC_EXPORT.test(f.path) && !xml ? undefined : readScanned(scan, f);
+    const open = text && /^\s*</.test(text) ? parsePlcOpenXml(f.path, text) : undefined;
+    if (text === null) {
+      unread.push(f.path);
+    } else if (open) {
+      plcFiles.push(open);
+    } else if (text === undefined || /^\s*</.test(text)) {
+      plcExports.push(f.path);
+    } else {
+      plcFiles.push(parsePlcFile(f.path, text));
+    }
+  }
 
   const included = <T>(exts: string[], parse: (p: string, t: string) => T) => {
     const find = includeFinder(scan.files, exts);
@@ -106,10 +138,12 @@ export function analyseProject(index: LegacyIndex): Polyglot {
     index,
     scan: { files: scan.files.length, partial: scan.partial },
     detections,
-    java: analyseJava(javaFiles),
+    java: analyseJava(javaFiles, mappers),
     sql: analyseSql(sqlInputs),
     fortran: analyseFortran(fortranFiles, included(FORTRAN_INC, parseFortranFile)),
     pli: analysePli(pliFiles, included(PLI_INC, parsePliFile)),
+    plc: analysePlc(plcFiles),
+    plcExports,
     unread: unread.toSorted(),
   };
 }

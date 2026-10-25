@@ -1,5 +1,6 @@
 export {
   createConfigIO,
+  isConfigLoadFailure,
   loadConfig,
   parseConfigJson5,
   readConfigFileSnapshot,

@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
-import { decideWsConnectionRateLimit, resetRateLimiters } from "./rate-limiter.js";
+import {
+  decideWsConnectionRateLimit,
+  refundWsConnectionSlot,
+  resetRateLimiters,
+} from "./rate-limiter.js";
 import { attachGatewayUpgradeHandler } from "./server-http.js";
 
 // Dogfood finding: a CLI over the per-IP connection limit saw a bare 1006 with no reason.
@@ -56,6 +60,24 @@ describe("decideWsConnectionRateLimit", () => {
     expect(explained).toBe(20);
     // Another address has its own budget.
     expect(decideWsConnectionRateLimit(req("8.8.4.4")).allowed).toBe(true);
+  });
+});
+
+describe("refundWsConnectionSlot", () => {
+  it("gives one slot back to the same address only, never below an empty window", () => {
+    // Refunds before any connection do not bank extra budget.
+    refundWsConnectionSlot(req("7.7.7.7"));
+    refundWsConnectionSlot(req("7.7.7.7"));
+    for (let i = 0; i < 10; i++) {
+      expect(decideWsConnectionRateLimit(req("7.7.7.7")).allowed).toBe(true);
+    }
+    expect(decideWsConnectionRateLimit(req("7.7.7.7")).allowed).toBe(false);
+    // Another address's refund does not help this one.
+    refundWsConnectionSlot(req("6.6.6.6"));
+    expect(decideWsConnectionRateLimit(req("7.7.7.7")).allowed).toBe(false);
+    refundWsConnectionSlot(req("7.7.7.7"));
+    expect(decideWsConnectionRateLimit(req("7.7.7.7")).allowed).toBe(true);
+    expect(decideWsConnectionRateLimit(req("7.7.7.7")).allowed).toBe(false);
   });
 });
 

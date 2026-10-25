@@ -4,10 +4,12 @@ timezone: Asia/Tokyo
 separationOfDuties: true
 queues:
   - id: hr-leave
+    department: hr
     name: { ja: 休暇申請, en: Leave requests }
     types: [leave]
     slaHours: 24
   - id: hr-overtime
+    department: hr
     name: { ja: 残業申請, en: Overtime requests }
     types: [request]
     slaHours: 8

@@ -8,10 +8,22 @@ import { randomUUID } from "node:crypto";
 import type { Project } from "../projects/types.js";
 import type { Actor, WorkItem, WorkItemStatus } from "./types.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
-import { saveArtifact, setArtifactStatus } from "../projects/artifacts.js";
+import {
+  addArtifactVersion,
+  getArtifact,
+  saveArtifact,
+  setArtifactStatus,
+  type Artifact,
+} from "../projects/artifacts.js";
 import { projectSessionKey } from "../projects/scope.js";
 import { isAgentAllowed } from "../projects/store.js";
-import { applyTransition, checkSummary, recheck, type LifecycleOpts } from "./lifecycle.js";
+import {
+  applyTransition,
+  checkSummary,
+  recheck,
+  restartRoute,
+  type LifecycleOpts,
+} from "./lifecycle.js";
 import { loadWorkQueuePolicy, ruleApplies, type WorkQueuePolicy } from "./policy.js";
 import { readWorkItem } from "./store.js";
 
@@ -177,22 +189,8 @@ export function completeDraft(
       if (cur.status !== "drafting" || cur.runIds.at(-1) !== run.runId) {
         throw new Error("this run is no longer the item's current drafting run");
       }
-      const artifact = saveArtifact(
-        {
-          title: `${cur.title} — draft`.slice(0, 200),
-          type: "draft",
-          format: "md",
-          content: text,
-          projectId: project.id,
-          agentId: run.agentId,
-          sourceSession: run.sessionKey,
-          note: `work item ${cur.id}`,
-        },
-        agent.id,
-        { home, now },
-      );
-      setArtifactStatus({ id: artifact.id, status: "review" }, agent.id, { home, now });
-      const v = artifact.versions[0];
+      const artifact = saveDraftArtifact(project, cur, run, text, agent, home, now);
+      const v = artifact.versions.at(-1)!;
       cur.draft = {
         artifactId: artifact.id,
         version: v.version,
@@ -204,6 +202,7 @@ export function completeDraft(
       cur.approvals = [];
       cur.override = null;
       recheck(project, cur, now, home);
+      restartRoute(project, cur, now, home, true);
       return {
         next: cur,
         spec: {
@@ -222,6 +221,70 @@ export function completeDraft(
     },
     opts,
   );
+}
+
+/**
+ * A re-draft (after send back) becomes the next version of the item's draft artifact, so the
+ * reviewer can diff the rounds (workitems.draftDiff). A first draft, or a pinned artifact from
+ * elsewhere, starts a new artifact.
+ */
+function saveDraftArtifact(
+  project: Project,
+  cur: WorkItem,
+  run: { agentId: string; sessionKey: string },
+  text: string,
+  agent: Actor,
+  home: string,
+  now: Date,
+): Artifact {
+  if (cur.draft) {
+    try {
+      const prev = getArtifact(cur.draft.artifactId, null, { home }).artifact;
+      if (prev.projectId === project.id && prev.type === "draft") {
+        let next: Artifact;
+        try {
+          next = addArtifactVersion(
+            {
+              id: prev.id,
+              content: text,
+              agentId: run.agentId,
+              sourceSession: run.sessionKey,
+              note: `work item ${cur.id}`,
+            },
+            agent.id,
+            { home, now },
+          );
+        } catch (err) {
+          if (!/identical/.test(String(err))) {
+            throw err;
+          }
+          next = prev;
+        }
+        if (next.status === "draft") {
+          setArtifactStatus({ id: next.id, status: "review" }, agent.id, { home, now });
+        }
+        return getArtifact(next.id, null, { home }).artifact;
+      }
+    } catch {
+      // Unreadable earlier draft: start a new artifact below.
+    }
+  }
+  const artifact = saveArtifact(
+    {
+      title: `${cur.title} — draft`.slice(0, 200),
+      type: "draft",
+      format: "md",
+      content: text,
+      projectId: project.id,
+      agentId: run.agentId,
+      sourceSession: run.sessionKey,
+      note: `work item ${cur.id}`,
+    },
+    agent.id,
+    { home, now },
+  );
+  setArtifactStatus({ id: artifact.id, status: "review" }, agent.id, { home, now });
+  return artifact;
 }
 
 /** The run failed: back to where drafting started, with the error kept on the item. */

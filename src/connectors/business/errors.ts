@@ -36,6 +36,8 @@ export class ConnectorError extends Error {
     public readonly code: ConnectorErrorCode,
     message: string,
     public readonly status?: number,
+    /** A content-free hint for the agent in place of the code's default (no names or paths). */
+    public readonly hint?: string,
   ) {
     super(message);
     this.name = "ConnectorError";
@@ -110,5 +112,6 @@ export function describeConnectorError(err: unknown): string {
     too_large: "the item is larger than the configured size limit",
     approval_denied: "a person did not approve this action",
   };
-  return `${code}: ${hints[code] ?? "the request failed"}`;
+  const own = err instanceof ConnectorError ? err.hint : undefined;
+  return `${code}: ${own ?? hints[code] ?? "the request failed"}`;
 }

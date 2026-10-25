@@ -240,6 +240,8 @@ export function classifyToolCall(
     case "legacy_impact":
     case "legacy_design_doc":
     case "legacy_wave_plan":
+    case "legacy_changes":
+    case "legacy_baseline_advance":
     case "modernise_plan":
     case "modernise_crud":
     case "modernise_impact":

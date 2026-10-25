@@ -20,6 +20,14 @@ export const APPROVAL_METHODS: ReadonlySet<string> = new Set([
   "policy.release",
   "artifacts.setStatus",
   "workitems.decide",
+  "workitems.clearFlag",
+  "autopilot.approvals.create",
+  "autopilot.approvals.revoke",
+  "autopilot.autonomy.accept",
+  "autopilot.autonomy.decline",
+  "autopilot.reportError",
+  "autopilot.stopAll",
+  "autopilot.startAll",
 ]);
 
 /** Matches future approval-type methods by name as well (fail closed). */

@@ -61,6 +61,11 @@ export function parseTemplate(raw: unknown): TemplateWithDemo | null {
     suggestedAgents: strings(r.suggestedAgents),
     suggestedSkills: strings(r.suggestedSkills),
     plugins: strings(r.plugins).filter((id) => PLUGIN_ID_RE.test(id)),
+    // Fill-in forms copied into a new project's read-only folders (pack.ts seedStarterFiles).
+    starterFiles: strings(r.starterFiles)
+      .map(cleanRelPath)
+      .filter((p): p is string => p !== null && p !== "." && /\.(md|txt)$/i.test(p))
+      .slice(0, 10),
     starterPrompts: texts(r.starterPrompts),
     terminalProfile: typeof r.terminalProfile === "string" ? r.terminalProfile : "standard",
     ...(demo ? { demoFolder: demo.replace(/^~(?=$|\/)/, os.homedir()) } : {}),

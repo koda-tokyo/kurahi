@@ -13,6 +13,15 @@ type PluginToolMeta = {
 
 const pluginToolMeta = new WeakMap<AnyAgentTool, PluginToolMeta>();
 
+/** Carry a plugin tool's origin over to a wrapper (a guard wrapper is a new object). */
+export function copyPluginToolMeta(from: AnyAgentTool, to: AnyAgentTool): AnyAgentTool {
+  const meta = pluginToolMeta.get(from);
+  if (meta) {
+    pluginToolMeta.set(to, meta);
+  }
+  return to;
+}
+
 export function getPluginToolMeta(tool: AnyAgentTool): PluginToolMeta | undefined {
   return pluginToolMeta.get(tool);
 }

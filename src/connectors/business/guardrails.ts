@@ -29,11 +29,14 @@ export type ConnectorCallAudit = {
   ids?: readonly string[];
   count?: number;
   bytes?: number;
+  /** Document kind of a file sent (`pdf`, `docx`, ...); never its name. */
+  kind?: string;
   durationMs?: number;
 };
 
 const MAX_IDS = 25;
 const ID_SAFE = /^[A-Za-z0-9._=!+/-]{1,256}$/;
+const KIND_SAFE = /^[a-z0-9]{1,16}$/;
 
 function safeIds(ids: readonly string[] | undefined): string[] | undefined {
   if (!ids) {
@@ -59,6 +62,7 @@ export function auditConnectorCall(
     ...(ids && ids.length > 0 ? { ids, idCount: call.ids?.length ?? ids.length } : {}),
     ...(typeof call.count === "number" ? { count: call.count } : {}),
     ...(typeof call.bytes === "number" ? { bytes: call.bytes } : {}),
+    ...(call.kind && KIND_SAFE.test(call.kind) ? { kind: call.kind } : {}),
     ...(typeof call.durationMs === "number" ? { durationMs: Math.round(call.durationMs) } : {}),
   };
   let outcome: "ok" | "denied" | "failed" = "ok";
@@ -85,7 +89,7 @@ export async function audited<T>(
   sink: ConnectorAuditSink | undefined,
   call: ConnectorCallAudit,
   fn: () => Promise<T>,
-  meta?: (value: T) => Pick<ConnectorCallAudit, "ids" | "count" | "bytes">,
+  meta?: (value: T) => Pick<ConnectorCallAudit, "ids" | "count" | "bytes" | "kind">,
   now: () => number = Date.now,
 ): Promise<T> {
   const start = now();

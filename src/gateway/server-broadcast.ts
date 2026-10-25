@@ -18,6 +18,7 @@ const EVENT_SCOPE_GUARDS: Record<string, string[]> = {
   "terminal.event": [ADMIN_SCOPE],
   // Work queue changes (ids and status only) go to operators who can read.
   "workitems.changed": ["operator.read", "operator.write"],
+  "autopilot.changed": ["operator.read", "operator.write"],
 };
 
 function hasEventScope(client: GatewayWsClient, event: string): boolean {

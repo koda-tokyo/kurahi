@@ -1,0 +1,33 @@
+{
+  "type": "article",
+  "id": "https://doi.org/10.5281/zenodo.7108361",
+  "categories": ["TBI", "Motivation", "Performance scolaire", "Pratiques enseignantes", "0111"],
+  "language": "fr",
+  "author": [
+    {
+      "family": "Boidou",
+      "given": "Blaise Noel"
+    }
+  ],
+  "contributor": [
+    {
+      "family": "Jaillet",
+      "given": "Alain"
+    }
+  ],
+  "editor": [
+    {
+      "family": "Jaillet",
+      "given": "Thibaud"
+    }
+  ],
+  "issued": {
+    "date-parts": [[2022, 9, 30]]
+  },
+  "abstract": "Résumé : <em>Cet article est une recension d’écrits sur le Tableau Blanc Interactif (TBI). Les travaux présentés ont été obtenus à partir d’</em><em>une recherche informatisée dans différentes banques de données. Il ressort que le TBI augmente la motivation des apprenants, mais les travaux scientifiques sont divergents sur ses effets concernant les performances scolaires.</em> Abstract : <em>This article is a review of the literature on the Interactive Whiteboard (IWB). The works presented were obtained from a computerized search of various databases. It appears that the TBI increases the motivation of learners, but the scientific work is divergent on its effects on academic performance.</em>",
+  "DOI": "10.5281/ZENODO.7108361",
+  "publisher": "Zenodo",
+  "title": "Tableau Blanc Interactif : Usage, perception et performance (2000 à 2022)",
+  "URL": "https://zenodo.org/record/7108361",
+  "copyright": "Creative Commons Attribution 4.0 International"
+}

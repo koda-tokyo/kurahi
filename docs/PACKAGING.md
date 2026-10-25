@@ -89,12 +89,14 @@ release workflow. Tags with a prerelease suffix (`-beta.1`) publish as prereleas
 
 1. `version`: tag → version (must equal package.json), `workflow_dispatch` → nightly or dry run.
 2. `build` matrix `ubuntu-latest` / `macos-latest` / `windows-latest`: install (frozen), build,
-   `pnpm test` (unit + extensions + gateway), `node scripts/bundle.mjs --verify`, upload.
+   `pnpm test` (unit + extensions + gateway), `node scripts/bundle.mjs --verify`, the enterprise
+   bundle (`--profile enterprise`, `kolo-<version>-<os>-<arch>-enterprise.*`, checked by
+   `scripts/enterprise-check.mjs`; see [Enterprise profile](/security/enterprise-profile)), upload.
 3. `release`: download, `SHA256SUMS.txt` (+ `sha256sum -c`), CycloneDX SBOM from the Linux
    bundle (syft via `anchore/sbom-action`), provenance attestation
    (`actions/attest-build-provenance`, verify with `gh attestation verify <file> -R <repo>`),
    GitHub Release with the CHANGELOG section as notes (`scripts/release-notes.mjs`), assets:
-   the three archives, `SHA256SUMS.txt`, the SBOM.
+   the three archives and the three enterprise archives, `SHA256SUMS.txt`, the SBOM.
 
 Unsigned by decision for the evaluation kit. The optional signing steps are gated on
 `MACOS_CERT_P12` / `WINDOWS_CERT_PFX` being present and currently only echo; wiring them means a

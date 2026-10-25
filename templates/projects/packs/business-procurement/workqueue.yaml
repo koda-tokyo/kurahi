@@ -4,6 +4,7 @@ timezone: Asia/Tokyo
 separationOfDuties: true
 queues:
   - id: proc-requests
+    department: procurement
     name: { ja: 購買申請, en: Purchase requests }
     types: [purchase]
     slaHours: 72
@@ -24,6 +25,13 @@ rules:
     min: 2
     severity: warn
     label: { ja: 相見積（2社以上）, en: At least two quotes attached }
+  # 3社見積を求める会社は、上の proc.quotes の代わりに次の規則を使ってください。
+  # If your company requires three quotes, use this rule instead of proc.quotes above.
+  # - id: proc.quotes
+  #   kind: attachment
+  #   min: 3
+  #   severity: warn
+  #   label: { ja: 相見積（3社以上）, en: At least three quotes attached }
   - id: proc.date
     kind: date
     field: neededBy

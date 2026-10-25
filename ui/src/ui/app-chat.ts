@@ -1,5 +1,5 @@
 import type { KoLoApp } from "./app";
-import type { GatewayHelloOk } from "./gateway";
+import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway";
 import type { ChatAttachment, ChatQueueItem } from "./ui-types";
 import { parseAgentSessionKey } from "../../../src/sessions/session-key-utils.js";
 import { scheduleChatScroll } from "./app-scroll";
@@ -11,6 +11,8 @@ import { normalizeBasePath } from "./navigation";
 import { generateUUID } from "./uuid";
 
 type ChatHost = {
+  client?: GatewayBrowserClient | null;
+  chatSessionGeneration?: number;
   connected: boolean;
   chatMessage: string;
   chatAttachments: ChatAttachment[];
@@ -103,8 +105,18 @@ async function sendChatMessageNow(
     refreshSessions?: boolean;
   },
 ) {
+  const sessionKey = host.sessionKey;
+  const client = host.client;
+  const generation = host.chatSessionGeneration;
   resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
   const runId = await sendChatMessage(host as unknown as KoLoApp, message, opts?.attachments);
+  if (
+    host.sessionKey !== sessionKey ||
+    host.client !== client ||
+    host.chatSessionGeneration !== generation
+  ) {
+    return false;
+  }
   const ok = Boolean(runId);
   if (!ok && opts?.previousDraft != null) {
     host.chatMessage = opts.previousDraft;
@@ -142,12 +154,20 @@ async function flushChatQueue(host: ChatHost) {
   if (!next) {
     return;
   }
+  const sessionKey = host.sessionKey;
+  const client = host.client;
+  const generation = host.chatSessionGeneration;
   host.chatQueue = rest;
   const ok = await sendChatMessageNow(host, next.text, {
     attachments: next.attachments,
     refreshSessions: next.refreshSessions,
   });
-  if (!ok) {
+  if (
+    !ok &&
+    host.sessionKey === sessionKey &&
+    host.client === client &&
+    host.chatSessionGeneration === generation
+  ) {
     host.chatQueue = [next, ...host.chatQueue];
   }
 }

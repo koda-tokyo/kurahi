@@ -78,6 +78,18 @@ export const A2aServerSchema = z
     /** Serve Agent Cards without a bearer token (discovery). The JSON-RPC endpoint always requires one. */
     publicCard: z.boolean().default(true),
     streaming: z.boolean().default(true),
+    /**
+     * Also accept a client token in an `X-API-Key` header (for callers whose API-key auth scheme
+     * sends that header instead of `Authorization: Bearer`). The token, allowlist and limits are
+     * the same; only the header differs. Off by default.
+     */
+    apiKeyHeader: z.boolean().default(false),
+    /**
+     * Serve a plain JSON endpoint `POST <basePath>/<slug>/ask` and its OpenAPI 3.0 description at
+     * `GET <basePath>/<slug>/openapi.json`, for callers that import tools from OpenAPI instead of
+     * speaking A2A. Same gate, tokens, allowlist, limits and untrusted handling. Off by default.
+     */
+    rest: z.boolean().default(false),
     maxBodyBytes: z.number().int().min(1024).max(4_194_304).default(65_536),
     maxInputChars: z.number().int().min(100).max(1_000_000).default(32_000),
     maxParts: z.number().int().min(1).max(100).default(20),

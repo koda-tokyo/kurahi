@@ -44,7 +44,16 @@ export async function awaitLoopbackCode(
   const timeoutMs = Math.min(opts.timeoutMs ?? 300_000, 900_000);
   const server = http.createServer();
   await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
+    server.once("error", (err: NodeJS.ErrnoException) =>
+      reject(
+        err.code === "EADDRINUSE"
+          ? new ConnectorError(
+              "bad_request",
+              `port ${opts.port} is already in use on this machine; choose another redirectPort and register the matching callback URL`,
+            )
+          : err,
+      ),
+    );
     server.listen(opts.port ?? 0, "127.0.0.1", () => resolve());
   });
   const port = (server.address() as AddressInfo).port;

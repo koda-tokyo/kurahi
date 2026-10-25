@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/a2a",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Agent2Agent (A2A) protocol server and client tools",
   "type": "module",
   "devDependencies": {

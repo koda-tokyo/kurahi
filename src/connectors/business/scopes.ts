@@ -60,7 +60,9 @@ export function sanitizeScopeNames(scopes: readonly unknown[]): string[] {
       continue;
     }
     const name = scopeName(s);
-    if (/^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(name)) {
+    // `:` and `/` for provider scope names such as kintone `k:app_record:read` or Money Forward
+    // `mfc/invoice/data.read`; never `//`, so a URL cannot pass as a scope name.
+    if (/^[A-Za-z][A-Za-z0-9._:/-]{0,63}$/.test(name) && !name.includes("//")) {
       out.add(name);
     }
   }

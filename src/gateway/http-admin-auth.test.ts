@@ -17,12 +17,16 @@ const { isProtectedAdminPath, rejectUnauthorizedAdminRequest } =
 
 const auth = { mode: "token" as const, token: "gw-secret", allowTailscale: false };
 
-function makeReq(url: string, headers: Record<string, string> = {}): IncomingMessage {
+function makeReq(
+  url: string,
+  headers: Record<string, string> = {},
+  remote = false,
+): IncomingMessage {
   return {
     url,
     method: "GET",
-    headers: { host: "127.0.0.1:18800", ...headers },
-    socket: { remoteAddress: "127.0.0.1" },
+    headers: { host: remote ? "gateway.example.test" : "127.0.0.1:18800", ...headers },
+    socket: { remoteAddress: remote ? "203.0.113.7" : "127.0.0.1" },
   } as unknown as IncomingMessage;
 }
 
@@ -38,12 +42,16 @@ function makeRes() {
   return res;
 }
 
-async function gate(url: string, headers?: Record<string, string>) {
+async function gate(
+  url: string,
+  headers?: Record<string, string>,
+  opts: { remote?: boolean; ssoRequired?: boolean } = {},
+) {
   const res = makeRes();
   const rejected = await rejectUnauthorizedAdminRequest(
-    makeReq(url, headers),
+    makeReq(url, headers, opts.remote),
     res as unknown as ServerResponse,
-    { auth },
+    { auth, ssoRequired: opts.ssoRequired },
   );
   return { rejected, status: res.statusCode };
 }
@@ -87,5 +95,42 @@ describe("admin/metrics auth gate", () => {
   it("leaves health and other routes alone", async () => {
     expect(await gate("/health")).toEqual({ rejected: false, status: 200 });
     expect(await gate("/api/health")).toEqual({ rejected: false, status: 200 });
+  });
+
+  describe("with gateway.identity.ssoRequired", () => {
+    const bearer = { authorization: "Bearer gw-secret" };
+    const sso = { ssoRequired: true };
+
+    it("refuses the gateway token from another host, with or without a break-glass reason", async () => {
+      for (const url of ["/metrics", "/api/admin/status"]) {
+        expect(await gate(url, bearer, { ...sso, remote: true })).toEqual({
+          rejected: true,
+          status: 401,
+        });
+        expect(
+          await gate(url, { ...bearer, "x-kolo-break-glass": "outage" }, { ...sso, remote: true }),
+        ).toEqual({ rejected: true, status: 401 });
+      }
+      // Without SSO required the remote token works as before.
+      expect((await gate("/metrics", bearer, { remote: true })).rejected).toBe(false);
+    });
+
+    it("on the gateway host the token needs a break-glass reason", async () => {
+      expect(await gate("/api/admin/status", bearer, sso)).toEqual({ rejected: true, status: 401 });
+      expect(
+        (await gate("/api/admin/status", { ...bearer, "x-kolo-break-glass": "IdP down" }, sso))
+          .rejected,
+      ).toBe(false);
+    });
+
+    it("refuses a legacy admin session from another host", async () => {
+      sessions.role = "admin";
+      const cookie = { cookie: "kolo_session=valid" };
+      expect(await gate("/api/admin/users", cookie, { ...sso, remote: true })).toEqual({
+        rejected: true,
+        status: 401,
+      });
+      expect((await gate("/api/admin/users", cookie, sso)).rejected).toBe(false);
+    });
   });
 });

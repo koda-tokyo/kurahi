@@ -65,6 +65,22 @@ const SHELL_ENV_EXPECTED_KEYS = [
 const CONFIG_BACKUP_COUNT = 5;
 const loggedInvalidConfigs = new Set<string>();
 
+// The empty config loadConfig returns when the file exists but cannot be read, parsed or
+// validated. Callers that must fail closed (enterprise identity: an unreadable file must not
+// switch SSO off) tell it apart from a genuinely empty config with isConfigLoadFailure.
+const failedLoads = new WeakSet<object>();
+
+function loadFailure(): KoLoConfig {
+  const empty: KoLoConfig = {};
+  failedLoads.add(empty);
+  return empty;
+}
+
+/** True when `cfg` is the empty stand-in for a config file that failed to load. */
+export function isConfigLoadFailure(cfg: unknown): boolean {
+  return typeof cfg === "object" && cfg !== null && failedLoads.has(cfg);
+}
+
 export type ParseConfigJson5Result = { ok: true; parsed: unknown } | { ok: false; error: string };
 
 function hashConfigRaw(raw: string | null): string {
@@ -257,7 +273,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       const resolvedConfig = substituted;
       warnOnConfigMiskeys(resolvedConfig, deps.logger);
       if (typeof resolvedConfig !== "object" || resolvedConfig === null) {
-        return {};
+        return loadFailure();
       }
       const preValidationDuplicates = findDuplicateAgentDirs(resolvedConfig as KoLoConfig, {
         env: deps.env,
@@ -327,10 +343,10 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       const error = err as { code?: string };
       if (error?.code === "INVALID_CONFIG") {
-        return {};
+        return loadFailure();
       }
       deps.logger.error(`Failed to read config at ${configPath}`, err);
-      return {};
+      return loadFailure();
     }
   }
 

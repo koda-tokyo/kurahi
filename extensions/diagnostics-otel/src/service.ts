@@ -4,13 +4,20 @@ import { metrics, trace, SpanStatusCode } from "@opentelemetry/api";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { ParentBasedSampler, TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-base";
 import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
 import { onDiagnosticEvent, registerLogTransport } from "KoLo/plugin-sdk";
+import { governanceSpanSpec, isGovernanceEvent, type GovernanceEvent } from "./governance.js";
+import {
+  createOrchestratePush,
+  type OrchestratePush,
+  type OrchestratePushDeps,
+  resolveOrchestratePush,
+} from "./orchestrate-push.js";
 
 const DEFAULT_SERVICE_NAME = "KoLo";
 
@@ -39,8 +46,11 @@ function resolveSampleRate(value: number | undefined): number | undefined {
   return value;
 }
 
-export function createDiagnosticsOtelService(): KoLoPluginService {
+export function createDiagnosticsOtelService(
+  deps: { orchestrate?: OrchestratePushDeps } = {},
+): KoLoPluginService {
   let sdk: NodeSDK | null = null;
+  let orchestrate: OrchestratePush | null = null;
   let logProvider: LoggerProvider | null = null;
   let stopLogTransport: (() => void) | null = null;
   let unsubscribe: (() => void) | null = null;
@@ -69,11 +79,19 @@ export function createDiagnosticsOtelService(): KoLoPluginService {
       const tracesEnabled = otel.traces !== false;
       const metricsEnabled = otel.metrics !== false;
       const logsEnabled = otel.logs === true;
-      if (!tracesEnabled && !metricsEnabled && !logsEnabled) {
+      const push = resolveOrchestratePush(otel.orchestrate, serviceName);
+      if (push && !push.ok) {
+        ctx.logger.warn(`diagnostics-otel: orchestrate trace push off: ${push.reason}`);
+      }
+      if (push?.ok && otel.orchestrate) {
+        orchestrate = createOrchestratePush(otel.orchestrate, push, serviceName, deps.orchestrate);
+      }
+      if (!tracesEnabled && !metricsEnabled && !logsEnabled && !orchestrate) {
         return;
       }
 
-      const resource = new Resource({
+      // @opentelemetry/resources 2.x exports Resource as a type only; build it with the factory.
+      const resource = resourceFromAttributes({
         [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
       });
 
@@ -572,7 +590,34 @@ export function createDiagnosticsOtelService(): KoLoPluginService {
         queueDepthHistogram.record(evt.queued, { "KoLo.channel": "heartbeat" });
       };
 
+      const governanceOptions = {
+        userId: otel.orchestrate?.userId,
+        orchestrateAgentId: otel.orchestrate?.agentId,
+        environment: otel.orchestrate?.environment,
+      };
+      const recordGovernance = (evt: GovernanceEvent) => {
+        const spec = governanceSpanSpec(evt, governanceOptions);
+        const targets = [
+          ...(tracesEnabled ? [tracer] : []),
+          ...(orchestrate ? [orchestrate.tracer] : []),
+        ];
+        for (const target of targets) {
+          const span = target.startSpan(spec.name, {
+            attributes: spec.attributes,
+            startTime: spec.startTime,
+          });
+          if (spec.error) {
+            span.setStatus({ code: SpanStatusCode.ERROR, message: spec.error });
+          }
+          span.end(spec.endTime);
+        }
+      };
+
       unsubscribe = onDiagnosticEvent((evt: DiagnosticEventPayload) => {
+        if (isGovernanceEvent(evt)) {
+          recordGovernance(evt);
+          return;
+        }
         switch (evt.type) {
           case "model.usage":
             recordModelUsage(evt);
@@ -629,6 +674,10 @@ export function createDiagnosticsOtelService(): KoLoPluginService {
       if (sdk) {
         await sdk.shutdown().catch(() => undefined);
         sdk = null;
+      }
+      if (orchestrate) {
+        await orchestrate.shutdown();
+        orchestrate = null;
       }
     },
   } satisfies KoLoPluginService;

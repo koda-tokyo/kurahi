@@ -15,6 +15,7 @@ import { renderPrograms } from "./design-doc-programs.js";
 import { cite, cites, mermaidIds, mermaidLabel, table } from "./md.js";
 import { renderFortran } from "./modernise/design-doc-fortran.js";
 import { renderJava } from "./modernise/design-doc-java.js";
+import { renderPlc, plcTitle } from "./modernise/design-doc-plc.js";
 import { renderPli } from "./modernise/design-doc-pli.js";
 import { renderTables } from "./modernise/design-doc-sql.js";
 import { sciStrings } from "./modernise/doc-i18n-sci.js";
@@ -29,8 +30,8 @@ export const DOC_SECTIONS = [
   "crud",
   "coverage",
 ] as const;
-/** Sections of the Java, FORTRAN, PL/I and SQL DDL engines (by default when the project has them). */
-export const MODERN_DOC_SECTIONS = ["java", "fortran", "pli", "tables"] as const;
+/** Sections of the Java, FORTRAN, PL/I, PLC and SQL DDL engines (by default when the project has them). */
+export const MODERN_DOC_SECTIONS = ["java", "fortran", "pli", "plc", "tables"] as const;
 /** Every section, in document order. */
 export const ALL_DOC_SECTIONS = [
   "overview",
@@ -39,6 +40,7 @@ export const ALL_DOC_SECTIONS = [
   "java",
   "fortran",
   "pli",
+  "plc",
   "dictionary",
   "tables",
   "crud",
@@ -52,7 +54,7 @@ export type DesignDocOptions = {
   sections?: DocSection[];
   /** Limit the program specifications to one program. */
   program?: string;
-  /** Java, SQL DDL, FORTRAN and PL/I facts of the project: adds their sections, joins CRUD. */
+  /** Java, SQL DDL, FORTRAN, PL/I and PLC facts of the project: adds their sections, joins CRUD. */
   poly?: Polyglot;
 };
 
@@ -211,6 +213,9 @@ export function docSectionsFor(poly?: Polyglot): DocSection[] {
   if ((poly?.pli.procs.length ?? 0) > 0) {
     wanted.push("pli");
   }
+  if ((poly?.plc.pous.length ?? 0) + (poly?.plc.globals.length ?? 0) > 0) {
+    wanted.push("plc");
+  }
   if (hasTables) {
     wanted.push("tables");
   }
@@ -237,6 +242,7 @@ export function designDoc(index: LegacyIndex, opts: DesignDocOptions = {}): Desi
     java: m.java,
     fortran: sciStrings(lang).fortran,
     pli: sciStrings(lang).pli,
+    plc: plcTitle(lang),
     dictionary: s.dictionary,
     tables: m.tables,
     crud: s.crud,
@@ -269,13 +275,15 @@ export function designDoc(index: LegacyIndex, opts: DesignDocOptions = {}): Desi
                 ? renderFortran(ctx, n)
                 : sec === "pli"
                   ? renderPli(ctx, n)
-                  : sec === "tables"
-                    ? renderTables(ctx, n)
-                    : sec === "dictionary"
-                      ? renderDictionary(ctx, n)
-                      : sec === "crud"
-                        ? renderCrud(ctx, n)
-                        : renderCoverage(ctx, n);
+                  : sec === "plc"
+                    ? renderPlc(ctx, n)
+                    : sec === "tables"
+                      ? renderTables(ctx, n)
+                      : sec === "dictionary"
+                        ? renderDictionary(ctx, n)
+                        : sec === "crud"
+                          ? renderCrud(ctx, n)
+                          : renderCoverage(ctx, n);
     out.push(...body, "");
   });
   const markdown = `${out

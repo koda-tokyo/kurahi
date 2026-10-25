@@ -12,6 +12,7 @@ export const PROVIDER_API_STYLES = [
   "anthropic-messages",
   "gemini",
   "ollama",
+  "watsonx",
 ] as const;
 export type ProviderApiStyle = (typeof PROVIDER_API_STYLES)[number];
 
@@ -20,6 +21,7 @@ export const PROVIDER_AUTH_HEADERS = [
   "x-api-key",
   "x-goog-api-key",
   "api-key",
+  "ibm-iam",
   "none",
 ] as const;
 export type ProviderAuthHeader = (typeof PROVIDER_AUTH_HEADERS)[number];
@@ -229,6 +231,8 @@ export function registryApiToModelApi(style: ProviderApiStyle): ModelApi {
     case "openai-compatible":
     case "ollama":
       return "openai-completions";
+    case "watsonx":
+      return "watsonx-chat";
   }
 }
 
@@ -256,6 +260,15 @@ export function registryModelsUrl(entry: ProviderRegistryEntry, baseUrl?: string
   }
   if (entry.apiStyle === "ollama") {
     return `${root.endsWith("/v1") ? root.slice(0, -3) : root}${entry.modelsEndpoint}`;
+  }
+  if (entry.apiStyle === "watsonx") {
+    // The configured base URL carries project and version settings as query parameters.
+    try {
+      const url = new URL(root);
+      return `${url.origin}${url.pathname.replace(/\/+$/, "")}${entry.modelsEndpoint}`;
+    } catch {
+      return null;
+    }
   }
   return `${root}${entry.modelsEndpoint}`;
 }

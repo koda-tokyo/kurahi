@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { isProtected, validatePath } from "./path-guard.js";
 import { decide, PermissionMode } from "./permission-modes.js";
 import { classifyToolRisk, RiskTier, RiskFlag } from "./risk-classifier.js";
@@ -194,5 +194,38 @@ describe("validatePath", () => {
     } finally {
       await rm(base, { recursive: true, force: true });
     }
+  });
+});
+
+describe("guardToolCall baseDir", () => {
+  it("resolves relative paths against baseDir before checking the roots", async () => {
+    const { guardToolCall } = await import("./guard-integration.js");
+    const os = await import("node:os");
+    const fsm = await import("node:fs");
+    const pathm = await import("node:path");
+    const root = fsm.mkdtempSync(pathm.join(os.tmpdir(), "guard-base-"));
+    fsm.mkdirSync(pathm.join(root, "source"));
+    const inside = await guardToolCall({
+      toolName: "read",
+      args: { path: "source" },
+      workspaceRoots: [root],
+      baseDir: root,
+    });
+    expect(inside.blocked).toBe(false);
+    const absolute = await guardToolCall({
+      toolName: "read",
+      args: { path: pathm.join(root, "source") },
+      workspaceRoots: [root],
+      baseDir: root,
+    });
+    expect(absolute.blocked).toBe(false);
+    const escape = await guardToolCall({
+      toolName: "read",
+      args: { path: "../outside" },
+      workspaceRoots: [root],
+      baseDir: root,
+    });
+    expect(escape.blocked).toBe(true);
+    fsm.rmSync(root, { recursive: true, force: true });
   });
 });

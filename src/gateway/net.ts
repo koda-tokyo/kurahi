@@ -22,17 +22,21 @@ export function isLoopbackAddress(ip: string | undefined): boolean {
 
 function normalizeIPv4MappedAddress(ip: string): string {
   if (ip.startsWith("::ffff:")) {
-    return ip.slice("::ffff:".length);
+    const v4 = ip.slice("::ffff:".length);
+    if (net.isIP(v4) === 4) {
+      return v4;
+    }
   }
   return ip;
 }
 
-function normalizeIp(ip: string | undefined): string | undefined {
+/** Canonical form for comparisons: trimmed, lower-case, no port/brackets, `::ffff:` v4 unmapped. */
+export function normalizeIp(ip: string | undefined): string | undefined {
   const trimmed = ip?.trim();
   if (!trimmed) {
     return undefined;
   }
-  return normalizeIPv4MappedAddress(trimmed.toLowerCase());
+  return normalizeIPv4MappedAddress(stripOptionalPort(trimmed.toLowerCase()));
 }
 
 function stripOptionalPort(ip: string): string {
@@ -55,20 +59,28 @@ function stripOptionalPort(ip: string): string {
   return ip;
 }
 
-export function parseForwardedForClientIp(forwardedFor?: string): string | undefined {
-  const raw = forwardedFor?.split(",")[0]?.trim();
+type HeaderInput = string | string[] | undefined;
+
+/** Every X-Forwarded-For hop, normalized, left (claimed origin) to right (nearest hop). */
+export function parseForwardedForChain(forwardedFor?: HeaderInput): string[] {
+  const raw = Array.isArray(forwardedFor) ? forwardedFor.join(",") : forwardedFor;
   if (!raw) {
-    return undefined;
+    return [];
   }
-  return normalizeIp(stripOptionalPort(raw));
+  return raw
+    .split(",")
+    .map((entry) => normalizeIp(entry))
+    .filter((entry): entry is string => Boolean(entry));
 }
 
-function parseRealIp(realIp?: string): string | undefined {
-  const raw = realIp?.trim();
-  if (!raw) {
-    return undefined;
-  }
-  return normalizeIp(stripOptionalPort(raw));
+/** The RIGHTMOST X-Forwarded-For entry: the address the nearest proxy itself received. */
+export function parseForwardedForNearestHop(forwardedFor?: HeaderInput): string | undefined {
+  const chain = parseForwardedForChain(forwardedFor);
+  return chain[chain.length - 1];
+}
+
+function parseRealIp(realIp?: HeaderInput): string | undefined {
+  return normalizeIp(Array.isArray(realIp) ? realIp[0] : realIp);
 }
 
 export function isTrustedProxyAddress(ip: string | undefined, trustedProxies?: string[]): boolean {
@@ -79,20 +91,105 @@ export function isTrustedProxyAddress(ip: string | undefined, trustedProxies?: s
   return trustedProxies.some((proxy) => normalizeIp(proxy) === normalized);
 }
 
-export function resolveGatewayClientIp(params: {
+export type GatewayClientAddress = {
+  /** Resolved client address (normalized); undefined without a socket peer. */
+  ip: string | undefined;
+  /**
+   * Where `ip` came from: the socket peer itself, a forwarding header set by a trusted proxy, or
+   * the trusted proxy's own address because it forwarded no client address.
+   */
+  source: "socket" | "forwarded-for" | "real-ip" | "proxy";
+};
+
+type ClientAddressParams = {
   remoteAddr?: string;
-  forwardedFor?: string;
-  realIp?: string;
+  forwardedFor?: HeaderInput;
+  realIp?: HeaderInput;
   trustedProxies?: string[];
-}): string | undefined {
+};
+
+/**
+ * The one client-address resolver of the gateway (auth, "gateway host" test, rate limits, audit).
+ * The socket peer is the client unless it is listed in `gateway.trustedProxies`. Then
+ * X-Forwarded-For is walked from the RIGHT: hops that are trusted proxies are skipped and the
+ * first untrusted entry is the client. Whatever the client itself wrote into the header sits left
+ * of what our proxies appended, so it is never believed. Without X-Forwarded-For, X-Real-IP
+ * (which the proxy must overwrite) is used.
+ */
+export function resolveGatewayClientAddress(params: ClientAddressParams): GatewayClientAddress {
   const remote = normalizeIp(params.remoteAddr);
   if (!remote) {
-    return undefined;
+    return { ip: undefined, source: "socket" };
   }
-  if (!isTrustedProxyAddress(remote, params.trustedProxies)) {
-    return remote;
+  const trusted = params.trustedProxies ?? [];
+  if (!isTrustedProxyAddress(remote, trusted)) {
+    return { ip: remote, source: "socket" };
   }
-  return parseForwardedForClientIp(params.forwardedFor) ?? parseRealIp(params.realIp) ?? remote;
+  const chain = parseForwardedForChain(params.forwardedFor);
+  if (chain.length > 0) {
+    for (let i = chain.length - 1; i >= 0; i--) {
+      if (!isTrustedProxyAddress(chain[i], trusted)) {
+        return { ip: chain[i], source: "forwarded-for" };
+      }
+    }
+    // Every hop is one of our proxies: the origin is the leftmost, itself a trusted proxy.
+    return { ip: chain[0], source: "forwarded-for" };
+  }
+  const realIp = parseRealIp(params.realIp);
+  if (realIp) {
+    return { ip: realIp, source: "real-ip" };
+  }
+  return { ip: remote, source: "proxy" };
+}
+
+export function resolveGatewayClientIp(params: ClientAddressParams): string | undefined {
+  return resolveGatewayClientAddress(params).ip;
+}
+
+type RequestLike = {
+  socket?: { remoteAddress?: string };
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+/** resolveGatewayClientAddress for an HTTP request or WebSocket upgrade request. */
+export function resolveRequestClientAddress(
+  req: RequestLike | undefined,
+  trustedProxies?: string[],
+): GatewayClientAddress {
+  return resolveGatewayClientAddress({
+    remoteAddr: req?.socket?.remoteAddress,
+    forwardedFor: req?.headers?.["x-forwarded-for"],
+    realIp: req?.headers?.["x-real-ip"],
+    trustedProxies,
+  });
+}
+
+/** True when the request carries any proxy forwarding header. */
+export function hasForwardingHeaders(req: RequestLike | undefined): boolean {
+  const h = req?.headers;
+  return Boolean(h?.["x-forwarded-for"] || h?.["x-real-ip"] || h?.["x-forwarded-host"]);
+}
+
+/**
+ * "From the gateway host" by address: the socket peer is loopback, and either the request has
+ * no forwarding headers, or the peer is a trusted proxy and the client it resolved (walking
+ * X-Forwarded-For from the right through trusted proxies only) is loopback too.
+ */
+export function isLoopbackClientRequest(
+  req: RequestLike | undefined,
+  trustedProxies?: string[],
+): boolean {
+  if (!req || !isLoopbackAddress(normalizeIp(req.socket?.remoteAddress))) {
+    return false;
+  }
+  if (!hasForwardingHeaders(req)) {
+    return true;
+  }
+  const resolved = resolveRequestClientAddress(req, trustedProxies);
+  return (
+    (resolved.source === "forwarded-for" || resolved.source === "real-ip") &&
+    isLoopbackAddress(resolved.ip)
+  );
 }
 
 export function isLocalGatewayAddress(ip: string | undefined): boolean {

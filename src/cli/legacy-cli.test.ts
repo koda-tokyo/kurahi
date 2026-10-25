@@ -37,7 +37,12 @@ describe("kurahi legacy mcp", () => {
 
   it("rejects bad options with exit 2 before loading anything", async () => {
     const load = vi.fn();
-    for (const opts of [{}, { root: "/x", http: "70000" }, { root: "/x", maxBytes: "10" }]) {
+    for (const opts of [
+      {},
+      { root: "/x", http: "70000" },
+      { root: "/x", maxBytes: "10" },
+      { root: "/x", allowHost: ["mcp.example.com"] },
+    ]) {
       const { runtime, errors } = fakeRuntime();
       await expect(runLegacyMcp(opts, { runtime, load })).rejects.toThrow("exit 2");
       expect(errors[0]).toMatch(/^kurahi legacy mcp: /);

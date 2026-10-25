@@ -57,6 +57,8 @@ export const ConnectParamsSchema = Type.Object(
         {
           token: Type.Optional(Type.String()),
           password: Type.Optional(Type.String()),
+          /** Break-glass reason when SSO is required (gateway.identity.ssoRequired); audited. */
+          breakGlass: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
         },
         { additionalProperties: false },
       ),

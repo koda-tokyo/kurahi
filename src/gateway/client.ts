@@ -42,6 +42,11 @@ export type GatewayClientOptions = {
   url?: string; // ws://127.0.0.1:18789
   token?: string;
   password?: string;
+  /**
+   * Break-glass reason when the gateway requires SSO (`gateway.identity.ssoRequired`); audited.
+   * Defaults to `KOLO_BREAK_GLASS` from the environment.
+   */
+  breakGlass?: string;
   instanceId?: string;
   clientName?: GatewayClientName;
   clientDisplayName?: string;
@@ -207,11 +212,13 @@ export class GatewayClient {
       ? (storedToken ?? undefined)
       : (explicitToken ?? storedToken ?? undefined);
     const canFallbackToShared = useStoredToken && Boolean(explicitToken);
+    const breakGlass = (this.opts.breakGlass ?? process.env.KOLO_BREAK_GLASS ?? "").trim();
     const auth =
       authToken || this.opts.password
         ? {
             token: authToken,
             password: this.opts.password,
+            ...(breakGlass ? { breakGlass: breakGlass.slice(0, 500) } : {}),
           }
         : undefined;
     const signedAtMs = Date.now();

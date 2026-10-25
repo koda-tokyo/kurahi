@@ -77,7 +77,7 @@ export function classifyLicence(expr) {
   return best === 2 ? "copyleft" : best === 1 ? "weak-copyleft" : "ok";
 }
 
-function normaliseNpmLicence(pkg) {
+export function normaliseNpmLicence(pkg) {
   const l = pkg.license ?? pkg.licenses;
   if (!l) {
     return "UNKNOWN";
@@ -119,7 +119,7 @@ function integrityToHash(integrity) {
 }
 
 /** Last resort when package.json has no licence field: recognise the LICENSE file's heading. */
-function sniffLicenceFile(dir) {
+export function sniffLicenceFile(dir) {
   let file;
   try {
     file = fs.readdirSync(dir).find((f) => /^licen[cs]e(\.(md|txt))?$/i.test(f));

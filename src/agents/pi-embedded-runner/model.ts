@@ -1,6 +1,7 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
 import type { KoLoConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.js";
+import { ensureWatsonxApiRegistered, WATSONX_API } from "../../providers/watsonx-chat.js";
 import { resolveKoLoAgentDir } from "../agent-paths.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { normalizeModelCompat } from "../model-compat.js";
@@ -55,6 +56,14 @@ export function buildModelAliasLines(cfg?: KoLoConfig) {
     .map((entry) => `- ${entry.alias}: ${entry.model}`);
 }
 
+/** Adapters Kurahi adds to the model runtime are registered when a model needs them. */
+function withAdapter<T extends { model?: Model<Api> }>(result: T): T {
+  if (result.model?.api === WATSONX_API) {
+    ensureWatsonxApiRegistered();
+  }
+  return result;
+}
+
 export function resolveModel(
   provider: string,
   modelId: string,
@@ -79,11 +88,11 @@ export function resolveModel(
     );
     if (inlineMatch) {
       const normalized = normalizeModelCompat(inlineMatch as Model<Api>);
-      return {
+      return withAdapter({
         model: normalized,
         authStorage,
         modelRegistry,
-      };
+      });
     }
     const providerCfg = providers[provider];
     if (providerCfg || modelId.startsWith("mock-")) {
@@ -99,7 +108,7 @@ export function resolveModel(
         contextWindow: providerCfg?.models?.[0]?.contextWindow ?? DEFAULT_CONTEXT_TOKENS,
         maxTokens: providerCfg?.models?.[0]?.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
       } as Model<Api>);
-      return { model: fallbackModel, authStorage, modelRegistry };
+      return withAdapter({ model: fallbackModel, authStorage, modelRegistry });
     }
     return {
       error: `Unknown model: ${provider}/${modelId}`,
@@ -107,5 +116,5 @@ export function resolveModel(
       modelRegistry,
     };
   }
-  return { model: normalizeModelCompat(model), authStorage, modelRegistry };
+  return withAdapter({ model: normalizeModelCompat(model), authStorage, modelRegistry });
 }

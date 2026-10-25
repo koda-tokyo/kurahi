@@ -151,6 +151,24 @@ only if you trust the network.
 
 See [Tailscale](/gateway/tailscale) for HTTPS setup guidance.
 
+## Security headers
+
+Every Control UI response carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`
+and a `Content-Security-Policy`:
+
+- `frame-ancestors 'none'`: the console cannot be framed by another page.
+- `script-src 'self' 'nonce-…'`: only the console's own bundle and the bootstrap script the
+  gateway injects (a fresh nonce per response); no inline or `eval` script.
+- `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`.
+- Styles from the console, inline styles, and Google Fonts; images from anywhere over HTTP(S)
+  and `data:` / `blob:` (agent avatars); `connect-src` allows `ws:`, `wss:`, `http:` and `https:`
+  so the console can attach to a gateway URL other than its own origin.
+
+Avatar files served under `/avatar/<agentId>` get a sandboxed policy (`default-src 'none';
+sandbox`), so an SVG avatar cannot run script. Canvas and A2UI pages are served by their own
+routes and keep their own headers. A reverse proxy in front of the gateway should pass these
+headers through unchanged.
+
 ## Building the UI
 
 The Gateway serves static files from `dist/control-ui`. Build them with:

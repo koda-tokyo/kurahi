@@ -20,6 +20,7 @@ import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
+import { createWorkitemsIntakeTool } from "./tools/workitems-intake-tool.js";
 
 export function createKoLoTools(options?: {
   sandboxBrowserBridgeUrl?: string;
@@ -71,6 +72,10 @@ export function createKoLoTools(options?: {
   const webFetchTool = createWebFetchTool({
     config: options?.config,
     sandboxed: options?.sandboxed,
+  });
+  // Business work queue: email intake, offered in project sessions only (for that Project).
+  const workitemsIntakeTool = createWorkitemsIntakeTool({
+    agentSessionKey: options?.agentSessionKey,
   });
   const tools: AnyAgentTool[] = [
     createBrowserTool({
@@ -140,6 +145,7 @@ export function createKoLoTools(options?: {
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),
+    ...(workitemsIntakeTool ? [workitemsIntakeTool] : []),
     // M9b: language server tools (diagnostics, definition, references, hover). Inert until used;
     // servers whose command is absent from PATH answer with a one-line notice.
     ...(options?.sandboxed

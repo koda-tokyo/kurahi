@@ -6,6 +6,8 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { auditSafe } from "../audit/audit-log.js";
+import { syncAllAutopilotJobs } from "../autopilot/cron.js";
+import { startGatewayTriggers } from "../autopilot/triggers/gateway.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { createResidentApprovalForwarderDeps } from "../channels/resident/approval-bridge.js";
 import { setChannelApprovalResolver } from "../channels/resident/approvals.js";
@@ -46,6 +48,7 @@ import { getPluginHost, preparePluginSdk } from "../plugins/loader.js";
 import { runOnboardingWizard } from "../wizard/onboarding.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import { ExecApprovalManager } from "./exec-approval-manager.js";
+import { clearGatewayInProcess, markGatewayInProcess } from "./in-process.js";
 import { NodeRegistry } from "./node-registry.js";
 import { setGatewayPluginHost } from "./plugins-http.js";
 import { createChannelManager } from "./server-channels.js";
@@ -247,6 +250,9 @@ export async function startGatewayServer(
     for (const warning of formatLegacyDefaultWarnings(configSnapshot.config)) {
       log.warn(`secure defaults: ${warning}`);
     }
+    // Enterprise identity: config problems, and person principals in work item access policies.
+    const { installIdentityHooks } = await import("../identity/hooks.js");
+    installIdentityHooks({ config: configSnapshot.config, log });
   }
   startupTimer.mark("gates");
 
@@ -466,6 +472,8 @@ export async function startGatewayServer(
     logPlugins,
   });
   startupTimer.mark("http-listen");
+  // Agent tools running in this process call gateway modules directly (gateway/in-process.ts).
+  markGatewayInProcess({ broadcast });
   let bonjourStop: (() => Promise<void>) | null = null;
   const nodeRegistry = new NodeRegistry();
   const nodePresenceTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -594,7 +602,17 @@ export async function startGatewayServer(
   });
   startupTimer.mark("heartbeat+consciousness");
 
-  void cron.start().catch((err) => logCron.error(`failed to start: ${String(err)}`));
+  void cron
+    .start()
+    // Autopilot routines → cron jobs (idempotent; an invalid routines file disables its jobs).
+    .then(() => syncAllAutopilotJobs(cron, { warn: (msg) => logCron.warn(msg) }))
+    .catch((err) => logCron.error(`failed to start: ${String(err)}`));
+  // Autopilot event triggers (mail, work items, deadlines, files): in-process, no model.
+  const autopilotTriggers = startGatewayTriggers({
+    broadcast,
+    cron,
+    log: { warn: (msg) => logCron.warn(msg) },
+  });
 
   // M6: MCP servers connect in the background; each attempt is bounded by its own timeout and
   // supervised with backoff, so a slow or dead server never delays the gateway coming up.
@@ -864,6 +882,8 @@ export async function startGatewayServer(
 
   return {
     close: async (opts) => {
+      clearGatewayInProcess();
+      autopilotTriggers.stop();
       consciousnessHandle.stop();
       if (diagnosticsEnabled) {
         stopDiagnosticHeartbeat();

@@ -318,6 +318,7 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     together: "TOGETHER_API_KEY",
     fireworks: "FIREWORKS_API_KEY",
     "azure-openai": "AZURE_OPENAI_API_KEY",
+    watsonx: "WATSONX_AI_APIKEY",
   };
   const envVar = envMap[normalized];
   if (!envVar) {

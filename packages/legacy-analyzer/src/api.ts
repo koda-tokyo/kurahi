@@ -4,6 +4,13 @@
 
 import type { LegacyIndex } from "./types.js";
 import { cacheFileFor, loadFreshIndex, resolveCacheDir, saveIndex, writeInCache } from "./cache.js";
+import {
+  buildSnapshot,
+  compareSnapshots,
+  readSnapshot,
+  type Snapshot,
+  writeSnapshot,
+} from "./changes.js";
 import { type DesignDocOptions, designDoc } from "./design-doc.js";
 import { dictionary } from "./dictionary.js";
 import { type DocLang } from "./doc-i18n.js";
@@ -109,6 +116,92 @@ export function legacyWavePlan(root: string, lang: DocLang | undefined, env: Leg
       })),
     })),
     markdown,
+  };
+}
+
+export const CHANGES_LIMIT = { default: 40, max: 200 };
+
+/**
+ * What changed since the baseline. First run (no baseline): the baseline is created from the
+ * current sources and nothing is reported as a change. Every run also stores the snapshot it
+ * compared as the candidate that legacyBaselineAdvance promotes.
+ */
+export function legacyChanges(
+  root: string,
+  opts: { limit?: number },
+  env: LegacyEnv & { now?: () => Date },
+) {
+  const index = getIndex(root, env).index;
+  const cacheDir = resolveCacheDir(root, env.stateDir);
+  const now = env.now?.() ?? new Date();
+  const current = buildSnapshot(index, analyseProject(index), now);
+  const limit = Math.max(
+    1,
+    Math.min(CHANGES_LIMIT.max, Math.floor(opts.limit ?? CHANGES_LIMIT.default)),
+  );
+  const baseline = readSnapshot(cacheDir, root, "baseline");
+  writeSnapshot(cacheDir, root, "candidate", current);
+  if (!baseline) {
+    const savedTo = writeSnapshot(cacheDir, root, "baseline", current);
+    return {
+      status: "baseline_created" as const,
+      note: "No baseline existed: it was created from the current sources. Nothing is reported as a change; the next run compares against it.",
+      baseline: { digest: current.digest, createdAt: current.createdAt, savedTo },
+      current: { digest: current.digest },
+      totals: current.totals,
+    };
+  }
+  const report = compareSnapshots(baseline, current, limit);
+  return {
+    status: report.total === 0 ? ("unchanged" as const) : ("changed" as const),
+    note:
+      report.total === 0
+        ? "No change since the baseline."
+        : "Changes since the baseline, from the fact index. Counts are complete; the lists are bounded (see omitted).",
+    baseline: { digest: baseline.digest, createdAt: baseline.createdAt },
+    current: { digest: current.digest },
+    totals: current.totals,
+    ...report,
+  };
+}
+
+/**
+ * Move the baseline forward. By default to the candidate the last legacyChanges compared (when
+ * `snapshot` is given it must be that candidate's digest); with `rebuild` to the current sources
+ * (a person resetting the baseline).
+ */
+export function legacyBaselineAdvance(
+  root: string,
+  opts: { snapshot?: string; rebuild?: boolean },
+  env: LegacyEnv & { now?: () => Date },
+) {
+  const cacheDir = resolveCacheDir(root, env.stateDir);
+  const previous = readSnapshot(cacheDir, root, "baseline");
+  let next: Snapshot;
+  if (opts.rebuild) {
+    const index = getIndex(root, env).index;
+    next = buildSnapshot(index, analyseProject(index), env.now?.() ?? new Date());
+  } else {
+    const candidate = readSnapshot(cacheDir, root, "candidate");
+    if (!candidate) {
+      throw new Error(
+        "No compared snapshot to advance to: run legacy_changes first (or pass rebuild: true to set the baseline from the current sources).",
+      );
+    }
+    if (opts.snapshot && opts.snapshot !== candidate.digest) {
+      throw new Error(
+        `The last compared snapshot is ${candidate.digest}, not ${opts.snapshot}: legacy_changes ran again since. Run it again and advance to what it reports.`,
+      );
+    }
+    next = candidate;
+  }
+  const unchanged = previous?.digest === next.digest;
+  const savedTo = writeSnapshot(cacheDir, root, "baseline", next);
+  return {
+    status: unchanged ? ("unchanged" as const) : ("advanced" as const),
+    previous: previous ? { digest: previous.digest, createdAt: previous.createdAt } : null,
+    baseline: { digest: next.digest, createdAt: next.createdAt, savedTo },
+    totals: next.totals,
   };
 }
 

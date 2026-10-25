@@ -72,7 +72,7 @@ export class KoloClient extends KoloClientBase {
 
   /**
    * GET /api/audit/chain — Verify the local hash-chained audit log and read its head
-   * Auth: gatewayToken | pairToken.
+   * Auth: gatewayToken | pairToken | ssoSession.
    */
   getAuditChain(params?: T.GetAuditChainParams, options?: RequestOptions): Promise<T.GetAuditChainResponse> {
     return this.request("getAuditChain", { params, ...options });
@@ -207,6 +207,70 @@ export class KoloClient extends KoloClientBase {
   }
 
   /**
+   * POST /api/identity/logout — End the SSO session (and get the IdP logout URL for OIDC)
+   * Auth: ssoSession.
+   */
+  logoutIdentity(options?: RequestOptions): Promise<T.LogoutIdentityResponse> {
+    return this.request("logoutIdentity", { ...options });
+  }
+
+  /**
+   * GET /api/identity/session — The signed-in person, roles and session expiry
+   * Auth: ssoSession.
+   */
+  getIdentitySession(options?: RequestOptions): Promise<T.GetIdentitySessionResponse> {
+    return this.request("getIdentitySession", { ...options });
+  }
+
+  /**
+   * GET /api/identity/sso — SSO providers the console offers, and whether SSO is required
+   * Auth: none.
+   */
+  getSsoConfig(options?: RequestOptions): Promise<T.GetSsoConfigResponse> {
+    return this.request("getSsoConfig", { ...options });
+  }
+
+  /**
+   * POST /api/identity/sso/exchange — Exchange the sign-in's one-time code for the session token
+   * Auth: none.
+   */
+  exchangeSsoCode(body: T.ExchangeSsoCodeBody, options?: RequestOptions): Promise<T.ExchangeSsoCodeResponse> {
+    return this.request("exchangeSsoCode", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/sso/{provider}/acs — SAML assertion consumer service (HTTP-POST binding)
+   * Auth: none.
+   */
+  samlAcs(body: T.SamlAcsBody, params: T.SamlAcsParams, options?: RequestOptions): Promise<T.SamlAcsResponse> {
+    return this.request("samlAcs", { params, body, ...options });
+  }
+
+  /**
+   * GET /api/identity/sso/{provider}/callback — OIDC redirect URI (authorization code callback)
+   * Auth: none.
+   */
+  ssoCallback(params: T.SsoCallbackParams, options?: RequestOptions): Promise<T.SsoCallbackResponse> {
+    return this.request("ssoCallback", { params, ...options });
+  }
+
+  /**
+   * GET /api/identity/sso/{provider}/login — Start a sign-in (redirect to the identity provider)
+   * Auth: none.
+   */
+  startSsoLogin(params: T.StartSsoLoginParams, options?: RequestOptions): Promise<T.StartSsoLoginResponse> {
+    return this.request("startSsoLogin", { params, ...options });
+  }
+
+  /**
+   * GET /api/identity/sso/{provider}/metadata — SAML service provider metadata (entity id, ACS URL)
+   * Auth: none.
+   */
+  getSamlMetadata(params: T.GetSamlMetadataParams, options?: RequestOptions): Promise<T.GetSamlMetadataResponse> {
+    return this.request("getSamlMetadata", { params, ...options });
+  }
+
+  /**
    * GET /api/jobs — List agent-run jobs (newest first)
    * Auth: gatewayToken | adminSession.
    */
@@ -232,7 +296,7 @@ export class KoloClient extends KoloClientBase {
 
   /**
    * GET /api/jobs/{id}/evidence — Evidence summary and signed manifest of one job
-   * Auth: gatewayToken | pairToken | adminSession.
+   * Auth: gatewayToken | pairToken | adminSession | ssoSession.
    */
   getJobEvidence(params: T.GetJobEvidenceParams, options?: RequestOptions): Promise<T.GetJobEvidenceResponse> {
     return this.request("getJobEvidence", { params, ...options });
@@ -240,7 +304,7 @@ export class KoloClient extends KoloClientBase {
 
   /**
    * GET /api/jobs/{id}/evidence/events — Page through a job's evidence events
-   * Auth: gatewayToken | pairToken | adminSession.
+   * Auth: gatewayToken | pairToken | adminSession | ssoSession.
    */
   listJobEvidenceEvents(params: T.ListJobEvidenceEventsParams, options?: RequestOptions): Promise<T.ListJobEvidenceEventsResponse> {
     return this.request("listJobEvidenceEvents", { params, ...options });
@@ -248,7 +312,7 @@ export class KoloClient extends KoloClientBase {
 
   /**
    * POST /api/jobs/{id}/evidence/export — Write a signed evidence bundle for a finished job
-   * Auth: gatewayToken | pairToken | adminSession.
+   * Auth: gatewayToken | pairToken | adminSession | ssoSession.
    */
   exportJobEvidence(body: T.ExportJobEvidenceBody, params: T.ExportJobEvidenceParams, options?: RequestOptions): Promise<T.ExportJobEvidenceResponse> {
     return this.request("exportJobEvidence", { params, body, ...options });
@@ -448,7 +512,7 @@ export class KoloClient extends KoloClientBase {
 
   /**
    * GET /evidence/{id} — Read-only HTML timeline of a job's evidence
-   * Auth: gatewayToken | pairToken | adminSession.
+   * Auth: gatewayToken | pairToken | adminSession | ssoSession.
    */
   getEvidenceView(params: T.GetEvidenceViewParams, options?: RequestOptions): Promise<T.GetEvidenceViewResponse> {
     return this.request("getEvidenceView", { params, ...options });
@@ -500,6 +564,126 @@ export class KoloClient extends KoloClientBase {
    */
   getMetrics(options?: RequestOptions): Promise<T.GetMetricsResponse> {
     return this.request("getMetrics", { ...options });
+  }
+
+  /**
+   * GET /scim/v2/Groups — List groups (filter displayName eq / externalId eq)
+   * Auth: scimToken.
+   */
+  listScimGroups(params?: T.ListScimGroupsParams, options?: RequestOptions): Promise<T.ListScimGroupsResponse> {
+    return this.request("listScimGroups", { params, ...options });
+  }
+
+  /**
+   * POST /scim/v2/Groups — Provision a group
+   * Auth: scimToken.
+   */
+  createScimGroup(body: T.CreateScimGroupBody, options?: RequestOptions): Promise<T.CreateScimGroupResponse> {
+    return this.request("createScimGroup", { body, ...options });
+  }
+
+  /**
+   * GET /scim/v2/Groups/{id} — Read a group
+   * Auth: scimToken.
+   */
+  getScimGroup(params: T.GetScimGroupParams, options?: RequestOptions): Promise<T.GetScimGroupResponse> {
+    return this.request("getScimGroup", { params, ...options });
+  }
+
+  /**
+   * PUT /scim/v2/Groups/{id} — Replace a group
+   * Auth: scimToken.
+   */
+  replaceScimGroup(body: T.ReplaceScimGroupBody, params: T.ReplaceScimGroupParams, options?: RequestOptions): Promise<T.ReplaceScimGroupResponse> {
+    return this.request("replaceScimGroup", { params, body, ...options });
+  }
+
+  /**
+   * DELETE /scim/v2/Groups/{id} — Delete a group
+   * Auth: scimToken.
+   */
+  deleteScimGroup(params: T.DeleteScimGroupParams, options?: RequestOptions): Promise<T.DeleteScimGroupResponse> {
+    return this.request("deleteScimGroup", { params, ...options });
+  }
+
+  /**
+   * PATCH /scim/v2/Groups/{id} — Patch a group (members add / remove)
+   * Auth: scimToken.
+   */
+  patchScimGroup(body: T.PatchScimGroupBody, params: T.PatchScimGroupParams, options?: RequestOptions): Promise<T.PatchScimGroupResponse> {
+    return this.request("patchScimGroup", { params, body, ...options });
+  }
+
+  /**
+   * GET /scim/v2/ResourceTypes — SCIM resource types
+   * Auth: scimToken.
+   */
+  listScimResourceTypes(options?: RequestOptions): Promise<T.ListScimResourceTypesResponse> {
+    return this.request("listScimResourceTypes", { ...options });
+  }
+
+  /**
+   * GET /scim/v2/Schemas — SCIM schemas
+   * Auth: scimToken.
+   */
+  listScimSchemas(options?: RequestOptions): Promise<T.ListScimSchemasResponse> {
+    return this.request("listScimSchemas", { ...options });
+  }
+
+  /**
+   * GET /scim/v2/ServiceProviderConfig — SCIM service provider configuration
+   * Auth: scimToken.
+   */
+  getScimServiceProviderConfig(options?: RequestOptions): Promise<T.GetScimServiceProviderConfigResponse> {
+    return this.request("getScimServiceProviderConfig", { ...options });
+  }
+
+  /**
+   * GET /scim/v2/Users — List users (filter userName eq / externalId eq)
+   * Auth: scimToken.
+   */
+  listScimUsers(params?: T.ListScimUsersParams, options?: RequestOptions): Promise<T.ListScimUsersResponse> {
+    return this.request("listScimUsers", { params, ...options });
+  }
+
+  /**
+   * POST /scim/v2/Users — Provision a user
+   * Auth: scimToken.
+   */
+  createScimUser(body: T.CreateScimUserBody, options?: RequestOptions): Promise<T.CreateScimUserResponse> {
+    return this.request("createScimUser", { body, ...options });
+  }
+
+  /**
+   * GET /scim/v2/Users/{id} — Read a user
+   * Auth: scimToken.
+   */
+  getScimUser(params: T.GetScimUserParams, options?: RequestOptions): Promise<T.GetScimUserResponse> {
+    return this.request("getScimUser", { params, ...options });
+  }
+
+  /**
+   * PUT /scim/v2/Users/{id} — Replace a user
+   * Auth: scimToken.
+   */
+  replaceScimUser(body: T.ReplaceScimUserBody, params: T.ReplaceScimUserParams, options?: RequestOptions): Promise<T.ReplaceScimUserResponse> {
+    return this.request("replaceScimUser", { params, body, ...options });
+  }
+
+  /**
+   * DELETE /scim/v2/Users/{id} — Delete a user (ends sessions)
+   * Auth: scimToken.
+   */
+  deleteScimUser(params: T.DeleteScimUserParams, options?: RequestOptions): Promise<T.DeleteScimUserResponse> {
+    return this.request("deleteScimUser", { params, ...options });
+  }
+
+  /**
+   * PATCH /scim/v2/Users/{id} — Patch a user (active: false deprovisions)
+   * Auth: scimToken.
+   */
+  patchScimUser(body: T.PatchScimUserBody, params: T.PatchScimUserParams, options?: RequestOptions): Promise<T.PatchScimUserResponse> {
+    return this.request("patchScimUser", { params, body, ...options });
   }
 
   /**

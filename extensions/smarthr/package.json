@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/smarthr",
+  "version": "2.2.0",
+  "description": "SmartHR business connector: employees (work fields only) and departments, read-only",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

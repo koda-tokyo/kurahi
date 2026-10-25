@@ -4,11 +4,19 @@
 // a history entry naming that bundle, bumps the revision, and then appends an audit entry.
 
 import type { Project } from "../projects/types.js";
-import type { Actor, WorkItem, WorkItemStatus, WorkItemType } from "./types.js";
+import type {
+  Actor,
+  WorkItem,
+  WorkItemFlag,
+  WorkItemOrigin,
+  WorkItemStatus,
+  WorkItemType,
+} from "./types.js";
 import { auditSafe } from "../audit/audit-log.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { getArtifact } from "../projects/artifacts.js";
 import { writeTransitionEvidence } from "./evidence.js";
+import { assertNoFraudFlag } from "./flags.js";
 import {
   cleanDocuments,
   cleanDueAt,
@@ -19,6 +27,7 @@ import {
   resolveQueue,
 } from "./inputs.js";
 import { evaluatePolicy, loadWorkQueuePolicy } from "./policy.js";
+import { startRoute, syncRouteApprovals } from "./routes.js";
 import { insertWorkItem, mutateWorkItem, newWorkItemId } from "./store.js";
 import {
   TERMINAL_STATUSES,
@@ -110,6 +119,19 @@ export function recheck(project: Project, item: WorkItem, now: Date, home: strin
   const { checks, requiredApprovals } = evaluatePolicy(policy, item, draft, now);
   item.checks = checks;
   item.requiredApprovals = requiredApprovals;
+  syncRouteApprovals(item);
+  return item;
+}
+
+/** Rebuild the approval route from the current policy; activate stage 1 when in review. */
+export function restartRoute(
+  project: Project,
+  item: WorkItem,
+  now: Date,
+  home: string,
+  activate: boolean,
+): WorkItem {
+  startRoute(item, loadWorkQueuePolicy(project, home), now, activate);
   return item;
 }
 
@@ -133,11 +155,23 @@ export type CreateInput = {
   assignee?: unknown;
 };
 
+/**
+ * Already-cleaned extras set only in process: by email intake (intake.ts) and by the autopilot
+ * engine (src/autopilot/workitems-adapter.ts, flags it raised); never by workitems.create.
+ */
+export type CreateExtras = {
+  origin?: WorkItemOrigin;
+  summary?: string;
+  flags?: WorkItemFlag[];
+  flagReason?: string;
+};
+
 export function createWorkItem(
   project: Project,
   input: CreateInput,
   actor: Actor,
   opts: LifecycleOpts = {},
+  extras: CreateExtras = {},
 ): WorkItem {
   if (project.archived) {
     throw new Error("project is archived");
@@ -169,6 +203,7 @@ export function createWorkItem(
     source: {
       documents: cleanDocuments(input.source?.documents, project, home),
       fields: cleanFields(input.source?.fields),
+      ...(extras.origin ? { origin: extras.origin } : {}),
     },
     status: "new",
     assignee: input.assignee !== undefined ? cleanPersonAssignee(input.assignee) : null,
@@ -188,10 +223,17 @@ export function createWorkItem(
     lastError: null,
     createdAt: now.toISOString(),
     createdBy: actor.id,
+    requestedBy: actor.id,
+    route: null,
+    ...(extras.summary ? { summary: extras.summary } : {}),
+    ...(extras.flags?.length
+      ? { flags: extras.flags, ...(extras.flagReason ? { flagReason: extras.flagReason } : {}) }
+      : {}),
     updatedAt: now.toISOString(),
     revision: 0,
   };
   recheck(project, item, now, home);
+  startRoute(item, policy, now, false);
   insertWorkItem(item, home);
   return applyTransition(
     project,
@@ -202,7 +244,23 @@ export function createWorkItem(
       spec: {
         action: "create",
         actor,
-        detail: { queue: cur.queue, type: cur.type, title: cur.title, checks: checkSummary(cur) },
+        detail: {
+          queue: cur.queue,
+          type: cur.type,
+          title: cur.title,
+          checks: checkSummary(cur),
+          // Reference ids only: the message itself stays in the mailbox.
+          ...(cur.source.origin
+            ? {
+                origin: {
+                  kind: cur.source.origin.kind,
+                  connector: cur.source.origin.connector,
+                  messageId: cur.source.origin.messageId,
+                },
+              }
+            : {}),
+          ...(cur.flags?.length ? { flags: cur.flags } : {}),
+        },
       },
     }),
     { ...opts, now },
@@ -221,6 +279,7 @@ const UPDATABLE = new Set([
   "status",
 ]);
 const DECISION_KEYS = new Set(["decision", "approvals", "override", "checks", "history", "runIds"]);
+const FLAG_KEYS = new Set(["flags", "flagReason", "flagClearances"]);
 
 /** Update non-decision fields. `status` only allows submit (→ awaiting_review) and done. */
 export function updateWorkItem(
@@ -235,6 +294,11 @@ export function updateWorkItem(
     throw new Error("project is archived");
   }
   for (const k of Object.keys(patch)) {
+    if (FLAG_KEYS.has(k)) {
+      throw new Error(
+        `${k} cannot be changed with workitems.update; a person uses workitems.clearFlag`,
+      );
+    }
     if (DECISION_KEYS.has(k)) {
       throw new Error(`${k} cannot be changed with workitems.update; use workitems.decide`);
     }
@@ -327,6 +391,7 @@ export function updateWorkItem(
         if (want === "awaiting_review" && ["new", "sent_back"].includes(cur.status)) {
           to = "awaiting_review";
         } else if (want === "done" && cur.status === "approved") {
+          assertNoFraudFlag(cur, "completed");
           to = "done";
         } else if (want !== cur.status) {
           throw new Error(
@@ -340,6 +405,7 @@ export function updateWorkItem(
         cur.approvals = [];
         cur.override = null;
         recheck(project, cur, now, home);
+        startRoute(cur, policy, now, (to ?? cur.status) === "awaiting_review");
       }
       const action = to === "done" ? "done" : to === "awaiting_review" ? "submit" : "update";
       return {

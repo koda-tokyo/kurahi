@@ -14,6 +14,8 @@
  *   - Message rate limiting: max 30 messages/sec per client (post-handshake)
  */
 
+import { resolveRequestClientAddress } from "./net.js";
+
 // ── Per-path HTTP limit classes (also described in the OpenAPI document, M4a) ─────────────
 
 export const HTTP_RATE_LIMITS = {
@@ -90,6 +92,23 @@ class SlidingWindow {
     return { allowed: true, remaining: limit - entry.count, retryAfterMs: 0 };
   }
 
+  /** Give back one counted request in the current window (never below zero). */
+  refund(key: string, windowMs?: number): void {
+    const entry = this.windows.get(key);
+    if (
+      entry &&
+      entry.count > 0 &&
+      Date.now() - entry.windowStart < (windowMs ?? this.defaultWindowMs)
+    ) {
+      entry.count--;
+    }
+  }
+
+  /** Drop every window (tests). */
+  clear(): void {
+    this.windows.clear();
+  }
+
   /** Prune expired windows (call periodically to prevent memory growth). */
   prune(): void {
     const now = Date.now();
@@ -133,11 +152,17 @@ const pruneInterval = setInterval(() => {
 }, 5 * 60_000);
 
 // Allow the process to exit cleanly
-if (pruneInterval.unref) pruneInterval.unref();
+if (pruneInterval.unref) {
+  pruneInterval.unref();
+}
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-/** Extract client IP from request (respecting X-Forwarded-For from trusted proxy). */
+/**
+ * Client IP for the limiter key: the shared gateway resolver (X-Forwarded-For only from trusted
+ * proxies, walked from the right), so a client cannot pick a fresh key per request by writing
+ * its own leftmost X-Forwarded-For entry.
+ */
 function getClientIp(
   req: {
     socket?: { remoteAddress?: string };
@@ -145,14 +170,7 @@ function getClientIp(
   },
   trustedProxies: string[] = ["127.0.0.1"],
 ): string {
-  const forwarded = req.headers?.["x-forwarded-for"];
-  if (forwarded) {
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(",")[0]?.trim();
-    if (first && trustedProxies.includes(req.socket?.remoteAddress ?? "")) {
-      return first;
-    }
-  }
-  return req.socket?.remoteAddress ?? "unknown";
+  return resolveRequestClientAddress(req, trustedProxies).ip ?? "unknown";
 }
 
 /**
@@ -172,7 +190,7 @@ export function checkHttpRateLimit(
   },
   trustedProxies: string[] = ["127.0.0.1"],
 ): boolean {
-  const ip = getClientIp(req as any, trustedProxies);
+  const ip = getClientIp(req, trustedProxies);
   const url = req.url ?? "";
 
   // Select limiter based on URL
@@ -244,6 +262,26 @@ export function decideWsConnectionRateLimit(
   };
 }
 
+/**
+ * Give an authenticated connection's slot back. Called once the handshake has passed every auth
+ * gate (hello-ok): each handshake that succeeds carries a credential (token, password, device
+ * token, pairing credential, SSO session or a verified Tailscale identity), so a client that
+ * authenticates every time (agent tools and the CLI open one connection per gateway call) is
+ * never throttled, while unauthenticated or failing handshakes keep counting against the
+ * address. This deliberately does not trust "same machine": behind a same-host reverse proxy,
+ * SSH tunnel or socat forward, remote clients arrive from loopback with Host: localhost.
+ * Use the same `req` and `trustedProxies` as the upgrade-time decision so the same key is refunded.
+ */
+export function refundWsConnectionSlot(
+  req: {
+    socket?: { remoteAddress?: string };
+    headers?: Record<string, string | string[] | undefined>;
+  },
+  trustedProxies: string[] = ["127.0.0.1"],
+): void {
+  wsConnLimiter.refund(getClientIp(req, trustedProxies));
+}
+
 export function checkWsConnectionRateLimit(
   req: {
     socket?: { remoteAddress?: string };
@@ -256,7 +294,7 @@ export function checkWsConnectionRateLimit(
 
   if (!result.allowed) {
     // Destroy the socket to reject the connection
-    const socket = (req as any).socket;
+    const socket = req.socket as { destroy?: () => void } | undefined;
     if (socket && typeof socket.destroy === "function") {
       socket.destroy();
     }
@@ -295,11 +333,11 @@ export function resetRateLimiters(): void {
   llmLimiter.prune();
   wsConnLimiter.prune();
   // Clear all windows
-  (httpLimiter as any).windows.clear();
-  (authLimiter as any).windows.clear();
-  (llmLimiter as any).windows.clear();
-  (wsConnLimiter as any).windows.clear();
-  (wsRejectNoticeLimiter as any).windows.clear();
+  httpLimiter.clear();
+  authLimiter.clear();
+  llmLimiter.clear();
+  wsConnLimiter.clear();
+  wsRejectNoticeLimiter.clear();
   authAttemptLimiter.reset();
 }
 
@@ -390,7 +428,9 @@ export class AuthAttemptLimiter {
 export const authAttemptLimiter = new AuthAttemptLimiter();
 
 const authAttemptPrune = setInterval(() => authAttemptLimiter.prune(), 5 * 60_000);
-if (authAttemptPrune.unref) authAttemptPrune.unref();
+if (authAttemptPrune.unref) {
+  authAttemptPrune.unref();
+}
 
 /** Paths whose requests carry or establish credentials. */
 export function isAuthBearingPath(pathname: string): boolean {

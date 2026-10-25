@@ -94,6 +94,7 @@ export type ProjectFile = {
 };
 
 export type ProjectView =
+  | "autopilot"
   | "business"
   | "terminal"
   | "chat"
@@ -107,6 +108,7 @@ export type ProjectView =
 
 export const PROJECT_VIEWS: ProjectView[] = [
   "chat",
+  "autopilot",
   "files",
   "artifacts",
   "pack",
@@ -233,15 +235,13 @@ export async function loadProjects(host: Host) {
   patch(host, { loading: true, error: null });
   try {
     const [listResult, templatesResult] = await Promise.allSettled([
-      host.client.request("projects.list", {
+      host.client.request<{ projects?: Project[] }>("projects.list", {
         includeArchived: host.projects.showArchived,
-      }) as Promise<{
-        projects?: Project[];
-      }>,
-      host.client.request("projects.templates", {}) as Promise<{
-        templates?: ProjectTemplate[];
-        terminalProfiles?: TerminalProfile[];
-      }>,
+      }),
+      host.client.request<{ templates?: ProjectTemplate[]; terminalProfiles?: TerminalProfile[] }>(
+        "projects.templates",
+        {},
+      ),
     ]);
     const list = listResult.status === "fulfilled" ? listResult.value : null;
     const tpl = templatesResult.status === "fulfilled" ? templatesResult.value : null;
@@ -275,7 +275,7 @@ export async function loadProjectFiles(host: Host) {
     return;
   }
   try {
-    const res = (await host.client.request("projects.files", { id })) as { files?: ProjectFile[] };
+    const res = await host.client.request<{ files?: ProjectFile[] }>("projects.files", { id });
     patch(host, { files: res?.files ?? [], filesError: null });
   } catch (err) {
     patch(host, { files: [], filesError: String(err) });
@@ -289,12 +289,12 @@ export async function createProjectFromForm(host: Host): Promise<Project | null>
   const f = host.projects.form;
   patch(host, { busy: true, formError: null });
   try {
-    const res = (await host.client.request("projects.create", {
+    const res = await host.client.request<{ project?: Project }>("projects.create", {
       name: f.name,
       folder: f.folder,
       templateId: f.templateId ?? undefined,
       allowedAgents: parseAgentList(f.agents),
-    })) as { project?: Project };
+    });
     const project = res?.project ?? null;
     patch(host, {
       busy: false,
@@ -330,14 +330,17 @@ export async function newProjectChatKey(
   host: Host,
   projectId: string,
   agentId?: string,
+  departmentId?: string,
 ): Promise<string | null> {
   if (!host.client || !host.connected) {
     return null;
   }
   try {
-    const res = (await host.client.request("projects.chatKey", { id: projectId, agentId })) as {
-      sessionKey?: string;
-    };
+    const res = await host.client.request<{ sessionKey?: string }>("projects.chatKey", {
+      id: projectId,
+      agentId,
+      ...(departmentId ? { departmentId } : {}),
+    });
     return res?.sessionKey ?? null;
   } catch (err) {
     patch(host, { error: String(err) });
@@ -351,7 +354,7 @@ export async function loadProjectPack(host: Host) {
     return;
   }
   try {
-    const res = (await host.client.request("projects.pack", { id })) as ProjectPack;
+    const res = await host.client.request<ProjectPack>("projects.pack", { id });
     patch(host, { pack: res, filesError: null });
   } catch (err) {
     patch(host, { pack: null, filesError: String(err) });
@@ -365,9 +368,7 @@ export async function changeProjectMode(host: Host, id: string, mode: ProjectMod
   }
   patch(host, { busy: true, error: null });
   try {
-    const res = (await host.client.request("projects.setMode", { id, mode })) as {
-      project: Project;
-    };
+    const res = await host.client.request<{ project: Project }>("projects.setMode", { id, mode });
     patch(host, {
       busy: false,
       projects: host.projects.projects.map((p) => (p.id === id ? res.project : p)),

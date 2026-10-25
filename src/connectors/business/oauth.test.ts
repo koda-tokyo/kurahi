@@ -8,6 +8,8 @@ import {
   type OAuthClientConfig,
   pkceChallenge,
   pollDeviceToken,
+  refreshAccessToken,
+  revokeToken,
   startDeviceAuthorization,
 } from "./oauth.js";
 import { jsonResponse, MemorySecretStore, mockFetch, noSleep, on, queue } from "./test-helpers.js";
@@ -253,5 +255,62 @@ describe("token refresh", () => {
 
     const empty = new ConnectorTokenStore("gmail", () => new MemorySecretStore());
     await expect(getValidToken(empty, client)).rejects.toMatchObject({ code: "not_authenticated" });
+  });
+});
+
+describe("confidential clients", () => {
+  const confidential: OAuthClientConfig = {
+    clientId: "client id",
+    clientSecret: "s3cr:et",
+    endpoints: {
+      authorizeUrl: "https://auth.example.test/authorize",
+      tokenUrl: "https://auth.example.test/token",
+      revokeUrl: "https://auth.example.test/revoke",
+    },
+    scopes: [],
+    clientAuth: "basic",
+    revokeWithClient: true,
+  };
+
+  it("omits an empty scope and sends HTTP Basic client credentials (RFC 6749 2.3.1)", async () => {
+    const url = new URL(
+      buildAuthorizeUrl(confidential, {
+        redirectUri: "http://127.0.0.1:1/cb",
+        state: "s",
+        challenge: "c",
+      }),
+    );
+    expect(url.searchParams.has("scope")).toBe(false);
+    const fetch = mockFetch([
+      on("POST", confidential.endpoints.tokenUrl, () =>
+        jsonResponse({ access_token: "at", refresh_token: "rt2", expires_in: 3600, scope: "read" }),
+      ),
+      on("POST", confidential.endpoints.revokeUrl!, () => new Response(null, { status: 200 })),
+    ]);
+    const t = await refreshAccessToken(confidential, "rt1", { fetch, sleep: noSleep });
+    expect(t.refreshToken).toBe("rt2");
+    const call = fetch.calls[0];
+    expect(call.headers.authorization).toBe(
+      `Basic ${Buffer.from("client%20id:s3cr%3Aet").toString("base64")}`,
+    );
+    const form = new URLSearchParams(call.body);
+    expect(form.has("client_secret")).toBe(false);
+    expect(form.has("scope")).toBe(false);
+    expect(await revokeToken(confidential, "rt2", { fetch, sleep: noSleep })).toBe(true);
+    expect(new URLSearchParams(fetch.calls[1].body).get("token")).toBe("rt2");
+    expect(fetch.calls[1].headers.authorization).toMatch(/^Basic /);
+  });
+
+  it("posts the secret in the form by default", async () => {
+    const fetch = mockFetch([
+      on("POST", confidential.endpoints.tokenUrl, () => jsonResponse({ access_token: "at" })),
+      on("POST", confidential.endpoints.revokeUrl!, () => new Response(null, { status: 200 })),
+    ]);
+    const post = { ...confidential, clientAuth: undefined };
+    await refreshAccessToken(post, "rt1", { fetch, sleep: noSleep });
+    expect(fetch.calls[0].headers.authorization).toBeUndefined();
+    expect(new URLSearchParams(fetch.calls[0].body).get("client_secret")).toBe("s3cr:et");
+    await revokeToken(post, "rt1", { fetch, sleep: noSleep });
+    expect(new URLSearchParams(fetch.calls[1].body).get("client_id")).toBe("client id");
   });
 });

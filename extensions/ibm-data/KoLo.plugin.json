@@ -1,0 +1,98 @@
+{
+  "id": "ibm-data",
+  "name": "IBM data (watsonx.data, Db2)",
+  "description": "Read-only data tools: one SQL statement on a watsonx.data Presto or Trino engine (catalog and schema allowlist, SELECT-only guard, row and byte limits), and allowlisted Db2 REST services (Db2 for z/OS native REST, Db2 LUW REST server). Off by default; results are untrusted content; audit rows carry ids and counts only.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "watsonxData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "password", "catalogs"],
+        "properties": {
+          "url": { "type": "string", "description": "Engine URL, https://<host>:<port>." },
+          "dialect": { "type": "string", "enum": ["presto", "trino"], "default": "presto" },
+          "auth": { "type": "string", "enum": ["basic", "bearer"], "default": "basic" },
+          "user": { "type": "string", "default": "ibmlhapikey" },
+          "password": {
+            "type": "string",
+            "description": "API key, password or bearer token. Use a secret reference."
+          },
+          "catalogs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "schemas"],
+              "properties": {
+                "name": { "type": "string" },
+                "schemas": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "maxRows": { "type": "integer", "minimum": 1, "maximum": 5000 },
+          "maxBytes": { "type": "integer", "minimum": 4096 },
+          "timeoutMs": { "type": "integer", "minimum": 1000 }
+        }
+      },
+      "db2": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "kind", "url", "user", "password"],
+              "properties": {
+                "id": { "type": "string" },
+                "kind": { "type": "string", "enum": ["zos", "luw"] },
+                "url": { "type": "string" },
+                "user": { "type": "string" },
+                "password": { "type": "string", "description": "Use a secret reference." },
+                "database": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["host", "name", "port"],
+                  "properties": {
+                    "host": { "type": "string" },
+                    "name": { "type": "string" },
+                    "port": { "type": "integer" },
+                    "ssl": { "type": "boolean", "default": true }
+                  }
+                }
+              }
+            }
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "connection", "service", "description"],
+              "properties": {
+                "name": { "type": "string" },
+                "connection": { "type": "string" },
+                "collection": { "type": "string" },
+                "service": { "type": "string" },
+                "version": { "type": "string" },
+                "description": { "type": "string" },
+                "parameters": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "maxRows": { "type": "integer", "minimum": 1, "maximum": 5000 },
+          "maxBytes": { "type": "integer", "minimum": 4096 },
+          "timeoutMs": { "type": "integer", "minimum": 1000 }
+        }
+      }
+    }
+  },
+  "uiHints": {
+    "watsonxData.password": { "label": "watsonx.data API key or password", "sensitive": true },
+    "db2.connections": { "label": "Db2 REST connections" },
+    "db2.services": { "label": "Db2 REST services the model may call" }
+  }
+}

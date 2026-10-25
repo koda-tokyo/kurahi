@@ -1,0 +1,28 @@
+{
+  "header": { "type": "esearch", "version": "0.3" },
+  "esearchresult": {
+    "count": "766",
+    "retmax": "2",
+    "retstart": "0",
+    "idlist": ["42918625", "42915305"],
+    "translationset": [
+      {
+        "from": "retrieval",
+        "to": "\"retrievability\"[All Fields] OR \"retrievable\"[All Fields] OR \"retrieval\"[All Fields] OR \"retrievals\"[All Fields] OR \"retrieve\"[All Fields] OR \"retrieved\"[All Fields] OR \"retrieves\"[All Fields] OR \"retrieving\"[All Fields]"
+      },
+      {
+        "from": "augmented",
+        "to": "\"augment\"[All Fields] OR \"augmentation\"[All Fields] OR \"augmentations\"[All Fields] OR \"augmented\"[All Fields] OR \"augmenting\"[All Fields] OR \"augments\"[All Fields]"
+      },
+      {
+        "from": "generation",
+        "to": "\"drugs, generic\"[Supplementary Concept] OR \"drugs, generic\"[All Fields] OR \"generic\"[All Fields] OR \"drugs, generic\"[MeSH Terms] OR (\"drugs\"[All Fields] AND \"generic\"[All Fields]) OR \"generic drugs\"[All Fields] OR \"family characteristics\"[MeSH Terms] OR (\"family\"[All Fields] AND \"characteristics\"[All Fields]) OR \"family characteristics\"[All Fields] OR \"generation\"[All Fields] OR \"generations\"[All Fields] OR \"general\"[All Fields] OR \"general's\"[All Fields] OR \"generalisability\"[All Fields] OR \"generalisable\"[All Fields] OR \"generalisation\"[All Fields] OR \"generalization, psychological\"[MeSH Terms] OR (\"generalization\"[All Fields] AND \"psychological\"[All Fields]) OR \"psychological generalization\"[All Fields] OR \"generalization\"[All Fields] OR \"generalisations\"[All Fields] OR \"generalise\"[All Fields] OR \"generalised\"[All Fields] OR \"generalises\"[All Fields] OR \"generalisibility\"[All Fields] OR \"generalising\"[All Fields] OR \"generalities\"[All Fields] OR \"generality\"[All Fields] OR \"generalizability\"[All Fields] OR \"generalizable\"[All Fields] OR \"generalizations\"[All Fields] OR \"generalize\"[All Fields] OR \"generalized\"[All Fields] OR \"generalizes\"[All Fields] OR \"generalizing\"[All Fields] OR \"generally\"[All Fields] OR \"generals\"[All Fields] OR \"generate\"[All Fields] OR \"generated\"[All Fields] OR \"generates\"[All Fields] OR \"generating\"[All Fields] OR \"generation's\"[All Fields] OR \"generational\"[All Fields] OR \"generative\"[All Fields] OR \"generatively\"[All Fields] OR \"generativity\"[All Fields] OR \"generator\"[All Fields] OR \"generator's\"[All Fields] OR \"generators\"[All Fields] OR \"generically\"[All Fields] OR \"genericity\"[All Fields] OR \"generics\"[All Fields]"
+      },
+      {
+        "from": "clinical",
+        "to": "\"ambulatory care facilities\"[MeSH Terms] OR (\"ambulatory\"[All Fields] AND \"care\"[All Fields] AND \"facilities\"[All Fields]) OR \"ambulatory care facilities\"[All Fields] OR \"clinic\"[All Fields] OR \"clinic's\"[All Fields] OR \"clinical\"[All Fields] OR \"clinically\"[All Fields] OR \"clinicals\"[All Fields] OR \"clinics\"[All Fields]"
+      }
+    ],
+    "querytranslation": "(\"retrievability\"[All Fields] OR \"retrievable\"[All Fields] OR \"retrieval\"[All Fields] OR \"retrievals\"[All Fields] OR \"retrieve\"[All Fields] OR \"retrieved\"[All Fields] OR \"retrieves\"[All Fields] OR \"retrieving\"[All Fields]) AND (\"augment\"[All Fields] OR \"augmentation\"[All Fields] OR \"augmentations\"[All Fields] OR \"augmented\"[All Fields] OR \"augmenting\"[All Fields] OR \"augments\"[All Fields]) AND (\"drugs generic\"[Supplementary Concept] OR \"drugs generic\"[All Fields] OR \"generic\"[All Fields] OR \"drugs, generic\"[MeSH Terms] OR (\"drugs\"[All Fields] AND \"generic\"[All Fields]) OR \"generic drugs\"[All Fields] OR \"family characteristics\"[MeSH Terms] OR (\"family\"[All Fields] AND \"characteristics\"[All Fields]) OR \"family characteristics\"[All Fields] OR \"generation\"[All Fields] OR \"generations\"[All Fields] OR \"general\"[All Fields] OR \"general s\"[All Fields] OR \"generalisability\"[All Fields] OR \"generalisable\"[All Fields] OR \"generalisation\"[All Fields] OR \"generalization, psychological\"[MeSH Terms] OR (\"generalization\"[All Fields] AND \"psychological\"[All Fields]) OR \"psychological generalization\"[All Fields] OR \"generalization\"[All Fields] OR \"generalisations\"[All Fields] OR \"generalise\"[All Fields] OR \"generalised\"[All Fields] OR \"generalises\"[All Fields] OR \"generalisibility\"[All Fields] OR \"generalising\"[All Fields] OR \"generalities\"[All Fields] OR \"generality\"[All Fields] OR \"generalizability\"[All Fields] OR \"generalizable\"[All Fields] OR \"generalizations\"[All Fields] OR \"generalize\"[All Fields] OR \"generalized\"[All Fields] OR \"generalizes\"[All Fields] OR \"generalizing\"[All Fields] OR \"generally\"[All Fields] OR \"generals\"[All Fields] OR \"generate\"[All Fields] OR \"generated\"[All Fields] OR \"generates\"[All Fields] OR \"generating\"[All Fields] OR \"generation s\"[All Fields] OR \"generational\"[All Fields] OR \"generative\"[All Fields] OR \"generatively\"[All Fields] OR \"generativity\"[All Fields] OR \"generator\"[All Fields] OR \"generator s\"[All Fields] OR \"generators\"[All Fields] OR \"generically\"[All Fields] OR \"genericity\"[All Fields] OR \"generics\"[All Fields]) AND (\"ambulatory care facilities\"[MeSH Terms] OR (\"ambulatory\"[All Fields] AND \"care\"[All Fields] AND \"facilities\"[All Fields]) OR \"ambulatory care facilities\"[All Fields] OR \"clinic\"[All Fields] OR \"clinic s\"[All Fields] OR \"clinical\"[All Fields] OR \"clinically\"[All Fields] OR \"clinicals\"[All Fields] OR \"clinics\"[All Fields]) AND 2025/01/01:3000/12/31[Date - Publication]"
+  }
+}

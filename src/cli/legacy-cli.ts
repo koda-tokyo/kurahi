@@ -3,6 +3,7 @@
 //   kurahi legacy mcp --root <dir>                 MCP server over stdio for one project
 //        [--http <port>]                           loopback streamable HTTP instead (127.0.0.1)
 //        [--max-bytes <n>]                         cap on one response (default 65536)
+//        [--allow-host <host...>]                  Host names of a TLS reverse proxy in front (HTTP only)
 //
 // The server is the bundled `extensions/legacy-analyzer/mcp/` module, loaded the way plugins are
 // (jiti), so it ships with the analyser it wraps. stdout carries MCP only; messages go to stderr.
@@ -19,7 +20,7 @@ type ServeOptions = { root: string; maxBytes?: number };
 export type LegacyMcpModules = {
   runLegacyMcpStdio(opts: ServeOptions): Promise<void>;
   startLegacyMcpHttp(
-    opts: ServeOptions & { port: number; token?: string },
+    opts: ServeOptions & { port: number; token?: string; allowedHosts?: string[] },
   ): Promise<{ url: string; token: string; close(): Promise<void> }>;
 };
 
@@ -57,7 +58,7 @@ function intOption(raw: string | undefined, flag: string, min: number, max: numb
 }
 
 export async function runLegacyMcp(
-  opts: { root?: string; http?: string; maxBytes?: string },
+  opts: { root?: string; http?: string; maxBytes?: string; allowHost?: string[] },
   deps: { runtime?: RuntimeEnv; load?: () => Promise<LegacyMcpModules> } = {},
 ): Promise<void> {
   const runtime = deps.runtime ?? defaultRuntime;
@@ -69,6 +70,9 @@ export async function runLegacyMcp(
     }
     port = intOption(opts.http, "--http", 0, 65_535);
     maxBytes = intOption(opts.maxBytes, "--max-bytes", 4096, 16 * 1024 * 1024);
+    if (opts.allowHost?.length && port === undefined) {
+      throw new Error("--allow-host needs --http <port>");
+    }
   } catch (err) {
     runtime.error(`kurahi legacy mcp: ${err instanceof Error ? err.message : String(err)}`);
     runtime.exit(2);
@@ -81,7 +85,13 @@ export async function runLegacyMcp(
     return;
   }
   const envToken = process.env.KURAHI_LEGACY_MCP_TOKEN?.trim();
-  const srv = await mods.startLegacyMcpHttp({ root, maxBytes, port, token: envToken });
+  const srv = await mods.startLegacyMcpHttp({
+    root,
+    maxBytes,
+    port,
+    token: envToken,
+    allowedHosts: opts.allowHost,
+  });
   if (!envToken) {
     runtime.error(`kurahi legacy mcp: bearer token for this run: ${srv.token}`);
   }
@@ -103,14 +113,20 @@ export function registerLegacyCli(program: Command) {
     .requiredOption("--root <dir>", "project folder; every tool is confined to it")
     .option("--http <port>", "serve streamable HTTP on 127.0.0.1:<port> instead of stdio")
     .option("--max-bytes <n>", "cap on one response, in bytes (default 65536)")
-    .action(async (opts: { root?: string; http?: string; maxBytes?: string }) => {
-      try {
-        await runLegacyMcp(opts);
-      } catch (err) {
-        defaultRuntime.error(
-          `kurahi legacy mcp: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        defaultRuntime.exit(1);
-      }
-    });
+    .option(
+      "--allow-host <host...>",
+      "with --http: also accept these Host names (a TLS reverse proxy in front)",
+    )
+    .action(
+      async (opts: { root?: string; http?: string; maxBytes?: string; allowHost?: string[] }) => {
+        try {
+          await runLegacyMcp(opts);
+        } catch (err) {
+          defaultRuntime.error(
+            `kurahi legacy mcp: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          defaultRuntime.exit(1);
+        }
+      },
+    );
 }

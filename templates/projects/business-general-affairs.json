@@ -48,5 +48,6 @@
       "en": "List open requests by due date."
     }
   ],
-  "terminalProfile": "data"
+  "terminalProfile": "data",
+  "plugins": ["office"]
 }

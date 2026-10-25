@@ -28,12 +28,12 @@ Credit is given in the release notes unless you ask not to be named. There is no
 
 Security fixes are released for the latest stable release and the latest beta. Older releases are not patched; upgrade with `kurahi update`.
 
-| Version                                         | Security fixes |
-| ----------------------------------------------- | -------------- |
-| 2.1.x (includes the Industrial Edition)         | Yes            |
-| Kurahi Desktop 0.3.x (ships with 2.1.x)         | Yes            |
-| Latest beta of the next release                 | Yes            |
-| 2.0.x and earlier, Kurahi Desktop 0.2 and older | No: upgrade    |
+| Version                                                 | Security fixes |
+| ------------------------------------------------------- | -------------- |
+| 2.2.x (Business Edition, Autopilot, enterprise package) | Yes            |
+| Kurahi Desktop 0.4.x                                    | Yes            |
+| Latest beta of the next release                         | Yes            |
+| 2.1.x and earlier, Kurahi Desktop 0.3 and older         | No: upgrade    |
 
 ## Scope
 

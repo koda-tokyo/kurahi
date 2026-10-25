@@ -114,20 +114,25 @@ export const MODERNISE_TOOLS: LegacyToolDef[] = [
   }),
   tool({
     name: "modernise_inventory",
-    title: "Java, SQL, FORTRAN and PL/I inventory",
+    title: "Java, SQL, FORTRAN, PL/I and PLC inventory",
     description:
       "Java types (kind java), SQL tables (kind sql), FORTRAN units and COMMON blocks (kind fortran) or PL/I " +
-      "procedures and structures (kind pli): the list, or with name one entry in full (Java: fields, methods, " +
-      "calls, table access; SQL: columns, constraints, indexes, comments; FORTRAN: declarations, COMMON " +
-      "layouts, calls and callers, file I/O; PL/I: declarations, files, calls, EXEC SQL, ON-units). Every fact " +
-      "at path:line.",
+      "procedures and structures (kind pli) or PLC Structured Text POUs with the I/O map (kind plc): the list, " +
+      "or with name one entry in full (Java: fields, methods, calls, table access; SQL: columns, constraints, " +
+      "indexes, comments; FORTRAN: declarations, COMMON layouts, calls and callers, file I/O; PL/I: " +
+      "declarations, files, calls, EXEC SQL, ON-units; PLC: variables, located I/O, instances, writes, or the " +
+      "variables at one %I/%Q/%M address). Every fact at path:line.",
     input: {
-      kind: z.enum(["java", "sql", "fortran", "pli"]).describe("java, sql, fortran or pli."),
+      kind: z
+        .enum(["java", "sql", "fortran", "pli", "plc"])
+        .describe("java, sql, fortran, pli or plc."),
       name: z
         .string()
         .max(256)
         .optional()
-        .describe("A Java type, a table, a FORTRAN unit or /COMMON/ block, or a PL/I procedure."),
+        .describe(
+          "A Java type, a table, a FORTRAN unit or /COMMON/ block, a PL/I procedure, or a PLC POU or %address.",
+        ),
     },
     run: (ctx, a) => inventory(polyglotOf(ctx.index().index).poly, a.kind, opt(a.name)),
     summarize: (
@@ -141,6 +146,9 @@ export const MODERNISE_TOOLS: LegacyToolDef[] = [
         common?: { name: string };
         procedures?: unknown[];
         procedure?: { qualified: string };
+        pous?: unknown[];
+        pou?: { name: string };
+        address?: string;
       },
       a,
     ) =>
@@ -154,12 +162,18 @@ export const MODERNISE_TOOLS: LegacyToolDef[] = [
               ? `COMMON block /${r.common.name}/.`
               : r.procedure
                 ? `PL/I procedure ${r.procedure.qualified}.`
-                : a.kind === "java"
-                  ? `${r.types?.length ?? 0} Java types.`
-                  : a.kind === "fortran"
-                    ? `${r.units?.length ?? 0} FORTRAN units.`
-                    : a.kind === "pli"
-                      ? `${r.procedures?.length ?? 0} PL/I procedures.`
-                      : `${r.tables?.length ?? 0} tables and views.`,
+                : r.pou
+                  ? `PLC POU ${r.pou.name}.`
+                  : r.address
+                    ? `PLC address ${r.address}.`
+                    : a.kind === "plc"
+                      ? `${r.pous?.length ?? 0} PLC POUs.`
+                      : a.kind === "java"
+                        ? `${r.types?.length ?? 0} Java types.`
+                        : a.kind === "fortran"
+                          ? `${r.units?.length ?? 0} FORTRAN units.`
+                          : a.kind === "pli"
+                            ? `${r.procedures?.length ?? 0} PL/I procedures.`
+                            : `${r.tables?.length ?? 0} tables and views.`,
   }),
 ];

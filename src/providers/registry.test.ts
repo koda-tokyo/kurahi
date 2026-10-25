@@ -110,6 +110,17 @@ describe("provider registry", () => {
     expect(registryModelsUrl(getProvider("openai-compatible")!, "https://llm.example/v1/")).toBe(
       "https://llm.example/v1/models",
     );
+    const watsonx = getProvider("watsonx")!;
+    expect(registryApiToModelApi(watsonx.apiStyle)).toBe("watsonx-chat");
+    expect(watsonx.requiresBaseUrl).toBe(true);
+    expect(
+      registryModelsUrl(
+        watsonx,
+        "https://jp-tok.ml.cloud.ibm.com?project_id=p-1&version=2024-03-14",
+      ),
+    ).toBe(
+      "https://jp-tok.ml.cloud.ibm.com/ml/v1/foundation_model_specs?version=2024-03-14&filters=function_text_chat",
+    );
   });
 
   it("carries published prices for curated providers and validates them", () => {

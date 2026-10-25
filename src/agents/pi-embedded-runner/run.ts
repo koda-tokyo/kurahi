@@ -3,6 +3,7 @@ import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { RunEmbeddedPiAgentParams } from "./run/params.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { finishEvidence, startEvidence } from "../../evidence/recorder.js";
+import { observeAgentRun } from "../../infra/governance-events.js";
 import { getPolicyEngine } from "../../policy/engine.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isSubagentSessionKey } from "../../routing/session-key.js";
@@ -900,5 +901,24 @@ export async function runEmbeddedPiAgent(
     }),
   );
 
-  return job ? finalizeRunJob(job.id, runPromise) : runPromise;
+  // Governance evidence (ids, timings, counts; content only when an administrator opts in).
+  const observed = isProbeSession
+    ? runPromise
+    : observeAgentRun(
+        params.config,
+        {
+          runId: params.runId,
+          sessionId: params.sessionId,
+          sessionKey: params.sessionKey,
+          agentId: policyAgentId,
+          jobId: job?.id,
+          lane: params.lane,
+          channel: params.messageChannel ?? params.messageProvider,
+          provider: params.provider ?? DEFAULT_PROVIDER,
+          model: params.model ?? DEFAULT_MODEL,
+          prompt: params.prompt,
+        },
+        runPromise,
+      );
+  return job ? finalizeRunJob(job.id, observed) : observed;
 }

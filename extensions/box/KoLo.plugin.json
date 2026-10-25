@@ -1,0 +1,41 @@
+{
+  "id": "box",
+  "name": "Box",
+  "description": "Business connector for Box through the Box API with the customer's own Box app (OAuth 2.0). Read-only by default: search, file metadata, and fetching a file into the Project through quarantine and malware scanning (the model never receives the bytes). Uploading to one configured folder is a separate opt-in and always needs a person's approval.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "description": "Client ID of the Box Custom App (User Authentication, OAuth 2.0). The client secret goes in the secret store: connector.box.clientSecret."
+      },
+      "searchFolderIds": {
+        "type": "array",
+        "maxItems": 20,
+        "items": { "type": "string", "pattern": "^[0-9]{1,20}$" },
+        "description": "Optional: limit searches to these folder ids (and their subfolders)."
+      },
+      "write": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "upload": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow uploading Project files into uploadFolderId (root_readwrite). Every upload needs a person's approval."
+          },
+          "uploadFolderId": {
+            "type": "string",
+            "pattern": "^[0-9]{1,20}$",
+            "description": "The one folder uploads go to (not the root folder 0)."
+          }
+        }
+      },
+      "redirectPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 30 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 10, "default": 4 },
+      "approvalTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 600, "default": 120 }
+    }
+  }
+}

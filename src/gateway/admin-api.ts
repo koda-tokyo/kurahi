@@ -10,6 +10,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { queryAuditEvents, getAuditStats, logAudit, AUDIT_ACTIONS } from "../db/audit.js";
 import { query, mapUser, mapWorkspace } from "../db/client.js";
+import { requestClientIp } from "./request-client-ip.js";
 
 // ============================================================================
 // Response Helpers
@@ -24,14 +25,6 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
 
 function parseUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? "/", "http://localhost");
-}
-
-function getClientIp(req: IncomingMessage): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string") {
-    return forwarded.split(",")[0].trim();
-  }
-  return req.socket.remoteAddress ?? "unknown";
 }
 
 // ============================================================================
@@ -128,7 +121,7 @@ async function handleAudit(
         userId,
         action: AUDIT_ACTIONS.ADMIN_VIEW_AUDIT,
         targetType: "audit",
-        ipAddress: getClientIp(req),
+        ipAddress: requestClientIp(req),
         metadata: { filterUserId, action, targetType },
       });
     }
@@ -197,7 +190,7 @@ async function handleWorkspaces(
         userId,
         action: AUDIT_ACTIONS.ADMIN_VIEW_WORKSPACE,
         targetType: "workspace",
-        ipAddress: getClientIp(req),
+        ipAddress: requestClientIp(req),
       });
     }
 
@@ -258,7 +251,7 @@ async function handleUsers(
         userId: adminUserId,
         action: AUDIT_ACTIONS.ADMIN_VIEW_USER,
         targetType: "user",
-        ipAddress: getClientIp(req),
+        ipAddress: requestClientIp(req),
         metadata: { workspaceId },
       });
     }

@@ -21,11 +21,12 @@ kurahi legacy mcp --root /path/to/project              # stdio (the client start
 kurahi legacy mcp --root /path/to/project --http 7465  # loopback HTTP, http://127.0.0.1:7465/mcp
 ```
 
-| Option            | Meaning                                                       |
-| ----------------- | ------------------------------------------------------------- |
-| `--root <dir>`    | The project folder. Required. Every tool is confined to it.   |
-| `--http <port>`   | Serve streamable HTTP on `127.0.0.1:<port>` instead of stdio. |
-| `--max-bytes <n>` | Cap on one response, in bytes (default 65536, from 4096).     |
+| Option                   | Meaning                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--root <dir>`           | The project folder. Required. Every tool is confined to it.                                                                                                   |
+| `--http <port>`          | Serve streamable HTTP on `127.0.0.1:<port>` instead of stdio.                                                                                                 |
+| `--max-bytes <n>`        | Cap on one response, in bytes (default 65536, from 4096).                                                                                                     |
+| `--allow-host <host...>` | With `--http`: also accept these `Host` names, for a TLS reverse proxy in front ([remote toolkit](/integrations/ibm-watsonx-orchestrate#remote-mcp-toolkit)). |
 
 ## Tools
 

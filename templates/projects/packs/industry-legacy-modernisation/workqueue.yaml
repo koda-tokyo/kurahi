@@ -1,0 +1,32 @@
+# Industrial / legacy modernisation work queue policy (example; adjust per site).
+# Findings of the analyser and the autopilot land here for engineers to review. Nothing in these
+# queues is ever deployed, merged into a customer system or written to production OT/PLC.
+version: 1
+timezone: Asia/Tokyo
+queues:
+  - id: ind-analysis
+    name: { ja: 解析結果レビュー, en: Analysis review }
+    types: [case, document]
+    slaHours: 72
+  - id: ind-design-docs
+    name: { ja: 設計書レビュー, en: Design document review }
+    types: [document]
+    slaHours: 120
+  - id: ind-modernisation
+    name: { ja: 移行計画, en: Modernisation plan }
+    types: [case, request]
+    slaHours: 168
+  - id: ind-quality
+    name: { ja: 品質・リスク, en: Quality and risk }
+    types: [case]
+    slaHours: 48
+rules:
+  - id: ind.evidence
+    kind: required
+    fields: [description]
+    label: { ja: 根拠（ファイル:行）を記載, en: "Describe the finding with path:line evidence" }
+  - id: ind.phrases
+    kind: forbiddenPhrases
+    target: draft
+    phrases: [本番反映済み, デプロイ済み, マージ済み, 書き込み済み, already deployed, already merged, written to PLC]
+    label: { ja: 本番反映・マージ・PLC書き込みを済みと書かない, en: "Never claim anything was deployed, merged or written to a PLC" }

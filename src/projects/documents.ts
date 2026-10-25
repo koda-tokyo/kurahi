@@ -1,6 +1,6 @@
 // Document upload validation and text extraction (Kurahi v0.3).
 //
-// Accepted: PDF, XLSX, DOCX, CSV, TXT, MD and common images. The type is decided by the file's
+// Accepted: PDF, XLSX, DOCX, PPTX, CSV, TXT, MD and common images. The type is decided by the file's
 // magic bytes (and for the Office formats, the parts inside the zip), and must agree with the
 // file name's extension. Text is extracted on the gateway so the agent never needs to open the
 // binary itself.
@@ -14,6 +14,7 @@ export type DocumentKind =
   | "pdf"
   | "xlsx"
   | "docx"
+  | "pptx"
   | "csv"
   | "txt"
   | "md"
@@ -26,6 +27,7 @@ const EXTENSIONS: Record<string, DocumentKind> = {
   pdf: "pdf",
   xlsx: "xlsx",
   docx: "docx",
+  pptx: "pptx",
   csv: "csv",
   txt: "txt",
   md: "md",
@@ -121,6 +123,9 @@ export async function sniffKind(buf: Buffer): Promise<DocumentKind | "zip" | nul
       }
       if (zip.file("xl/workbook.xml")) {
         return "xlsx";
+      }
+      if (zip.file("ppt/presentation.xml")) {
+        return "pptx";
       }
     } catch {
       return null;
@@ -237,6 +242,29 @@ async function xlsxText(buf: Buffer): Promise<string> {
   return out.join("\n").trim();
 }
 
+/** Slide text in slide order, one "## Slide n" section per slide (speaker notes are not read). */
+async function pptxText(buf: Buffer): Promise<string> {
+  const zip = await JSZip.loadAsync(buf);
+  const slideFiles = Object.keys(zip.files)
+    .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+    .toSorted((a, b) => Number(/(\d+)\.xml$/.exec(a)?.[1]) - Number(/(\d+)\.xml$/.exec(b)?.[1]));
+  const out: string[] = [];
+  for (const [i, file] of slideFiles.entries()) {
+    const xml = (await zip.file(file)?.async("string")) ?? "";
+    const paras = [...xml.matchAll(/<a:p>([\s\S]*?)<\/a:p>/g)]
+      .map((p) =>
+        decodeXmlEntities(
+          [...p[1].matchAll(/<a:t>([\s\S]*?)<\/a:t>|<a:br>/g)]
+            .map((t) => (t[0] === "<a:br>" ? "\n" : t[1]))
+            .join(""),
+        ),
+      )
+      .filter((t) => t.trim());
+    out.push(`## Slide ${i + 1}`, ...paras);
+  }
+  return out.join("\n").trim();
+}
+
 async function pdfText(buf: Buffer, maxPages = 200): Promise<string> {
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const pdf = await getDocument({ data: new Uint8Array(buf), disableWorker: true } as never)
@@ -270,6 +298,9 @@ export async function extractText(kind: DocumentKind, buf: Buffer): Promise<stri
     case "xlsx":
       text = await xlsxText(buf);
       break;
+    case "pptx":
+      text = await pptxText(buf);
+      break;
     case "pdf":
       text = await pdfText(buf);
       break;
@@ -277,4 +308,29 @@ export async function extractText(kind: DocumentKind, buf: Buffer): Promise<stri
       text = "";
   }
   return text.length > MAX_EXTRACTED_CHARS ? text.slice(0, MAX_EXTRACTED_CHARS) : text;
+}
+
+/** Kinds a connector may send out of a Project: every accepted upload kind, plus PowerPoint. */
+export type OutgoingDocumentKind = DocumentKind | "pptx";
+
+export const DOCUMENT_MIME_TYPES: Record<OutgoingDocumentKind, string> = {
+  pdf: "application/pdf",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  csv: "text/csv",
+  txt: "text/plain",
+  md: "text/markdown",
+  png: "image/png",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
+/** Files a connector may send or attach: the same kinds and checks as uploads. */
+export async function validateOutgoingDocument(
+  name: string,
+  buf: Buffer,
+): Promise<{ ok: true; kind: OutgoingDocumentKind } | { ok: false; error: string }> {
+  return validateDocument(name, buf);
 }

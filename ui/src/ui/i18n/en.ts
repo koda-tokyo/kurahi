@@ -1,3 +1,4 @@
+import { autopilotEn } from "./autopilot";
 import { businessEn } from "./business";
 // English catalogue: the reference set of message IDs. Every other locale is Partial<> of this.
 import { industrialEn } from "./industrial";
@@ -5,6 +6,7 @@ import { terminalEn } from "./terminal";
 import { voiceEn } from "./voice";
 
 export const en = {
+  ...autopilotEn,
   ...businessEn,
   ...terminalEn,
   ...voiceEn,
@@ -387,6 +389,12 @@ export const en = {
   "connectors.capability.teams": "Teams",
   "connectors.capability.sso": "Sign-in / SSO",
   "connectors.capability.directoryRead": "Directory read (users and groups)",
+  "connectors.capability.records": "App records",
+  "connectors.capability.accounting": "Accounting (deals, partners, receipts)",
+  "connectors.capability.invoicing": "Invoices and quotes",
+  "connectors.capability.employeeDirectory": "Employees and departments (work fields only)",
+  "connectors.capability.chat": "Business chat (bot)",
+  "connectors.capability.files": "Files",
   "connectors.whyLabel": "Why this status",
   "connectors.why.active": "Current runtime evidence confirms this connector is active.",
   "connectors.why.unverified":

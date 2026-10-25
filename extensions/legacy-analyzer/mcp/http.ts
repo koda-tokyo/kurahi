@@ -2,6 +2,10 @@
 // 127.0.0.1 only, requires a bearer token, checks Host and Origin (DNS rebinding), and runs the
 // SDK transport in stateless mode: a fresh MCP server per request over the shared project context
 // (root, index cache, audit log).
+//
+// Remote callers (an orchestration platform importing the tools as a remote MCP toolkit) reach it
+// through a TLS reverse proxy on the same host. The proxy's public host names are listed in
+// `allowedHosts`; the bind stays 127.0.0.1 and the token is still required.
 
 import type { AddressInfo } from "node:net";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -11,6 +15,21 @@ import { buildMcpServer, openLegacyMcp, SERVER_NAME, type LegacyMcpOptions } fro
 
 export const MCP_PATH = "/mcp";
 const MAX_BODY = 1024 * 1024;
+
+const HOST_NAME = /^[A-Za-z0-9.-]{1,253}(?::\d{1,5})?$/;
+
+/** Normalise and validate proxy host names (`host` or `host:port`, no scheme or path). */
+export function parseAllowedHosts(values: readonly string[] | undefined): string[] {
+  const out: string[] = [];
+  for (const raw of values ?? []) {
+    const v = raw.trim().toLowerCase();
+    if (!HOST_NAME.test(v)) {
+      throw new Error(`Not a host name: ${raw.slice(0, 80)} (use host or host:port)`);
+    }
+    out.push(v);
+  }
+  return out;
+}
 
 export type LegacyMcpHttp = { url: string; port: number; token: string; close(): Promise<void> };
 
@@ -22,7 +41,7 @@ function deny(res: http.ServerResponse, status: number, message: string) {
 }
 
 export async function startLegacyMcpHttp(
-  opts: LegacyMcpOptions & { port: number; token?: string },
+  opts: LegacyMcpOptions & { port: number; token?: string; allowedHosts?: string[] },
 ): Promise<LegacyMcpHttp> {
   const ctx = openLegacyMcp(opts);
   const token = opts.token?.trim() || crypto.randomBytes(24).toString("base64url");
@@ -30,16 +49,21 @@ export async function startLegacyMcpHttp(
     throw new Error("The HTTP token must be at least 16 characters.");
   }
   const want = digest(`Bearer ${token}`);
+  const proxyHosts = parseAllowedHosts(opts.allowedHosts);
   let port = 0;
 
   const server = http.createServer((req, res) => {
-    const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
-    const origins = new Set([...hosts].map((h) => `http://${h}`));
+    const local = [`127.0.0.1:${port}`, `localhost:${port}`];
+    const hosts = new Set([...local, ...proxyHosts]);
+    const origins = new Set([
+      ...local.map((h) => `http://${h}`),
+      ...proxyHosts.map((h) => `https://${h}`),
+    ]);
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname !== MCP_PATH) {
       return deny(res, 404, "Not found.");
     }
-    if (!hosts.has(req.headers.host ?? "")) {
+    if (!hosts.has((req.headers.host ?? "").toLowerCase())) {
       return deny(res, 403, "Host not allowed.");
     }
     if (req.headers.origin && !origins.has(req.headers.origin)) {

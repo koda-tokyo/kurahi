@@ -100,6 +100,16 @@ jobs:
         run: pnpm test
       - name: Bundle + verify (bin/kolo --version with no Node on PATH)
         run: node scripts/bundle.mjs --target ${{ matrix.target }} --verify
+      - name: Enterprise bundle + package check (docs/security/enterprise-profile.md)
+        # kolo-<version>-<target>-enterprise.*: enterprise-tier extensions only; bundle.mjs fails
+        # on an excluded extension, a family-internal identifier, a GPL/AGPL dependency or an
+        # unresolved extension import. Uploaded with the standard bundle (same globs).
+        run: |
+          node scripts/bundle.mjs --target ${{ matrix.target }} --profile enterprise --verify
+          for f in release/kolo-*-enterprise.tar.gz release/kolo-*-enterprise.zip; do
+            [ -f "$f" ] || continue
+            node scripts/enterprise-check.mjs "$f"
+          done
       - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:

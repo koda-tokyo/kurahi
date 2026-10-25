@@ -146,6 +146,22 @@ export function scanBody(file: string, toks: JTok[], start: number, end: number)
     const next = toks[k + 1];
     const prev = toks[k - 1];
     if (
+      t.v === "createStoredProcedureQuery" &&
+      next?.v === "(" &&
+      toks[k + 2]?.k === "str" &&
+      /^[\w$#.]+$/.test(toks[k + 2].v)
+    ) {
+      sql.push({
+        file,
+        line: t.line,
+        text: `CALL ${toks[k + 2].v}`,
+        op: "CALL",
+        tables: [],
+        via: "call",
+      });
+      joined.add(k + 2);
+    }
+    if (
       (t.v === "class" || t.v === "interface" || t.v === "enum") &&
       toks[k + 1]?.k === "id" &&
       prev?.v !== "."

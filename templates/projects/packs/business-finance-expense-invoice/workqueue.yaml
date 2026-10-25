@@ -4,13 +4,61 @@ timezone: Asia/Tokyo
 separationOfDuties: true
 queues:
   - id: fin-expense
+    department: finance
     name: { ja: 経費精算, en: Expense claims }
     types: [expense]
     slaHours: 72
   - id: fin-invoice
+    department: finance
     name: { ja: 受領請求書, en: Received invoices }
     types: [invoice]
     slaHours: 120
+  - id: fin-ringi
+    department: finance
+    name: { ja: 稟議（支出申請）, en: Spending approval (ringi) }
+    types: [request, purchase]
+    slaHours: 168
+
+# 稟議ルート（例）。金額の閾値と承認者は会社の決裁権限規程に合わせて設定してください。
+# Example ringi route. The thresholds and approvers are company configuration: set them to
+# your own approval authority table.
+routes:
+  - id: fin-ringi
+    name: { ja: 支出稟議, en: Spending approval }
+    queues: [fin-ringi]
+    stages:
+      - id: manager
+        name: { ja: 所属長承認, en: Manager approval }
+        # The manager of the department named in the form's `department` field.
+        approvers: { roles: [approver], departmentField: department }
+        dueHours: 48
+        onReturn: requester
+        delegation: true
+        escalation: { afterHours: 72, to: { roles: [director] } }
+      - id: finance
+        name: { ja: 経理確認, en: Finance review }
+        when: [{ field: amount, gte: 100000 }]
+        approvers: { roles: [finance] }
+        dueHours: 48
+        onReturn: previous
+        delegation: true
+      - id: director
+        name: { ja: 役員決裁, en: Director approval }
+        when: [{ field: amount, gte: 1000000 }]
+        approvers: { roles: [director] }
+        dueHours: 72
+        onReturn: previous
+
+# 承認者の割り当て。members を登録するまでは、承認権限のある人なら誰でも各段階を承認できます
+# （fallback: any_approver）。登録後は fallback: none にすると、登録された人だけが承認できます。
+# Who approves. Until members are listed, any person with approval permission may decide each
+# stage (fallback: any_approver). After listing them, set fallback: none so only they can.
+access:
+  fallback: any_approver
+  members: []
+  # - { principal: device:xxxxxxxxxxxx, name: 営業部長, roles: [approver], departments: [sales] }
+  # - { principal: device:yyyyyyyyyyyy, name: 経理課長, roles: [finance] }
+  # - { principal: device:zzzzzzzzzzzz, name: 管理担当役員, roles: [director] }
 rules:
   - id: fin.expense.required
     kind: required
@@ -46,6 +94,11 @@ rules:
     field: amount
     secondApproverAbove: 1000000
     label: { ja: 100万円超の請求書は二名承認, en: Invoices above 1,000,000 JPY need a second approver }
+  - id: fin.ringi.required
+    kind: required
+    queues: [fin-ringi]
+    fields: [department, amount, purpose]
+    label: { ja: 必須項目（部署・金額・目的）, en: "Required: department, amount, purpose" }
   - id: fin.phrases
     kind: forbiddenPhrases
     target: both

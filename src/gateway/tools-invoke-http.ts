@@ -3,7 +3,6 @@ import type { ResolvedGatewayAuth } from "./auth.js";
 import { loadConfig } from "../config/config.js";
 import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
-import { guardToolCall, logGuardDecision } from "./guard/index.js";
 import {
   readJsonBodyOrError,
   sendInvalidRequest,
@@ -13,12 +12,9 @@ import {
   sendUnauthorized,
 } from "./http-common.js";
 import { getHeader } from "./http-utils.js";
-import {
-  checkInvocableCapability,
-  resolveInvocableSessionKey,
-  resolveInvocableTools,
-} from "./invocable-tools.js";
+import { resolveInvocableSessionKey } from "./invocable-tools.js";
 import { authorizeHttpBearer } from "./pair-auth.js";
+import { invokeToolForSession } from "./tools-invoke-core.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
@@ -60,32 +56,6 @@ function resolveMemoryToolDisableReasons(cfg: ReturnType<typeof loadConfig>): st
     reasons.push("memory plugin disabled by test default");
   }
   return reasons;
-}
-
-function mergeActionIntoArgsIfSupported(params: {
-  toolSchema: unknown;
-  action: string | undefined;
-  args: Record<string, unknown>;
-}): Record<string, unknown> {
-  const { toolSchema, action, args } = params;
-  if (!action) {
-    return args;
-  }
-  if (args.action !== undefined) {
-    return args;
-  }
-  // TypeBox schemas are plain objects; many tools define an `action` property.
-  const schemaObj = toolSchema as { properties?: Record<string, unknown> } | null;
-  const hasAction = Boolean(
-    schemaObj &&
-    typeof schemaObj === "object" &&
-    schemaObj.properties &&
-    "action" in schemaObj.properties,
-  );
-  if (!hasAction) {
-    return args;
-  }
-  return { ...args, action };
 }
 
 export async function handleToolsInvokeHttpRequest(
@@ -161,72 +131,27 @@ export async function handleToolsInvokeHttpRequest(
   const messageChannel = normalizeMessageChannel(getHeader(req, "x-kolo-message-channel") ?? "");
   const accountId = getHeader(req, "x-kolo-account-id")?.trim() || undefined;
 
-  // Same policy stack as the embedded runner (core + plugin + MCP tools), M6 shared module.
-  const resolved = resolveInvocableTools({
+  const outcome = await invokeToolForSession({
     cfg,
     sessionKey,
+    toolName,
+    action,
+    args,
     messageChannel: messageChannel ?? undefined,
     accountId,
+    source: "http:/tools/invoke",
+    callId: `http-${Date.now()}`,
   });
-  const agentId = resolved.agentId;
-
-  // Backend capability gate (M2a): an agent whose backend declares tools=none gets no tools here
-  // either; the attempt is rejected and audited.
-  const capabilityDecision = checkInvocableCapability(resolved, toolName, "http:/tools/invoke");
-  if (!capabilityDecision.ok) {
-    sendJson(res, 403, {
+  if (outcome.ok) {
+    sendJson(res, 200, { ok: true, result: outcome.result });
+  } else {
+    sendJson(res, outcome.status, {
       ok: false,
-      error: { type: "permission_denied", message: capabilityDecision.reason },
-    });
-    return true;
-  }
-
-  const tool = resolved.tools.find((t) => t.name === toolName);
-  if (!tool) {
-    sendJson(res, 404, {
-      ok: false,
-      error: { type: "not_found", message: `Tool not available: ${toolName}` },
-    });
-    return true;
-  }
-
-  try {
-    const toolArgs = mergeActionIntoArgsIfSupported({
-      // oxlint-disable-next-line typescript/no-explicit-any
-      toolSchema: (tool as any).parameters,
-      action,
-      args,
-    });
-
-    // ── Guard: risk assessment + path validation before execution ──
-    const command = typeof toolArgs.command === "string" ? toolArgs.command : undefined;
-    const guardResult = await guardToolCall({
-      toolName,
-      args: toolArgs,
-      command,
-      workspaceRoots: [process.cwd()],
-    });
-    logGuardDecision({ toolName, result: guardResult, sessionKey, agentId });
-
-    if (guardResult.blocked) {
-      sendJson(res, 403, {
-        ok: false,
-        error: {
-          type: "permission_denied",
-          message: guardResult.explainer ?? `Access denied for ${toolName}`,
-          details: { risk: guardResult.risk.tier, flags: guardResult.risk.flags },
-        },
-      });
-      return true;
-    }
-
-    // oxlint-disable-next-line typescript/no-explicit-any
-    const result = await (tool as any).execute?.(`http-${Date.now()}`, toolArgs);
-    sendJson(res, 200, { ok: true, result });
-  } catch (err) {
-    sendJson(res, 400, {
-      ok: false,
-      error: { type: "tool_error", message: err instanceof Error ? err.message : String(err) },
+      error: {
+        type: outcome.type,
+        message: outcome.message,
+        ...(outcome.details ? { details: outcome.details } : {}),
+      },
     });
   }
 

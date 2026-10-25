@@ -1,6 +1,7 @@
 // Business connectors: shared plugin wiring (CLI sign-in, revocation, health probe service).
 //
 //   kurahi <cli> login [--device] [--port <n>]   sign in (loopback PKCE, or device code)
+//   kurahi <cli> login [--stdin]                 API-token connectors: paste the token (hidden)
 //   kurahi <cli> logout                          revoke where supported, delete stored tokens
 //   kurahi <cli> status                          configured / signed in / scopes (no network)
 //   kurahi <cli> probe                           one live health call
@@ -21,7 +22,7 @@ import {
   startDeviceAuthorization,
   type TokenSet,
 } from "./oauth.js";
-import { ConnectorRuntime } from "./runtime.js";
+import { type ConnectorCredential, ConnectorRuntime } from "./runtime.js";
 import { sanitizeScopeNames } from "./scopes.js";
 import { reportConnectorStatus, runConnectorProbe } from "./status.js";
 
@@ -46,15 +47,63 @@ export type BusinessConnectorSpec = {
   useNonce?: boolean;
   /** Connector-specific subcommands under the same CLI command. */
   extraCommands?: (cmd: Command) => void;
+  /**
+   * Non-OAuth sign-in (API token, assertion grant): replaces the browser/device flow. It returns
+   * the token set to store; `readSecret` asks for a value on a hidden prompt (or stdin).
+   */
+  signIn?: (input: SignInInput) => Promise<TokenSet>;
+  /** What `logout` tells the administrator when the provider has no revocation endpoint. */
+  revokeHint?: string;
 };
+
+export type SignInInput = {
+  /** A hidden prompt, or stdin with `--stdin`; never echoed or logged. */
+  readSecret: (label: string) => Promise<string>;
+};
+
+async function readSecretInput(label: string, fromStdin: boolean): Promise<string> {
+  let value: string;
+  if (fromStdin) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    }
+    value = Buffer.concat(chunks)
+      .toString("utf8")
+      .replace(/\r?\n$/, "");
+  } else {
+    if (!process.stdin.isTTY) {
+      throw new ConnectorError("bad_request", "no TTY for a hidden prompt; pipe it with --stdin");
+    }
+    const { isCancel, password } = await import("@clack/prompts");
+    const answer = await password({ message: label });
+    if (isCancel(answer)) {
+      throw new ConnectorError("approval_denied", "cancelled");
+    }
+    value = String(answer);
+  }
+  value = value.trim();
+  if (!value) {
+    throw new ConnectorError("bad_request", "empty value");
+  }
+  return value;
+}
 
 export function createRuntimeForPlugin(
   api: Pick<KoLoPluginApi, "audit">,
-  spec: Pick<BusinessConnectorSpec, "id" | "client"> & { ratePerSecond?: number },
+  spec: Pick<BusinessConnectorSpec, "id" | "client"> & {
+    ratePerSecond?: number;
+    credential?: ConnectorCredential;
+  },
   deps: { fetch?: FetchLike } = {},
 ): ConnectorRuntime {
   return new ConnectorRuntime(
-    { id: spec.id, client: spec.client, ratePerSecond: spec.ratePerSecond },
+    {
+      id: spec.id,
+      client: spec.client,
+      credential: spec.credential,
+      ratePerSecond: spec.ratePerSecond,
+    },
     { secrets: () => resolveSecretStore(), audit: api.audit, fetch: deps.fetch },
   );
 }
@@ -62,7 +111,7 @@ export function createRuntimeForPlugin(
 async function probeOnce(runtime: ConnectorRuntime, spec: BusinessConnectorSpec) {
   return runConnectorProbe({
     id: spec.id,
-    configured: Boolean(spec.client),
+    configured: runtime.configured,
     grantedScopes: runtime.configured ? runtime.grantedScopes() : undefined,
     probe: () => spec.probe(runtime),
   });
@@ -75,15 +124,15 @@ export function registerBusinessConnector(
 ): void {
   // Report the configuration state at once (no probe result yet: never "Active" before a
   // real call succeeded); the first probe runs when the service starts.
-  const scopes = spec.client ? runtime.grantedScopes() : undefined;
+  const scopes = runtime.configured ? runtime.grantedScopes() : undefined;
   reportConnectorStatus({
     id: spec.id,
-    configured: Boolean(spec.client),
+    configured: runtime.configured,
     authenticated: scopes !== undefined,
     lastProbeOk: null,
     lastProbeAt: null,
     scopes: scopes ?? [],
-    error: !spec.client ? "not_configured" : scopes ? null : "not_authenticated",
+    error: !runtime.configured ? "not_configured" : scopes ? null : "not_authenticated",
   });
 
   api.registerService({
@@ -115,6 +164,13 @@ function print(line: string) {
 
 function fail(err: unknown) {
   process.stderr.write(`${describeConnectorError(err)}\n`);
+  // An administrator debugging a connector on their own terminal may ask for the raw error;
+  // it is never audited or sent anywhere.
+  if (process.env.KURAHI_DEBUG_CONNECTORS === "1") {
+    process.stderr.write(
+      `${String(err instanceof Error ? (err.stack ?? err.message) : err).slice(0, 2000)}\n`,
+    );
+  }
   process.exitCode = 1;
 }
 
@@ -129,13 +185,21 @@ function registerConnectorCommands(
     .description("Sign in and store the tokens in the secret store")
     .option("--device", "Use the device code flow (sign in on another device)")
     .option("--port <n>", "Loopback port for the browser redirect (default: random)")
-    .action(async (opts: { device?: boolean; port?: string }) => {
+    .option("--stdin", "API-token connectors: read the token from stdin")
+    .action(async (opts: { device?: boolean; port?: string; stdin?: boolean }) => {
+      const useDevice = !spec.signIn && (opts.device === true || !spec.flows.loopback);
       try {
-        const client = runtime.requireClient();
-        const useDevice = opts.device === true || !spec.flows.loopback;
         let token: TokenSet;
         let nonce: string | undefined;
-        if (useDevice) {
+        if (spec.signIn) {
+          if (!runtime.configured) {
+            throw new ConnectorError("not_configured", "connector is not configured");
+          }
+          token = await spec.signIn({
+            readSecret: (label) => readSecretInput(label, opts.stdin === true),
+          });
+        } else if (useDevice) {
+          const client = runtime.requireClient();
           if (!spec.flows.device) {
             throw new ConnectorError("unsupported", "device code sign-in is not available");
           }
@@ -143,6 +207,7 @@ function registerConnectorCommands(
           print(`To sign in, open ${device.verificationUri} and enter the code ${device.userCode}`);
           token = await pollDeviceToken(client, device);
         } else {
+          const client = runtime.requireClient();
           const port = opts.port ? Number(opts.port) : spec.redirectPort;
           nonce = spec.useNonce ? randomState() : undefined;
           token = await loopbackSignIn(client, {
@@ -162,7 +227,7 @@ function registerConnectorCommands(
           action: `connector.${spec.id}.login`,
           outcome: "ok",
           detail: {
-            flow: useDevice ? "device" : "loopback",
+            flow: spec.signIn ? "credential" : useDevice ? "device" : "loopback",
             scopes: sanitizeScopeNames(token.scopes),
           },
         });
@@ -203,7 +268,8 @@ function registerConnectorCommands(
       );
       if (!spec.client?.endpoints.revokeUrl) {
         print(
-          "This provider has no token revocation endpoint: an administrator can revoke the app's sessions in the admin console (see the connector documentation).",
+          spec.revokeHint ??
+            "This provider has no token revocation endpoint: an administrator can revoke the app's sessions in the admin console (see the connector documentation).",
         );
       }
     });
@@ -212,7 +278,7 @@ function registerConnectorCommands(
     .command("status")
     .description("Show configuration and sign-in state (no network)")
     .action(() => {
-      print(`configured: ${spec.client ? "yes" : "no"}`);
+      print(`configured: ${runtime.configured ? "yes" : "no"}`);
       for (const p of spec.problems) {
         print(`  - ${p}`);
       }

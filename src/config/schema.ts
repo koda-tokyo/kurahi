@@ -104,6 +104,7 @@ const GROUP_ORDER: Record<string, number> = {
 const FIELD_LABELS: Record<string, string> = {
   "meta.lastTouchedVersion": "Config Last Touched Version",
   "meta.lastTouchedAt": "Config Last Touched At",
+  profile: "Release Profile",
   "update.channel": "Update Channel",
   "update.checkOnStart": "Update Check on Start",
   "diagnostics.enabled": "Diagnostics Enabled",
@@ -385,6 +386,8 @@ const FIELD_LABELS: Record<string, string> = {
 const FIELD_HELP: Record<string, string> = {
   "meta.lastTouchedVersion": "Auto-set when Kurahi writes the config.",
   "meta.lastTouchedAt": "ISO timestamp of the last config write (auto-set).",
+  profile:
+    'Release profile: "enterprise" refuses excluded and unclassified plugins (audited); KURAHI_PROFILE=enterprise has the same effect.',
   "update.channel": 'Update channel for git + npm installs ("stable", "beta", or "dev").',
   "update.checkOnStart": "Check for npm updates when the gateway starts (default: true).",
   "gateway.remote.url": "Remote Gateway WebSocket URL (ws:// or wss://).",

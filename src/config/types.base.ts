@@ -123,6 +123,34 @@ export type DiagnosticsOtelConfig = {
   sampleRate?: number;
   /** Metric export interval (ms). */
   flushIntervalMs?: number;
+  /**
+   * Attach prompt and reply text (truncated) to agent run spans. Off by default: governance
+   * spans carry ids, timings, decisions and counts only.
+   */
+  captureContent?: boolean;
+  /** Truncation for captured content, in characters (default 4000). */
+  maxContentChars?: number;
+  /** Also push agent and autopilot run spans to a watsonx Orchestrate trace endpoint. */
+  orchestrate?: DiagnosticsOtelOrchestrateConfig;
+};
+
+export type DiagnosticsOtelOrchestrateConfig = {
+  enabled?: boolean;
+  /** https://<host>/instances/<instance-id>/v1/orchestrate/inject/traces */
+  url?: string;
+  /** IBM Cloud API key (use a secret reference). Exchanged for an IAM bearer token. */
+  apiKey?: string;
+  /** "iam" (default) exchanges the key; "api-key" sends it in x-api-key. */
+  auth?: "iam" | "api-key";
+  /** IAM token endpoint (https). Default: IBM Cloud IAM. */
+  iamUrl?: string;
+  /** Resource attributes the endpoint routes on. */
+  tenantId?: string;
+  environment?: string;
+  /** Orchestrate agent id the spans are filed under (root span attribute agent.id). */
+  agentId?: string;
+  /** langfuse.user.id; must start with usr_ (default usr_kurahi). */
+  userId?: string;
 };
 
 export type DiagnosticsCacheTraceConfig = {

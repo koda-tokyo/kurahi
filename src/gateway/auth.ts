@@ -2,7 +2,7 @@ import type { IncomingMessage } from "node:http";
 import type { GatewayAuthConfig, GatewayTailscaleMode } from "../config/config.js";
 import { safeEqualSecret } from "../infra/secure-compare.js";
 import { readTailscaleWhoisIdentity, type TailscaleWhoisIdentity } from "../infra/tailscale.js";
-import { isTrustedProxyAddress, parseForwardedForClientIp, resolveGatewayClientIp } from "./net.js";
+import { isLoopbackClientRequest, parseForwardedForNearestHop } from "./net.js";
 import {
   ensureGatewayTokenFile,
   resolveGatewayTokenWithSource,
@@ -83,54 +83,31 @@ function getHostName(hostHeader?: string): string {
   return name ?? "";
 }
 
-function headerValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
+// Tailscale Serve (a loopback proxy) appends the tailnet peer it accepted as the RIGHTMOST
+// X-Forwarded-For hop; anything left of it was written by the client.
 function resolveTailscaleClientIp(req?: IncomingMessage): string | undefined {
   if (!req) {
     return undefined;
   }
-  const forwardedFor = headerValue(req.headers?.["x-forwarded-for"]);
-  return forwardedFor ? parseForwardedForClientIp(forwardedFor) : undefined;
+  return parseForwardedForNearestHop(req.headers?.["x-forwarded-for"]);
 }
 
-function resolveRequestClientIp(
-  req?: IncomingMessage,
-  trustedProxies?: string[],
-): string | undefined {
-  if (!req) {
-    return undefined;
-  }
-  return resolveGatewayClientIp({
-    remoteAddr: req.socket?.remoteAddress ?? "",
-    forwardedFor: headerValue(req.headers?.["x-forwarded-for"]),
-    realIp: headerValue(req.headers?.["x-real-ip"]),
-    trustedProxies,
-  });
-}
-
+/**
+ * "From the gateway host": the socket peer is loopback, the Host is local or *.ts.net, and
+ * either there are no forwarding headers or the peer is a trusted proxy and the client it
+ * forwarded (X-Forwarded-For walked from the right, see resolveGatewayClientAddress) is loopback.
+ * Caveat (docs/security/identity.md): a same-host reverse proxy that connects over loopback
+ * without X-Forwarded-For makes proxied remote requests look local; such a proxy must send
+ * X-Forwarded-For and be listed in gateway.trustedProxies.
+ */
 export function isLocalDirectRequest(req?: IncomingMessage, trustedProxies?: string[]): boolean {
-  if (!req) {
+  if (!req || !isLoopbackClientRequest(req, trustedProxies)) {
     return false;
   }
-  const clientIp = resolveRequestClientIp(req, trustedProxies) ?? "";
-  if (!isLoopbackAddress(clientIp)) {
-    return false;
-  }
-
   const host = getHostName(req.headers?.host);
   const hostIsLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
   const hostIsTailscaleServe = host.endsWith(".ts.net");
-
-  const hasForwarded = Boolean(
-    req.headers?.["x-forwarded-for"] ||
-    req.headers?.["x-real-ip"] ||
-    req.headers?.["x-forwarded-host"],
-  );
-
-  const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
-  return (hostIsLocal || hostIsTailscaleServe) && (!hasForwarded || remoteIsTrustedProxy);
+  return hostIsLocal || hostIsTailscaleServe;
 }
 
 function getTailscaleUser(req?: IncomingMessage): TailscaleUser | null {

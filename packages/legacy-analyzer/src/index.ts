@@ -3,6 +3,9 @@
 export type * from "./types.js";
 export {
   ALL_QUERY_KINDS,
+  CHANGES_LIMIT,
+  legacyBaselineAdvance,
+  legacyChanges,
   legacyDesignDoc,
   legacyDictionary,
   legacyImpact,
@@ -14,6 +17,17 @@ export {
 } from "./api.js";
 export type { LegacyEnv } from "./api.js";
 export { CACHE_DIR_NAME, resolveCacheDir, writeInCache } from "./cache.js";
+export {
+  BASELINE_DIR_NAME,
+  EDGE_KINDS,
+  ENTITY_KINDS,
+  baselineDir,
+  buildSnapshot,
+  compareSnapshots,
+  readSnapshot,
+  snapshotFile,
+} from "./changes.js";
+export type { ChangeReport, EdgeChange, EntityChange, Snapshot } from "./changes.js";
 export { dictionary } from "./dictionary.js";
 export type { Dictionary, DictionaryEntry } from "./dictionary.js";
 export { callGraphDot, performGraphDot } from "./graphs.js";

@@ -28,6 +28,11 @@ export type JavaTableUse = Loc & {
   /** Method signature, when the fact is inside a method. */
   method?: string;
   table: string;
+  /**
+   * The schema the reference names (`@Table(schema = "payroll")`, `payroll.employee` in SQL text,
+   * or the entity's for repository and JPQL access); absent when the source names none.
+   */
+  schema?: string;
   /** Access operations; empty for a mapping (entity or repository to table). */
   ops: CrudOp[];
   kind: "entity" | "repository" | "access";
@@ -37,6 +42,21 @@ export type JavaTableUse = Loc & {
   text?: string;
   partial?: boolean;
   declaredAt?: Loc;
+  /**
+   * An entity in a hierarchy with a discriminator column: the column on the root's table and the
+   * value that marks this entity's rows (@DiscriminatorValue; for a STRING discriminator the
+   * entity name by default, `implicit`; for CHAR or INTEGER the default is provider-specific, no
+   * `value`). `abstract`: the entity has no rows of its own, so it has no default value and its
+   * value never collides. `duplicate` when another entity of the same hierarchy has the same value.
+   */
+  discriminator?: {
+    root: string;
+    column: string;
+    value?: string;
+    implicit: boolean;
+    abstract?: true;
+    duplicate?: true;
+  };
 };
 
 export type JavaSupertype = Loc & {
@@ -52,6 +72,14 @@ export type JavaColumnMap = Loc & {
   table: string;
   column: string;
   implicit: boolean;
+  /** An inheritance hierarchy's discriminator column (empty `field`): @DiscriminatorColumn or DTYPE. */
+  discriminator?: true;
+  /** A primary key join column (empty `field`): a @SecondaryTable's or a JOINED subclass's table. */
+  primaryKeyJoin?: true;
+  /** A to-one join column that also maps this id attribute (path): @MapsId. */
+  mapsId?: string;
+  /** How a basic column (or Map key column) stores its value: @Enumerated / @MapKeyEnumerated / an enum type, or @Temporal / @MapKeyTemporal. */
+  stores?: "STRING" | "ORDINAL" | "DATE" | "TIME" | "TIMESTAMP";
 };
 
 export type JavaAnalysis = {
@@ -62,6 +90,62 @@ export type JavaAnalysis = {
   columns: JavaColumnMap[];
   supertypes: JavaSupertype[];
   stereotypes: Record<string, string[]>;
+  /** MyBatis statements whose namespace type or method is not in the sources. */
+  mybatisUnbound?: Array<Loc & { namespace: string; id: string }>;
+  /** Stored-routine calls (JDBC CALL text, stored-procedure APIs, MyBatis CALLABLE). */
+  routineCalls?: JavaRoutineCall[];
+  /**
+   * JPA owning sides: the mapping's claim of a join between tables. @ManyToOne / @OneToOne join
+   * from the owner's table; a unidirectional @OneToMany @JoinColumn from the target's table; a
+   * join table (@ManyToMany, or @OneToMany with @JoinTable or without a join column) is two joins,
+   * one to each side. A @SecondaryTable joins from the secondary table to the entity's primary one
+   * on its primary key join columns. A JOINED inheritance subclass joins from its table to its
+   * superclass's on the primary key join columns. An @ElementCollection's collection table joins
+   * the entity's table on its join columns.
+   */
+  relations?: JavaRelation[];
+};
+
+export type JavaRelation = Loc & {
+  type: string;
+  /** The mapped field; empty for a @SecondaryTable or inheritance, which the entity type itself declares. */
+  field: string;
+  kind:
+    | "ManyToOne"
+    | "OneToOne"
+    | "OneToMany"
+    | "ManyToMany"
+    | "ElementCollection"
+    | "MapKey"
+    | "SecondaryTable"
+    | "Inheritance";
+  /** The table holding the join columns, and its schema: the owner's, the target's or the join table. */
+  table: string;
+  schema?: string;
+  /** Join columns on the owning table, canonical. */
+  columns: string[];
+  /** Columns the join references (`referencedColumnName` on every join column). */
+  referenced?: string[];
+  /** No @JoinColumn names the column: JPA's default name. */
+  implicit: boolean;
+  /** The join table of a to-many mapping (@JoinTable, or JPA's default OWNER_TARGET). */
+  joinTable?: true;
+  /** The target entity's table and schema; absent when the target is not an entity in the sources. */
+  target?: string;
+  targetSchema?: string;
+  /** The target type as written, when it is not an entity in the sources. */
+  unresolved?: string;
+};
+
+export type JavaRoutineCall = Loc & {
+  type: string;
+  /** Method signature, when the call is inside a method. */
+  method?: string;
+  /** The routine as written, canonical name parts: `["PKG", "PROC"]`. */
+  routine: string[];
+  /** How the call was found: `JDBC CALL`, `@Procedure`, `MyBatis <select id="x"> CALL`, ... */
+  via: string;
+  declaredAt?: Loc;
 };
 
 export const methodId = (type: string, m: JavaMethod) => `${type}#${m.signature}`;
@@ -73,6 +157,16 @@ export const simple = (n: string) =>
 export const last = (n: string) => simple(n).split(".").pop() ?? n;
 export const ann = (t: { annotations: JavaAnnotation[] }, ...names: string[]) =>
   t.annotations.find((a) => names.includes(a.name.split(".").pop() ?? a.name));
+/** Every `item` annotation: repeated directly, or listed inside a `container` annotation. */
+export const repeated = (t: { annotations: JavaAnnotation[] }, item: string, container: string) =>
+  t.annotations.flatMap((a) => {
+    const n = a.name.split(".").pop() ?? a.name;
+    return n === item
+      ? [a]
+      : n === container
+        ? (a.nested ?? []).filter((x) => (x.name.split(".").pop() ?? x.name) === item)
+        : [];
+  });
 
 /** Spring Boot's default physical naming: camelCase -> CAMEL_CASE. */
 export function springName(n: string): string {

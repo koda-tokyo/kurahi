@@ -321,6 +321,9 @@ Queues + sessions:
 - `KoLo.session.stuck`
   - `KoLo.state`, `KoLo.ageMs`, `KoLo.queueDepth`,
     `KoLo.sessionKey`, `KoLo.sessionId`
+- `kurahi.agent.run` and `kurahi.autopilot.run` (governance spans, Langfuse attribute mapping;
+  ids, timings, decisions and counts, content only with `captureContent`). See
+  [AI governance export](/integrations/ibm-watsonx-governance).
 
 ### Sampling + flushing
 

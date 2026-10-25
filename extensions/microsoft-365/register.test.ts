@@ -83,6 +83,7 @@ describe("business connector plugins", () => {
         "m365_mail_list",
         "m365_mail_search",
         "m365_mail_read",
+        "m365_mail_attachment_fetch",
         "m365_calendar_list",
         "m365_calendar_read",
       ],

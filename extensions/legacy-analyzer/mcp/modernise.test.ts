@@ -54,7 +54,7 @@ describe("kurahi-legacy modernisation tools", () => {
     expect(plan.planned.map((p: { id: string }) => p.id)).toContain("cybersecurity");
     expect(plan.crossLanguage.shared).toEqual(["EMPLOYEE", "PAY_RESULT"]);
     expect(r.text).toMatch(
-      /java \(active, 7 files\).*fortran \(active, 1 files\).*plc-iec61131 \(planned, 1 files\)/,
+      /java \(active, 7 files\).*fortran \(active, 1 files\).*plc-iec61131 \(active, 1 files\)/,
     );
     const gaps = plan.coverage.java.gaps as Array<{ at: string }>;
     expect(gaps.every((g) => AT.test(g.at))).toBe(true);
@@ -102,6 +102,7 @@ describe("kurahi-legacy modernisation tools", () => {
       "programs",
       "java",
       "fortran",
+      "plc",
       "dictionary",
       "tables",
       "crud",

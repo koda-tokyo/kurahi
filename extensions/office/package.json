@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/office",
+  "version": "2.2.0",
+  "description": "Office document tools (PPTX, DOCX, XLSX) that write into the current Project folder",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

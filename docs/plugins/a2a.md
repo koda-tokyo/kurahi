@@ -149,6 +149,26 @@ Without `publicUrl`, the URL comes from a loopback `Host` header, and failing th
 Cards are public by default (`publicCard: true`) so peers can discover them, but they still sit
 behind the network gate. Set `publicCard: false` to require a client token for the card too.
 
+### API-key header and the ask endpoint
+
+Two optional server settings help callers that do not use `Authorization: Bearer` or do not speak
+A2A. Both are off by default and change nothing about the gate, tokens, allowlist, limits,
+isolated session or untrusted handling.
+
+- `apiKeyHeader: true` also accepts a client token in an `X-API-Key` header. The card then lists
+  `apiKey` (header `X-API-Key`) as an alternative to `bearer`. `Authorization` wins when both are
+  sent.
+- `rest: true` adds, per agent, `POST <basePath>/<slug>/ask` (body
+  `{ "message": "...", "contextId": "..." }`, answer
+  `{ "reply", "state", "taskId", "contextId" }`) and its OpenAPI 3.0 description at
+  `GET <basePath>/<slug>/openapi.json`. The document has one server URL without variables
+  (`publicUrl`), one operation with a snake*case `operationId` (`ask*<slug>`) and a description,
+and JSON in and out, so OpenAPI tool importers accept it. The document is served like the card
+(`publicCard`). Pass the returned `contextId` back to continue the same session.
+
+For an enterprise orchestration platform registration, see
+[watsonx Orchestrate](/integrations/ibm-watsonx-orchestrate).
+
 ### Error codes
 
 | Code   | Meaning                                                                                                                                           |

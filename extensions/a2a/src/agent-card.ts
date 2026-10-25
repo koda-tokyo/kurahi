@@ -7,6 +7,8 @@ import type { Dialect } from "./protocol.js";
 
 export const CARD_PATH = "/.well-known/agent-card.json";
 export const SECURITY_SCHEME = "bearer";
+export const API_KEY_SCHEME = "apiKey";
+export const API_KEY_HEADER = "X-API-Key";
 const INPUT_MODES = ["text/plain", "application/json"];
 const OUTPUT_MODES = ["text/plain"];
 
@@ -47,12 +49,15 @@ function skills(agent: A2aExposedAgent) {
 }
 
 export function buildAgentCard(params: {
-  server: Pick<A2aServerConfig, "basePath" | "streaming" | "provider" | "publicUrl">;
+  server: Pick<A2aServerConfig, "basePath" | "streaming" | "provider" | "publicUrl"> & {
+    apiKeyHeader?: boolean;
+  };
   agent: A2aExposedAgent;
   baseUrl: string;
   dialect: Dialect;
 }) {
   const { server, agent, baseUrl, dialect } = params;
+  const apiKey = server.apiKeyHeader === true;
   const url = `${baseUrl}${rpcPath(server, agent.slug)}`;
   const provider = server.provider
     ? { organization: server.provider.organization, url: server.provider.url }
@@ -82,8 +87,23 @@ export function buildAgentCard(params: {
         [SECURITY_SCHEME]: {
           httpAuthSecurityScheme: { scheme: "Bearer", description: "Per-client bearer token" },
         },
+        ...(apiKey
+          ? {
+              [API_KEY_SCHEME]: {
+                apiKeySecurityScheme: {
+                  location: "header",
+                  name: API_KEY_HEADER,
+                  description: "The same per-client token, in a header",
+                },
+              },
+            }
+          : {}),
       },
-      securityRequirements: [{ schemes: { [SECURITY_SCHEME]: { list: [] } } }],
+      // Alternatives: either scheme satisfies the card.
+      securityRequirements: [
+        { schemes: { [SECURITY_SCHEME]: { list: [] } } },
+        ...(apiKey ? [{ schemes: { [API_KEY_SCHEME]: { list: [] } } }] : []),
+      ],
     };
   }
   return {
@@ -103,7 +123,17 @@ export function buildAgentCard(params: {
         scheme: "bearer",
         description: "Per-client bearer token",
       },
+      ...(apiKey
+        ? {
+            [API_KEY_SCHEME]: {
+              type: "apiKey",
+              in: "header",
+              name: API_KEY_HEADER,
+              description: "The same per-client token, in a header",
+            },
+          }
+        : {}),
     },
-    security: [{ [SECURITY_SCHEME]: [] }],
+    security: [{ [SECURITY_SCHEME]: [] }, ...(apiKey ? [{ [API_KEY_SCHEME]: [] }] : [])],
   };
 }

@@ -4,6 +4,7 @@ import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zo
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
+import { GatewayIdentitySchema } from "./zod-schema.identity.js";
 import { McpSchema } from "./zod-schema.mcp.js";
 import { ChannelsSchema } from "./zod-schema.providers.js";
 import { CommandsSchema, MessagesSchema, SessionSchema } from "./zod-schema.session.js";
@@ -38,6 +39,7 @@ export const KoLoSchema = z
       })
       .strict()
       .optional(),
+    profile: z.union([z.literal("standard"), z.literal("enterprise")]).optional(),
     env: z
       .object({
         shellEnv: z
@@ -77,6 +79,25 @@ export const KoLoSchema = z
             logs: z.boolean().optional(),
             sampleRate: z.number().min(0).max(1).optional(),
             flushIntervalMs: z.number().int().nonnegative().optional(),
+            captureContent: z.boolean().optional(),
+            maxContentChars: z.number().int().min(100).max(100_000).optional(),
+            orchestrate: z
+              .object({
+                enabled: z.boolean().optional(),
+                url: z.string().url().optional(),
+                apiKey: z.string().optional(),
+                auth: z.union([z.literal("iam"), z.literal("api-key")]).optional(),
+                iamUrl: z.string().url().optional(),
+                tenantId: z.string().optional(),
+                environment: z.string().optional(),
+                agentId: z.string().optional(),
+                userId: z
+                  .string()
+                  .regex(/^usr_[A-Za-z0-9_.-]{1,120}$/)
+                  .optional(),
+              })
+              .strict()
+              .optional(),
           })
           .strict()
           .optional(),
@@ -337,6 +358,22 @@ export const KoLoSchema = z
       })
       .strict()
       .optional(),
+    security: z
+      .object({
+        /** Attachment intake: quarantine, static policy, malware scan, isolated extraction. */
+        attachments: z
+          .object({
+            scanner: z.enum(["auto", "clamav", "defender", "none"]).optional(),
+            requireScan: z.boolean().optional(),
+            scanTimeoutSeconds: z.number().int().min(1).max(600).optional(),
+            extractTimeoutSeconds: z.number().int().min(1).max(300).optional(),
+            extractMaxOldSpaceMb: z.number().int().min(32).max(2048).optional(),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
     kipEngine: z
       .object({
         /** Register the kip_engine_task tool (default false). */
@@ -521,6 +558,7 @@ export const KoLoSchema = z
           })
           .strict()
           .optional(),
+        identity: GatewayIdentitySchema.optional(),
         trustedProxies: z.array(z.string()).optional(),
         tailscale: z
           .object({

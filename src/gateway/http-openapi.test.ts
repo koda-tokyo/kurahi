@@ -59,7 +59,8 @@ describe("OpenAPI document from the route registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
     for (const { path: p, method, op } of operations()) {
       expect(["get", "post", "put", "patch", "delete", "head", "options"]).toContain(method);
-      expect(Object.keys(op.responses).some((code) => code.startsWith("2"))).toBe(true);
+      // A success: 2xx, or 3xx for browser redirect steps (SSO sign-in).
+      expect(Object.keys(op.responses).some((code) => /^[23]/.test(code))).toBe(true);
       // every template parameter is declared
       for (const [, name] of p.matchAll(/\{(\w+)\}/g)) {
         const params = (op as unknown as { parameters?: Array<{ name: string; in: string }> })

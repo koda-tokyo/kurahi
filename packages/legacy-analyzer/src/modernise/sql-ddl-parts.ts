@@ -313,7 +313,11 @@ export function constraint(
       kind: "FOREIGN KEY",
       ...(name ? { name } : {}),
       columns: cols.names,
-      references: { table: canonical(ref.parts.at(-1) ?? ""), columns: refCols },
+      references: {
+        table: canonical(ref.parts.at(-1) ?? ""),
+        columns: refCols,
+        ...(ref.parts.length > 1 ? { schema: canonical(ref.parts.at(-2) ?? "") } : {}),
+      },
     };
   }
   if (isW(toks[k], "CHECK")) {
@@ -391,6 +395,7 @@ export function column(
       col.references = {
         table: canonical(ref.parts.at(-1) ?? ""),
         ...(refCol ? { column: refCol } : {}),
+        ...(ref.parts.length > 1 ? { schema: canonical(ref.parts.at(-2) ?? "") } : {}),
       };
     } else if (isW(t, "COMMENT") && toks[k + 1]?.k === "str") {
       col.comment = toks[k + 1].v;

@@ -206,6 +206,10 @@ describe("control UI routing", () => {
   it("renders the enterprise sidebar groups with the approvals badge", async () => {
     const app = mountApp("/home");
     await app.updateComplete;
+    // The first gateway connect is started asynchronously (after the sign-in check) and resets the
+    // queue to the terminal session's entries; let it run before seeding a pending approval.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await app.updateComplete;
     app.execApprovalQueue = [
       {
         id: "a1",

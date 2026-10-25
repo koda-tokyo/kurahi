@@ -172,6 +172,15 @@ export class ShieldDetector {
         return null;
       }
       case "change": {
+        // macOS FSEvents can coalesce create+write into one event that arrives as `change`.
+        if (looksLikeRansomNote(event.path)) {
+          return {
+            reason: "note",
+            detail: "ransom-note file written",
+            paths: [event.path],
+            at: now,
+          };
+        }
         if (isNaturallyDense(event.path) || event.entropy < this.t.highEntropy) {
           return null;
         }

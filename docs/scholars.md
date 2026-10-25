@@ -36,7 +36,11 @@ not available.
 
 Through Kurahi Projects, without the dedicated workspace screens:
 
-- the **Research & academic** project template: the corpus is read-only and every claim cites a
+- the **Research & academic** project template with three [autopilot](/autopilot#scholars)
+  routines over free literature APIs ([Scholar sources](/connectors/scholar-sources): arXiv,
+  OpenAlex, Crossref, PubMed; no keys): a weekly literature watch from your research profile with
+  a Word digest, a citation check of your drafts, and grant deadline reminders. Nothing is ever
+  submitted. The corpus is read-only and every claim cites a
   source file;
 - the **Education** template for teachers' lesson planning, without learner personal data;
 - [evidence bundles](/evidence): a signed record of every agent job, verified offline;

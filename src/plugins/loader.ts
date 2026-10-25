@@ -25,6 +25,7 @@ import { CONFIG_PATH, resolveStateDir } from "../config/paths.js";
 import { authorizeGatewaySigusr1Restart, triggerKoLoRestart } from "../infra/restart.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { resolveReleaseProfile, type ReleaseProfile } from "../packaging/release-profile.js";
 import { recordAuditEvent } from "../security/audit-log.js";
 import { resolveUserPath } from "../utils.js";
 import { clearPluginCommands, clearPluginCommandsForPlugin } from "./commands.js";
@@ -45,6 +46,7 @@ import {
   type PluginSignalBus,
 } from "./lifecycle.js";
 import { loadPluginManifestRegistry, type PluginManifestRecord } from "./manifest-registry.js";
+import { decidePluginForProfile } from "./profile-gate.js";
 import {
   createPluginRegistry,
   removePluginRegistrations,
@@ -226,9 +228,10 @@ export function preparePluginSdk(): Promise<void> {
 function buildCacheKey(params: {
   workspaceDir?: string;
   plugins: NormalizedPluginsConfig;
+  profile: ReleaseProfile;
 }): string {
   const workspaceKey = params.workspaceDir ? resolveUserPath(params.workspaceDir) : "";
-  return `${workspaceKey}::${JSON.stringify(params.plugins)}`;
+  return `${workspaceKey}::${params.profile}::${JSON.stringify(params.plugins)}`;
 }
 
 function validatePluginConfig(params: {
@@ -509,6 +512,45 @@ export function loadPluginCandidate(
     return record;
   }
 
+  // Release profile (docs/security/enterprise-profile.md): under the enterprise profile an
+  // excluded plugin is refused even when someone copied it in and enabled it.
+  const profile = resolveReleaseProfile(ctx.cfg);
+  const profileDecision = decidePluginForProfile({
+    profile,
+    pluginId,
+    normalized: ctx.normalized,
+  });
+  if (!profileDecision.allowed) {
+    const message = `refused by the ${profile} profile (${profileDecision.reason})`;
+    ctx.logger.warn(`[plugins] ${pluginId} ${message}`);
+    record.status = "disabled";
+    record.enabled = false;
+    record.error = message;
+    finishRecord(ctx, record, candidate.origin);
+    ctx.registry.diagnostics.push({
+      level: "warn",
+      pluginId,
+      source: record.source,
+      message,
+    });
+    if (ctx.audit) {
+      auditPluginEvent(pluginId, {
+        action: "plugin.refused",
+        outcome: "denied",
+        source: "plugins",
+        detail: {
+          plugin: pluginId,
+          profile,
+          tier: profileDecision.tier,
+          origin: candidate.origin,
+          source: record.source,
+          reason: profileDecision.reason,
+        },
+      });
+    }
+    return record;
+  }
+
   // ASI04: an unpinned or modified package is refused in enforce mode before any import.
   const integrity = gatePluginCandidate({ cfg: ctx.cfg, pluginId, candidate, audit: ctx.audit });
   if (!integrity.allowed) {
@@ -710,6 +752,7 @@ export function loadKoLoPlugins(options: PluginLoadOptions = {}): PluginRegistry
   const cacheKey = buildCacheKey({
     workspaceDir: options.workspaceDir,
     plugins: normalized,
+    profile: resolveReleaseProfile(cfg),
   });
   const cacheEnabled = options.cache !== false;
   if (cacheEnabled) {
@@ -835,7 +878,7 @@ export function loadScopedKoLoPlugins(options: ScopedPluginLoadOptions): PluginR
   const logger = options.logger ?? defaultLogger();
   const base = normalizePluginsConfig(cfg.plugins);
   const wanted = [...new Set(options.pluginIds.map((id) => id.trim()).filter(Boolean))].toSorted();
-  const cacheKey = `${buildCacheKey({ workspaceDir: options.workspaceDir, plugins: base })}::scoped:${wanted.join(",")}`;
+  const cacheKey = `${buildCacheKey({ workspaceDir: options.workspaceDir, plugins: base, profile: resolveReleaseProfile(cfg) })}::scoped:${wanted.join(",")}`;
   const cached = scopedRegistryCache.get(cacheKey);
   if (cached) {
     return cached;

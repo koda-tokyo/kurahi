@@ -1,6 +1,7 @@
 import type { GatewayRequestHandlers } from "./types.js";
 import {
   approveDevicePairing,
+  DeviceScopeCeilingError,
   listDevicePairing,
   type DeviceAuthToken,
   rejectDevicePairing,
@@ -29,6 +30,22 @@ function redactPairedDevice(
   };
 }
 
+/**
+ * The caller's scopes: the ceiling for any token approved or rotated on its behalf. In-process
+ * calls without a connection are not capped, as in the method gate (authorizeGatewayMethod).
+ */
+function callerScopes(
+  client: { connect?: { scopes?: string[] } | null } | null | undefined,
+): string[] | undefined {
+  return client?.connect ? (client.connect.scopes ?? []) : undefined;
+}
+
+function scopeCeilingError(err: DeviceScopeCeilingError) {
+  return errorShape(ErrorCodes.INVALID_REQUEST, err.message, {
+    details: { code: "scope_ceiling", scopes: err.scopes },
+  });
+}
+
 export const deviceHandlers: GatewayRequestHandlers = {
   "device.pair.list": async ({ params, respond }) => {
     if (!validateDevicePairListParams(params)) {
@@ -54,7 +71,7 @@ export const deviceHandlers: GatewayRequestHandlers = {
       undefined,
     );
   },
-  "device.pair.approve": async ({ params, respond, context }) => {
+  "device.pair.approve": async ({ params, respond, context, client }) => {
     if (!validateDevicePairApproveParams(params)) {
       respond(
         false,
@@ -69,7 +86,18 @@ export const deviceHandlers: GatewayRequestHandlers = {
       return;
     }
     const { requestId } = params as { requestId: string };
-    const approved = await approveDevicePairing(requestId);
+    let approved: Awaited<ReturnType<typeof approveDevicePairing>>;
+    try {
+      approved = await approveDevicePairing(requestId, undefined, {
+        callerScopes: callerScopes(client),
+      });
+    } catch (err) {
+      if (err instanceof DeviceScopeCeilingError) {
+        respond(false, undefined, scopeCeilingError(err));
+        return;
+      }
+      throw err;
+    }
     if (!approved) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"));
       return;
@@ -121,7 +149,7 @@ export const deviceHandlers: GatewayRequestHandlers = {
     );
     respond(true, rejected, undefined);
   },
-  "device.token.rotate": async ({ params, respond, context }) => {
+  "device.token.rotate": async ({ params, respond, context, client }) => {
     if (!validateDeviceTokenRotateParams(params)) {
       respond(
         false,
@@ -140,7 +168,21 @@ export const deviceHandlers: GatewayRequestHandlers = {
       role: string;
       scopes?: string[];
     };
-    const entry = await rotateDeviceToken({ deviceId, role, scopes });
+    let entry: Awaited<ReturnType<typeof rotateDeviceToken>>;
+    try {
+      entry = await rotateDeviceToken({
+        deviceId,
+        role,
+        scopes,
+        callerScopes: callerScopes(client),
+      });
+    } catch (err) {
+      if (err instanceof DeviceScopeCeilingError) {
+        respond(false, undefined, scopeCeilingError(err));
+        return;
+      }
+      throw err;
+    }
     if (!entry) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown deviceId/role"));
       return;

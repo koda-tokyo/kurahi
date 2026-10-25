@@ -21,6 +21,7 @@ import { formatAgo } from "../format";
 import { t, type MessageId } from "../i18n";
 import { icons } from "../icons";
 import { renderArtifactList } from "./artifacts";
+import { renderAutopilot } from "./autopilot";
 import { renderBusiness } from "./business";
 import { renderIndustrialModernisation } from "./industrial-modernisation";
 import { renderProjectList } from "./projects-list";
@@ -222,6 +223,7 @@ function renderPackView(state: AppViewState) {
 }
 
 const VIEW_LABEL: Record<ProjectView, MessageId> = {
+  autopilot: "autopilot.title",
   business: "projects.view.business",
   terminal: "industrial.tab.terminal",
   chat: "projects.view.chat",
@@ -432,6 +434,7 @@ function renderProjectPage(state: AppViewState, proj: Project) {
         >`,
       )}
     </nav>
+    ${view === "autopilot" ? renderAutopilot(state, proj) : nothing}
     ${view === "business" ? renderBusiness(state, proj) : nothing}
     ${view === "chat" ? renderChatView(state, proj) : nothing}
     ${view === "modernize" ? renderIndustrialModernisation(state, proj) : nothing}

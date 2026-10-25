@@ -23,17 +23,17 @@ describe("Industrial Modernization Engineer", () => {
     ]);
   });
 
-  it("reports the five implemented engines and keeps the four future domains planned", () => {
+  it("reports the six implemented engines and keeps the three future domains planned", () => {
     expect(
       INDUSTRIAL_CAPABILITIES.filter((capability) => capability.status === "deterministic").map(
         (capability) => capability.id,
       ),
-    ).toEqual(["cobol-jcl", "fortran", "pli", "java", "databases"]);
+    ).toEqual(["cobol-jcl", "fortran", "pli", "java", "databases", "plc"]);
     expect(
       INDUSTRIAL_CAPABILITIES.filter((capability) => capability.status === "planned").map(
         (capability) => capability.id,
       ),
-    ).toEqual(["batch", "plc", "maintenance", "cybersecurity"]);
+    ).toEqual(["batch", "maintenance", "cybersecurity"]);
   });
 
   it("appears only in the industrial project configuration", () => {

@@ -30,6 +30,13 @@ import {
   taskEvent,
   TERMINAL_STATES,
 } from "./protocol.js";
+import {
+  askOperationId,
+  askPath,
+  buildOpenApiDocument,
+  openApiPath,
+  parseAskBody,
+} from "./rest.js";
 import { type AuditFn, executeTask, type RunAgent } from "./task-runner.js";
 import { type TaskRecord, TaskStore } from "./task-store.js";
 
@@ -61,7 +68,9 @@ export function createA2aServer(opts: A2aServerOptions) {
     ttlMs: config.taskTtlMinutes * 60_000,
     now,
   });
-  const authenticate = createClientAuthenticator(config.clients);
+  const authenticate = createClientAuthenticator(config.clients, {
+    apiKeyHeader: config.apiKeyHeader,
+  });
   const clientLimiter = new RateLimiter(config.requestsPerMinute, 60_000, now);
   const cardLimiter = new RateLimiter(Math.max(60, config.requestsPerMinute), 60_000, now);
   const authFailures = new RateLimiter(AUTH_FAILURES_PER_MINUTE, 60_000, now);
@@ -93,6 +102,7 @@ export function createA2aServer(opts: A2aServerOptions) {
           agent: slug,
           ip,
           hasAuthorization: typeof req.headers.authorization === "string",
+          hasApiKey: req.headers["x-api-key"] !== undefined,
         },
       });
       sendJson(res, 401, { error: "unauthorized" }, { "WWW-Authenticate": 'Bearer realm="a2a"' });
@@ -112,7 +122,8 @@ export function createA2aServer(opts: A2aServerOptions) {
   };
 
   const cardHandler =
-    (agent: A2aExposedAgent) => async (req: IncomingMessage, res: ServerResponse) => {
+    (agent: A2aExposedAgent, kind: "card" | "openapi" = "card") =>
+    async (req: IncomingMessage, res: ServerResponse) => {
       const ip = gate(req, res);
       if (!ip) {
         return;
@@ -129,6 +140,14 @@ export function createA2aServer(opts: A2aServerOptions) {
       if (!config.publicCard && !requireClient(req, res, ip, agent.slug)) {
         return;
       }
+      const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
+      const baseUrl = resolveBaseUrl(config, host, opts.fallbackPort);
+      if (kind === "openapi") {
+        sendJson(res, 200, buildOpenApiDocument({ server: config, agent, baseUrl }), {
+          "Cache-Control": "public, max-age=300",
+        });
+        return;
+      }
       const versionError = checkVersionHeader(req.headers["a2a-version"]);
       if (versionError) {
         sendJson(res, 400, { error: versionError });
@@ -136,51 +155,60 @@ export function createA2aServer(opts: A2aServerOptions) {
       }
       const version = String(req.headers["a2a-version"] ?? "").trim();
       const dialect: Dialect = version.startsWith("1.") ? "1.0" : "0.3";
-      const host = typeof req.headers.host === "string" ? req.headers.host : undefined;
-      const card = buildAgentCard({
-        server: config,
-        agent,
-        baseUrl: resolveBaseUrl(config, host, opts.fallbackPort),
-        dialect,
-      });
+      const card = buildAgentCard({ server: config, agent, baseUrl, dialect });
       sendJson(res, 200, card, { "Cache-Control": "public, max-age=300" });
     };
 
+  /** Gate, auth, allowlist, rate limit and bounded body read shared by every POST endpoint. */
+  const admitPost = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    agent: A2aExposedAgent,
+    tooLarge: (message: string) => unknown,
+  ): Promise<{ client: A2aServerClient; raw: string } | null> => {
+    const ip = gate(req, res);
+    if (!ip) {
+      return null;
+    }
+    if (req.method !== "POST") {
+      sendJson(res, 405, { error: "method not allowed" }, { Allow: "POST" });
+      return null;
+    }
+    const client = requireClient(req, res, ip, agent.slug);
+    if (!client) {
+      return null;
+    }
+    const retry = clientLimiter.hit(client.id);
+    if (retry > 0) {
+      audit({
+        action: "a2a.server.rate_limited",
+        outcome: "denied",
+        identity: `a2a:${client.id}`,
+        detail: { agent: agent.slug },
+      });
+      sendJson(res, 429, { error: "rate limited" }, { "Retry-After": String(retry) });
+      return null;
+    }
+    try {
+      return { client, raw: await readBody(req, config.maxBodyBytes) };
+    } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        sendJson(res, 413, tooLarge(err.message));
+        return null;
+      }
+      throw err;
+    }
+  };
+
   const rpcHandler =
     (agent: A2aExposedAgent) => async (req: IncomingMessage, res: ServerResponse) => {
-      const ip = gate(req, res);
-      if (!ip) {
+      const admitted = await admitPost(req, res, agent, (m) =>
+        rpcError(null, RpcError.InvalidRequest, m),
+      );
+      if (!admitted) {
         return;
       }
-      if (req.method !== "POST") {
-        sendJson(res, 405, { error: "method not allowed" }, { Allow: "POST" });
-        return;
-      }
-      const client = requireClient(req, res, ip, agent.slug);
-      if (!client) {
-        return;
-      }
-      const retry = clientLimiter.hit(client.id);
-      if (retry > 0) {
-        audit({
-          action: "a2a.server.rate_limited",
-          outcome: "denied",
-          identity: `a2a:${client.id}`,
-          detail: { agent: agent.slug },
-        });
-        sendJson(res, 429, { error: "rate limited" }, { "Retry-After": String(retry) });
-        return;
-      }
-      let raw: string;
-      try {
-        raw = await readBody(req, config.maxBodyBytes);
-      } catch (err) {
-        if (err instanceof BodyTooLargeError) {
-          sendJson(res, 413, rpcError(null, RpcError.InvalidRequest, err.message));
-          return;
-        }
-        throw err;
-      }
+      const { client, raw } = admitted;
       let body: unknown;
       try {
         body = JSON.parse(raw);
@@ -252,6 +280,57 @@ export function createA2aServer(opts: A2aServerOptions) {
         }
         logger.warn(`a2a rpc failed: ${String(err).slice(0, 300)}`);
         sendJson(res, 200, rpcError(id, RpcError.Internal, "internal error"));
+      }
+    };
+
+  /** The ask endpoint (server.rest): one blocking task, plain JSON in and out. */
+  const askHandler =
+    (agent: A2aExposedAgent) => async (req: IncomingMessage, res: ServerResponse) => {
+      const admitted = await admitPost(req, res, agent, (m) => ({ error: m }));
+      if (!admitted) {
+        return;
+      }
+      const { client, raw } = admitted;
+      try {
+        let body: unknown;
+        try {
+          body = JSON.parse(raw);
+        } catch {
+          throw new A2aRpcError(RpcError.ParseError, "invalid JSON");
+        }
+        const ask = parseAskBody(body);
+        const params = {
+          message: {
+            messageId: randomUUID(),
+            role: "user",
+            parts: [{ kind: "text", text: ask.text }],
+            ...(ask.contextId ? { contextId: ask.contextId } : {}),
+          },
+        };
+        const started = startTask(params, agent, client, askOperationId(agent.slug));
+        if ("busy" in started) {
+          sendJson(res, 503, { error: "server busy, retry later" }, { "Retry-After": "5" });
+          return;
+        }
+        await started.run;
+        const { task } = started;
+        const reply =
+          task.status.message?.parts
+            .map((p) => (p.kind === "text" ? p.text : JSON.stringify(p.data)))
+            .join("\n\n") ?? "";
+        sendJson(res, 200, {
+          reply,
+          state: task.status.state,
+          taskId: task.id,
+          contextId: task.contextId,
+        });
+      } catch (err) {
+        if (err instanceof A2aRpcError) {
+          sendJson(res, 400, { error: err.message });
+          return;
+        }
+        logger.warn(`a2a ask failed: ${String(err).slice(0, 300)}`);
+        sendJson(res, 500, { error: "internal error" });
       }
     };
 
@@ -394,6 +473,20 @@ export function createA2aServer(opts: A2aServerOptions) {
       summary: `A2A Agent Card (${agent.name})`,
       handler: cardHandler(agent),
     });
+    if (config.rest) {
+      routes.push({
+        path: askPath(config, agent.slug),
+        methods: ["POST"],
+        summary: `Ask endpoint (${agent.name})`,
+        handler: askHandler(agent),
+      });
+      routes.push({
+        path: openApiPath(config, agent.slug),
+        methods: ["GET"],
+        summary: `OpenAPI 3.0 description of the ask endpoint (${agent.name})`,
+        handler: cardHandler(agent, "openapi"),
+      });
+    }
   }
   const defaultAgent = config.agents.find((a) => a.slug === config.defaultAgent);
   if (defaultAgent) {

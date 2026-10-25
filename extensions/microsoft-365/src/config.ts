@@ -1,5 +1,6 @@
 // Microsoft 365 connector configuration: admin-supplied tenant and client id, least-privilege
 // scopes derived from what is switched on. Read scopes only unless a write opt-in is set.
+// Uploads use the OneDrive app folder scope (Files.ReadWrite.AppFolder), never Files.ReadWrite.
 import {
   intParam,
   isValidClientId,
@@ -17,7 +18,9 @@ export const SCOPES = {
   files: "Files.Read.All",
   sites: "Sites.Read.All",
   mailSend: "Mail.Send",
+  mailReadWrite: "Mail.ReadWrite",
   calendarWrite: "Calendars.ReadWrite",
+  filesAppFolder: "Files.ReadWrite.AppFolder",
 } as const;
 
 export type M365Settings = {
@@ -29,12 +32,35 @@ export type M365Settings = {
   sharePoint: boolean;
   maxFileBytes: number;
   mailSend: boolean;
+  mailDraft: boolean;
   calendarWrite: boolean;
+  /** Upload Project files to the user's OneDrive app folder (`write.files`). */
+  filesUpload: boolean;
   redirectPort?: number;
   probeIntervalMinutes: number;
   ratePerSecond: number;
   approvalTimeoutMs: number;
+  /** Autopilot mail trigger: delta poll interval. */
+  mailWatchPollMs: number;
+  /** Graph change notifications base URL (https), or null (delta polling only). */
+  notificationsPublicUrl: string | null;
 };
+
+/** An https URL without credentials, query or fragment (the notification base). */
+export function publicUrlOf(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) {
+    return null;
+  }
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash) {
+      return null;
+    }
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
 
 function rec(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -54,18 +80,22 @@ export function readSettings(raw: unknown): M365Settings {
     sharePoint: files.sharePoint === true,
     maxFileBytes: intParam(files.maxFileBytes, 10 * 1024 * 1024, 1024, 20 * 1024 * 1024),
     mailSend: write.mailSend === true,
+    mailDraft: write.mailDraft === true,
     calendarWrite: write.calendarWrite === true,
+    filesUpload: write.files === true,
     redirectPort: typeof c.redirectPort === "number" ? c.redirectPort : undefined,
     probeIntervalMinutes: intParam(c.probeIntervalMinutes, 15, 5, 1440),
     ratePerSecond: intParam(c.ratePerSecond, 8, 1, 50),
     approvalTimeoutMs: intParam(c.approvalTimeoutSeconds, 120, 30, 600) * 1000,
+    mailWatchPollMs: intParam(rec(c.mailWatch).pollSeconds, 60, 30, 600) * 1000,
+    notificationsPublicUrl: publicUrlOf(rec(c.notifications).publicUrl),
   };
 }
 
 /** Scopes requested at sign-in. `offline_access` gives the refresh token. */
 export function requestedScopes(s: M365Settings): string[] {
   const out: string[] = ["offline_access", SCOPES.user];
-  if (s.mail) {
+  if (s.mail && !s.mailDraft) {
     out.push(SCOPES.mail);
   }
   if (s.calendar && !s.calendarWrite) {
@@ -80,8 +110,14 @@ export function requestedScopes(s: M365Settings): string[] {
   if (s.mailSend) {
     out.push(SCOPES.mailSend);
   }
+  if (s.mailDraft) {
+    out.push(SCOPES.mailReadWrite);
+  }
   if (s.calendarWrite) {
     out.push(SCOPES.calendarWrite);
+  }
+  if (s.filesUpload) {
+    out.push(SCOPES.filesAppFolder);
   }
   return out;
 }

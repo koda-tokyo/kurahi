@@ -106,7 +106,9 @@ function renderCapabilityGrid(state: AppViewState, project: Project) {
               </div>
               <p>${localized(capability.evidence, state.locale)}</p>
               <button
+                type="button"
                 class="btn"
+                aria-label=${`${t(capability.status === "planned" ? "industrial.planned" : "industrial.start")}: ${localized(capability.name, state.locale)}`}
                 ?disabled=${capability.status === "planned" || !available}
                 title=${capability.status === "planned" ? t("industrial.planned") : !available ? localized(unavailableCopy, state.locale) : t("industrial.start")}
                 @click=${() =>
@@ -192,7 +194,9 @@ function renderAgentPacks(state: AppViewState, project: Project) {
                 <span>${t("industrial.pack.capabilities", { count: pack.capabilities.length })}</span>
               </div>
               <button
+                type="button"
                 class="btn"
+                aria-label=${`${t("industrial.pack.open")}: ${t(pack.labelKey as MessageId)}`}
                 ?disabled=${unavailable || !state.connected}
                 title=${unavailable ? t(PACK_STATUS_LABEL[pack.readiness]) : t("industrial.pack.open")}
                 @click=${() =>

@@ -19,6 +19,7 @@ import {
   syncThemeWithSettings,
 } from "./app-settings";
 import { handlePairLink } from "./pair-link";
+import { fetchSsoConfig, takeSsoFragment, type SsoConfig } from "./sso";
 
 type LifecycleHost = {
   basePath: string;
@@ -45,24 +46,33 @@ export function handleConnected(host: LifecycleHost) {
   // M16: a `#pair=` link from `kolo connect web` (or a stored phone credential) supplies the
   // token before the first connection; otherwise connect as before.
   const gatewayHost = host as unknown as Parameters<typeof connectGateway>[0];
+  // Organisation sign-in: `#sso_code=` from the gateway's SSO callback (exchanged for the session
+  // token before the first connection), and the providers to offer.
+  const ssoReady = takeSsoFragment();
+  void fetchSsoConfig(window.location.origin).then((config) => {
+    (host as unknown as { ssoConfig: SsoConfig | null }).ssoConfig = config;
+  });
   let pairNotice: string | null = null;
-  void handlePairLink({
-    useToken: (token) => {
-      const settingsHost = host as unknown as Parameters<typeof applySettings>[0];
-      applySettings(settingsHost, { ...settingsHost.settings, token });
-      connectGateway(gatewayHost);
-    },
-    notify: (message) => {
-      pairNotice = message;
-      (host as unknown as { lastError: string | null }).lastError = message;
-    },
-  }).then((tookOver) => {
-    if (!tookOver) {
-      connectGateway(gatewayHost);
-      if (pairNotice) {
-        (host as unknown as { lastError: string | null }).lastError = pairNotice;
+  void ssoReady.then((sso) => {
+    pairNotice = sso.notice;
+    return handlePairLink({
+      useToken: (token) => {
+        const settingsHost = host as unknown as Parameters<typeof applySettings>[0];
+        applySettings(settingsHost, { ...settingsHost.settings, token });
+        connectGateway(gatewayHost);
+      },
+      notify: (message) => {
+        pairNotice = message;
+        (host as unknown as { lastError: string | null }).lastError = message;
+      },
+    }).then((tookOver) => {
+      if (!tookOver) {
+        connectGateway(gatewayHost);
+        if (pairNotice) {
+          (host as unknown as { lastError: string | null }).lastError = pairNotice;
+        }
       }
-    }
+    });
   });
   startNodesPolling(host as unknown as Parameters<typeof startNodesPolling>[0]);
   if (host.tab === "logs") {

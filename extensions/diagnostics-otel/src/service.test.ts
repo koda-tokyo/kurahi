@@ -83,10 +83,7 @@ vi.mock("@opentelemetry/sdk-trace-base", () => ({
 }));
 
 vi.mock("@opentelemetry/resources", () => ({
-  Resource: class {
-    // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-    constructor(_value?: unknown) {}
-  },
+  resourceFromAttributes: (value: unknown) => ({ attributes: value }),
 }));
 
 vi.mock("@opentelemetry/semantic-conventions", () => ({
@@ -192,19 +189,13 @@ describe("diagnostics-otel service", () => {
     });
 
     expect(telemetryState.counters.get("KoLo.webhook.received")?.add).toHaveBeenCalled();
-    expect(
-      telemetryState.histograms.get("KoLo.webhook.duration_ms")?.record,
-    ).toHaveBeenCalled();
+    expect(telemetryState.histograms.get("KoLo.webhook.duration_ms")?.record).toHaveBeenCalled();
     expect(telemetryState.counters.get("KoLo.message.queued")?.add).toHaveBeenCalled();
     expect(telemetryState.counters.get("KoLo.message.processed")?.add).toHaveBeenCalled();
-    expect(
-      telemetryState.histograms.get("KoLo.message.duration_ms")?.record,
-    ).toHaveBeenCalled();
+    expect(telemetryState.histograms.get("KoLo.message.duration_ms")?.record).toHaveBeenCalled();
     expect(telemetryState.histograms.get("KoLo.queue.wait_ms")?.record).toHaveBeenCalled();
     expect(telemetryState.counters.get("KoLo.session.stuck")?.add).toHaveBeenCalled();
-    expect(
-      telemetryState.histograms.get("KoLo.session.stuck_age_ms")?.record,
-    ).toHaveBeenCalled();
+    expect(telemetryState.histograms.get("KoLo.session.stuck_age_ms")?.record).toHaveBeenCalled();
     expect(telemetryState.counters.get("KoLo.run.attempt")?.add).toHaveBeenCalled();
 
     const spanNames = telemetryState.tracer.startSpan.mock.calls.map((call) => call[0]);
@@ -221,6 +212,53 @@ describe("diagnostics-otel service", () => {
     });
     expect(logEmit).toHaveBeenCalled();
 
+    await service.stop?.();
+  });
+
+  test("turns agent and autopilot runs into governance spans", async () => {
+    const service = createDiagnosticsOtelService();
+    await service.start({
+      config: {
+        diagnostics: { enabled: true, otel: { enabled: true, traces: true, metrics: false } },
+      },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    });
+    emitDiagnosticEvent({
+      type: "agent.run",
+      runId: "run-9",
+      provider: "watsonx",
+      model: "m",
+      startedAt: 1000,
+      durationMs: 50,
+      outcome: "completed",
+    });
+    emitDiagnosticEvent({
+      type: "autopilot.run",
+      runId: "ap-9",
+      projectId: "p",
+      routineId: "r",
+      edition: "business",
+      area: "a",
+      level: "L1",
+      trigger: "manual",
+      status: "ok",
+      startedAt: 1000,
+      durationMs: 10,
+      reasoning: { backend: "codex-cli", model: null, ms: 5 },
+      counts: {},
+      decisions: {},
+      gatherCalls: 0,
+      workItems: 0,
+      watchdogTripped: false,
+      evidenceRoot: null,
+    });
+    const calls = telemetryState.tracer.startSpan.mock.calls;
+    const agent = calls.find((c) => c[0] === "kurahi.agent.run");
+    expect(agent?.[1]).toMatchObject({
+      startTime: 1000,
+      attributes: { "langfuse.observation.type": "agent", "langfuse.session.id": "run-9" },
+    });
+    expect(calls.map((c) => c[0])).toContain("kurahi.autopilot.run");
     await service.stop?.();
   });
 });

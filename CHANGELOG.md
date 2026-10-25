@@ -2,6 +2,74 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
+## 2.2.0 — 2026-10-25
+
+The Business Edition and Autopilot release, with the enterprise package. Upgrade notes: [Kurahi 2.2.0](https://docs.kodasoken.com/releases/2.2.0).
+
+### Fixed: 2.1.0 bundles could not load seven bundled plugins
+
+- The 2.1.0 runtime bundles and npm package shipped the extension sources but not the core sources that several extensions import by repository path (`../../src/...`, `packages/legacy-analyzer/src`). In an installed 2.1.0 bundle, enabling **a2a, entra, gmail, legacy-analyzer, lobster, microsoft-365 or twitch** fails with `Cannot find module '../../src/...'`: the A2A plugin, the Microsoft 365, Gmail and Entra ID connectors and the legacy analyser plugin did not work from 2.1.0 packages, only from a source checkout. 2.2.0 bundles and npm tarballs carry generated re-export shims under `src/` and the legacy-analyzer sources, and the package check (`scripts/enterprise-check.mjs`, run in CI on Linux, macOS and Windows) fails a package with an extension import that does not resolve. The plugins added in 2.2.0 import the same way and are covered by the same fix and check. Users of 2.1.0 bundles who need these plugins should update to 2.2.0.
+
+### Business Edition
+
+- Departments: 15 department workspaces and six SME groups with scoped queue navigation, server-side search and status filters; the Company operations template provides every department queue. Department conversations open from the console into agent chat with persistent context and safe session switching.
+- Approval routes (稟議): ordered stages with role, named or department approvers, minimum approvals, due hours, send-back behaviour, conditional stages, delegation and escalation (audited, with evidence). Requester ownership, `mine` and `awaitingMe` views, safe document previews, draft version diffs and queue statistics (`workitems.delegate|document|draftDiff|stats`). Templates gain a three-stage finance route and a three-quote procurement option.
+- Control UI: create, edit and submit expense requests with pinned revisions and duplicate-save protection; approve, send back and cancel with written reasons; preview the exact pinned draft (Project, version and SHA-256 checked); verify evidence on request; staged route progress with deadlines and overdue and escalation markers (Japanese and English).
+- Email intake: a mail message becomes a work item by reference (connector, message id, bounded headers; never the body), idempotent per message. Risk flags: `suspected_fraud` (also raised for a proposed bank-detail change) and `malicious_attachment` block approval and completion until a person clears the flag with a written reason.
+- Connectors, all off by default: kintone, freee 会計, マネーフォワード クラウド請求書, SmartHR, LINE WORKS and Box (read-only, or read-only by default), with API-token, assertion and confidential OAuth client credentials in the connector kit. Microsoft 365 adds draft-only Outlook replies, Project files attached to drafts, uploads to the OneDrive app folder and a Graph delta-query mail watcher for triggers. The catalogue shows a connector as Active only after a live probe succeeds; the new connectors are tested against recorded responses, not yet against live tenants.
+- Office documents: the bundled `office` plugin (off by default, Project-scoped; enabled by the Business templates) writes PowerPoint, Word and Excel files from structured specs into the Project, with native editable charts, speaker notes and a 20 MB cap. No new dependencies.
+
+### Autopilot
+
+- Routines engine for every edition (`autopilot.yaml` per Project, fail closed): gather through declared read tools, reason with a tool-less model backend, act only through the engine's authorization. Autonomy levels L0 (observe), L1 (prepare), L2 (act internal) and L3 (act externally within policy). L3 sends need a person-made standing approval that is scoped to recipients and template, expires and has a daily maximum; it is verified again at send time. Every run is a job with a signed evidence bundle. Starter routines ship for every edition.
+- Triggers: work item, deadline, file and mail events next to schedules, with debounce, an hourly cap, one queued follow-up and a loop guard.
+- Behaviour watchdog (runs above baseline, refusal bursts, unexpected actions or repeated tool calls pause the routine and escalate) and a global stop (`autopilot.stopAll` / `autopilot.startAll`, person only, and the `<KOLO_HOME>/autopilot/STOP` file).
+- Earned autonomy: the engine proposes a level per routine from recorded corrections; a person accepts or declines with a written reason, never above the routine file's level and never to L3 without a standing approval. A watchdog trip or a reported serious error demotes the routine one level. Every change is audited and sealed as evidence.
+- Morning brief: a per-person brief from recorded data only (work handled, documents, decisions, flags the person may clear, proposals, commitments, problems), in the console and as an Outlook draft or a file. Never sent automatically.
+- Routines may read approved company knowledge from read-only folders, write Office documents and attach them to reply drafts; a message any work item already covers is never acted on twice.
+
+### Industrial Edition
+
+- Java and databases: JPA mapping in depth (relationships and join tables compared with DDL keys, inheritance strategies, secondary tables, embedded and mapped-superclass fields, element collections, map keys and order columns, enumerated and temporal storage), MyBatis mapper XML as table access, schema-qualified tables kept apart.
+- Stored procedures: DB2 SQL PL and PL/SQL routine bodies, PL/SQL package bodies split into member routines, and calls linked to routine nodes from Java, Oracle calls without `CALL`, `@NamedStoredProcedureQueries`, and COBOL and PL/I `EXEC SQL CALL`, so table impact reaches their callers.
+- PLC engine: IEC 61131-3 Structured Text, and FBD and LD networks in PLCopen XML exports, with a POU and I/O inventory and a PLC section in the design document. IL and SFC bodies and vendor ladder exports are listed as not read. Source text only; never touches a controller.
+- Change detection: `legacy_changes` compares the fact index with a stored baseline (programs, copybooks, jobs, tables, columns, routines and their edges, with `path:line` evidence); `legacy_baseline_advance` promotes it. The nightly starter routine runs only when something changed and also after a new source drop.
+- Design documents (設計書) as Word files (`output_format: "docx"`), never overwriting an earlier one. The Industrial template gains analysis, design-document, modernisation and quality work queues.
+
+### Scholars
+
+- New bundled `scholar-sources` plugin (off by default, enabled by the Research & academic template): search, records, citation check, open-access PDF fetch through the attachment intake and grant deadlines over arXiv, OpenAlex, Crossref, PubMed and doi.org, keyless and within each provider's rate limits.
+- The template becomes a working research workspace: work queues for literature, writing, grants and data, profile and grant forms, and three L1 routines: a weekly literature watch with a Word digest, a citation check of drafts and grant deadline reminders. A missing fact is marked 【要確認】 in place, never invented.
+
+### Security
+
+- Enterprise identity: OIDC (authorization code with PKCE; Entra ID, Google, Okta, Keycloak) and SAML 2.0 (signed assertions, audience, recipient, time window, replay and signature-wrapping checks) sign-in for people, SSO sessions with lifetime, idle timeout and logout, SCIM 2.0 provisioning (deactivation ends sessions at once), departments and teams, eight roles mapped to gateway scopes and IdP group mappings. `ssoRequired` refuses token logins of people except an audited break-glass. Hardened after three rounds of independent review: personhood from the authenticated credential only, account linking by verified e-mail within one provider, fail closed when the configuration does not load, no session token in URLs, periodic re-evaluation of SSO sockets, Project access applied to evidence reads. **Off by default** (`gateway.identity`).
+- Attachment intake: quarantine, a static policy (executables, scripts, macros, encrypted files, nested archives, zip bombs, document allow-list), a malware scan with ClamAV or Microsoft Defender that fails closed (`security.attachments.requireScan`, on by default) and text extraction in a bounded child process. Refusals are audited and sealed as evidence.
+- Enterprise profile: every extension is classified enterprise (23), optional (11) or excluded (25) in `src/packaging/profiles/enterprise.json`. The enterprise package ships enterprise-tier extensions only; under `KURAHI_PROFILE=enterprise` or `profile: "enterprise"` the loader refuses excluded plugins, requires an explicit opt-in for optional and unclassified ones and audits `plugin.refused`; Slack defaults to an allow-list; enterprise installs update only to `-enterprise` assets.
+- Console responses carry a Content-Security-Policy (per-response nonce, `frame-ancestors 'none'`), `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`.
+- Gateway: the client address is resolved from the right of `X-Forwarded-For` past trusted proxies only; a refused shared secret no longer leaves an owner principal; a config that fails to load answers 503 instead of crashing; tools invoked through the gateway get the Project's scope and path checks; device pairing approvals and token rotation cannot grant more than the approver holds.
+
+### IBM watsonx interoperability (unverified)
+
+- watsonx Orchestrate can call Kurahi (A2A 0.3.0 server with `X-API-Key`, an OpenAPI 3.0 ask endpoint, the legacy analyser as a remote MCP toolkit behind a TLS proxy) and Kurahi can call allow-listed Orchestrate agents (`watsonx-orchestrate` plugin). `watsonx` model provider with IAM token refresh (Tokyo region by default). Governance spans over OpenTelemetry for agent and autopilot runs. Read-only watsonx.data SQL and allow-listed Db2 REST services (`ibm-data` plugin).
+- Everything is off by default and outside the autopilot. Request shapes follow IBM's published documentation and are tested against recorded responses only: **every IBM integration is unverified until it has run against a live IBM service.** See [IBM watsonx](https://docs.kodasoken.com/integrations/ibm-watsonx).
+
+### Packaging
+
+- Enterprise runtime bundles per OS (`kolo-2.2.0-<target>-enterprise.*`) and an enterprise npm tarball for private registries next to the standard packages; optional plugins as separate archives (`kurahi-<id>-2.2.0.tgz`, WhatsApp as before).
+- No tag without a green CI run on Windows, macOS and Linux for the exact commit; CI builds and checks the enterprise bundle on all three.
+- Extension directories with content but no plugin manifest are flagged; default exports of shimmed modules are read from the syntax tree.
+
+### Fixes and other changes
+
+- Ransomware detection: a ransom-note name on a change event counts as a note (macOS coalesces create and write events).
+- Legacy MCP server: refuses a symlinked audit file on Windows too.
+- OpenTelemetry diagnostics: the exporter's resource is built with the current OpenTelemetry API (`new Resource(...)` no longer exists as a value in `@opentelemetry/resources` 2.x).
+- Connectors: a sign-in whose redirect port is taken names the port; `KURAHI_DEBUG_CONNECTORS=1` shows the raw error on the administrator's own terminal.
+- Work queue: the intake tool stays remote when `gateway.mode` is `remote`.
+- Control UI: distinct, localised accessible names for Industrial assessment and pack buttons.
+- Docs (English and Japanese): Autopilot, Business work queue and 稟議, business connectors, Office documents, attachment intake, enterprise identity, enterprise profile, Scholars and IBM watsonx.
+
 ## 2.1.0 — 2026-10-24
 
 The Industrial Edition release. Kurahi Desktop 0.4.0 ships with it.

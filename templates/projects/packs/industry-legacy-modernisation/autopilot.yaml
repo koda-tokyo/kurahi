@@ -1,0 +1,40 @@
+# Industrial autopilot (starter routine; see docs/autopilot.md).
+# L1 Prepare: every night, compare the repository snapshot in `source/` with the stored baseline
+# (legacy_changes). When something changed: regenerate the 設計書 as Word into
+# output/design-docs/, open one work item listing the changes with path:line evidence and their
+# impact, then advance the baseline so the next night compares against tonight. When nothing
+# changed (or on the first run, which only creates the baseline) the run ends as no_input: no
+# model call, no work item. Never writes to production OT/PLC, never merges or deploys.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: nightly-legacy-analysis
+    edition: industrial
+    area: analysis
+    name: { ja: 夜間レガシー解析と設計書更新, en: Nightly legacy analysis and design document }
+    # Nightly, and also shortly after a new source drop lands in source/ (read-only folder).
+    trigger:
+      schedule: "30 1 * * *"
+      tz: Asia/Tokyo
+      event: [{ source: files, folder: source }]
+      debounceSeconds: 120
+      maxRunsPerHour: 2
+    gather:
+      # The gate: no change since the baseline (or baseline just created) ends the run here.
+      - id: changes
+        tool: legacy_changes
+        args: { path: source, since: baseline }
+        gate: true
+      - id: waves
+        tool: legacy_wave_plan
+        args: { path: source, lang: ja }
+    reasoning:
+      prompt: legacy-changes
+      schema: autopilot.plan.v1
+    # legacy.baseline_advance runs only after the work item is filed (the engine orders it).
+    actions: [legacy.design_doc, workitem.intake, legacy.baseline_advance]
+    level: L1
+    limits: { maxItemsPerRun: 5, maxActionsPerDay: 20 }
+    queue: ind-analysis
+    metrics: { baselineMinutes: 90 }

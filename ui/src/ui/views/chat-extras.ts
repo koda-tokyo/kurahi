@@ -2,6 +2,7 @@
 // picker in the chat box, and approval cards inside the conversation.
 import { html, nothing } from "lit";
 import type { AppViewState } from "../app-view-state";
+import { departmentOfChat } from "../controllers/business-chat";
 import { chatTitle, groupHistory } from "../controllers/chat-history";
 import { allowedAgents, allowedModels, modelLabel } from "../controllers/picker";
 import { projectIdOfSession } from "../controllers/projects";
@@ -134,7 +135,7 @@ export function renderComposeExtras(state: AppViewState) {
       ${
         agents.length > 0
           ? html`<label class="ent-picker">${t("picker.agent")}
-            <select .value=${currentAgent} @change=${(e: Event) => state.pickAgent((e.target as HTMLSelectElement).value)}>
+            <select .value=${currentAgent} ?disabled=${Boolean(departmentOfChat(state.sessionKey))} @change=${(e: Event) => state.pickAgent((e.target as HTMLSelectElement).value)}>
               ${agents.map((a) => html`<option value=${a.id} ?selected=${a.id === currentAgent}>${a.label}</option>`)}
             </select>
           </label>`

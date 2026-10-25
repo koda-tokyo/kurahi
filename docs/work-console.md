@@ -15,7 +15,7 @@ The Work Console is where an operator works hands-on inside one Project: a termi
 inside the Project folder and asks before anything consequential runs, and push-to-talk voice for
 giving instructions in Japanese or English.
 
-Status as of 24 October 2026, release 2.1.0:
+Status as of 25 October 2026, release 2.2.0:
 
 | Part                                                     | Status                                                                                                                                                                          |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

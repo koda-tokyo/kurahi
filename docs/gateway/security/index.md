@@ -130,7 +130,7 @@ gateway:
     password: ${KOLO_GATEWAY_PASSWORD}
 ```
 
-When `trustedProxies` is configured, the Gateway will use `X-Forwarded-For` headers to determine the real client IP for local client detection. Make sure your proxy overwrites (not appends to) incoming `X-Forwarded-For` headers to prevent spoofing.
+When `trustedProxies` is configured, the Gateway reads `X-Forwarded-For` from the right: entries that are trusted proxies are skipped and the first other entry is the client, so a value the client wrote into the header is never believed. List every proxy hop in `trustedProxies`, make the proxy overwrite (or append to) `X-Forwarded-For`, overwrite `X-Real-IP`, and set `Host` itself. See [Identity](/security/identity).
 
 ## Local session logs live on disk
 
@@ -481,8 +481,8 @@ you terminate TLS or proxy in front of the gateway, disable
 Trusted proxies:
 
 - If you terminate TLS in front of the Gateway, set `gateway.trustedProxies` to your proxy IPs.
-- Kurahi will trust `x-forwarded-for` (or `x-real-ip`) from those IPs to determine the client IP for local pairing checks and HTTP auth/local checks.
-- Ensure your proxy **overwrites** `x-forwarded-for` and blocks direct access to the Gateway port.
+- Kurahi resolves the client IP from `x-forwarded-for` (read from the right, skipping trusted proxies) or `x-real-ip` sent by those IPs, for local pairing checks, HTTP auth/local checks and rate limits.
+- Ensure your proxy **overwrites** (or appends to) `x-forwarded-for`, overwrites `x-real-ip`, sets `Host` itself, and blocks direct access to the Gateway port.
 
 See [Tailscale](/gateway/tailscale) and [Web overview](/web).
 

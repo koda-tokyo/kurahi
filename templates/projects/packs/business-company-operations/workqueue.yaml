@@ -1,0 +1,97 @@
+# Starter policy: adapt rules and access roles to your organisation before use.
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+access:
+  fallback: none
+queues:
+  - id: secretariat-work
+    department: secretariat
+    name: { en: "Executive office", ja: "秘書・経営支援" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: finance-work
+    department: finance
+    name: { en: "Finance & accounting", ja: "財務・経理" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: admin-work
+    department: admin
+    name: { en: "General affairs", ja: "総務" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: hr-work
+    department: hr
+    name: { en: "Human resources", ja: "人事" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: planning-work
+    department: planning
+    name: { en: "Planning & PMO", ja: "企画・PMO" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: it-work
+    department: it
+    name: { en: "IT service", ja: "ITサービス" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: procurement-work
+    department: procurement
+    name: { en: "Procurement", ja: "購買" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: sales-work
+    department: sales
+    name: { en: "Sales", ja: "営業" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: marketing-work
+    department: marketing
+    name: { en: "Marketing", ja: "マーケティング" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: service-work
+    department: service
+    name: { en: "Customer service", ja: "顧客対応" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: operations-work
+    department: operations
+    name: { en: "Operations & logistics", ja: "業務・物流" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: legal-work
+    department: legal
+    name: { en: "Legal & risk", ja: "法務・リスク" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: product-work
+    department: product
+    name: { en: "Product & development", ja: "製品・開発" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: facilities-work
+    department: facilities
+    name: { en: "Facilities", ja: "施設管理" }
+    types: [request, case, document]
+    defaultAgent: main
+  - id: quality-work
+    department: quality
+    name: { en: "Quality", ja: "品質管理" }
+    types: [request, case, document]
+    defaultAgent: main
+rules:
+  - id: company.request-details
+    kind: required
+    fields: [requester, description]
+    label: { en: Requester and description required, ja: 依頼者と内容は必須 }
+  - id: company.no-external-claims
+    kind: forbiddenPhrases
+    target: draft
+    phrases: [already paid, already ordered, already sent, 支払済み, 発注済み, 送信済み]
+    label: { en: Do not claim external actions were performed, ja: 外部操作を実行済みと記載しない }
+  - id: company.supporting-document
+    kind: attachment
+    types: [document]
+    min: 1
+    label: { en: Document reviews require a source attachment, ja: 文書レビューには原本の添付が必要 }

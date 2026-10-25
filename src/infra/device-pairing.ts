@@ -247,6 +247,46 @@ function auditPairing(
   return auditSafe({ device: deviceId, action, outcome, source: "device-pairing", detail });
 }
 
+/**
+ * A token request for scopes the approving / rotating caller does not hold (M4 ceiling): an
+ * `operator.pairing` holder can only hand out what it has, never `operator.admin` or
+ * `operator.config` unless it holds them itself.
+ */
+export class DeviceScopeCeilingError extends Error {
+  constructor(readonly scopes: string[]) {
+    super(`requested scopes exceed the caller's: ${scopes.join(", ")}`);
+    this.name = "DeviceScopeCeilingError";
+  }
+}
+
+/** Scopes of `requested` the caller does not hold (`operator.admin` holds all; write holds read). */
+export function scopesBeyondCeiling(
+  requested: readonly string[] | undefined,
+  callerScopes: readonly string[],
+): string[] {
+  if (callerScopes.includes("operator.admin")) {
+    return [];
+  }
+  const held = new Set(callerScopes);
+  if (held.has("operator.write")) {
+    held.add("operator.read");
+  }
+  return normalizeScopes(requested ? [...requested] : []).filter((scope) => !held.has(scope));
+}
+
+function enforceCeiling(
+  requested: readonly string[] | undefined,
+  callerScopes: readonly string[] | undefined,
+): void {
+  if (!callerScopes) {
+    return; // internal callers (local silent pairing) have no caller to cap
+  }
+  const beyond = scopesBeyondCeiling(requested, callerScopes);
+  if (beyond.length > 0) {
+    throw new DeviceScopeCeilingError(beyond);
+  }
+}
+
 export async function listDevicePairing(baseDir?: string): Promise<DevicePairingList> {
   const state = await loadState(baseDir);
   const pending = Object.values(state.pendingById).toSorted((a, b) => b.ts - a.ts);
@@ -316,12 +356,24 @@ export async function requestDevicePairing(
 export async function approveDevicePairing(
   requestId: string,
   baseDir?: string,
+  opts: { callerScopes?: readonly string[] } = {},
 ): Promise<{ requestId: string; device: PairedDevice } | null> {
   const result = await withLock(async () => {
     const state = await loadState(baseDir);
     const pending = state.pendingById[requestId];
     if (!pending) {
       return null;
+    }
+    // The token minted below carries the requested scopes: never more than the approver holds.
+    try {
+      enforceCeiling(pending.scopes, opts.callerScopes);
+    } catch (err) {
+      void auditPairing("device.pair.approve", "denied", pending.deviceId, {
+        requestId,
+        scopes: pending.scopes ?? null,
+        reason: "scope_ceiling",
+      });
+      throw err;
     }
     const now = Date.now();
     const existing = state.pairedByDeviceId[pending.deviceId];
@@ -544,6 +596,8 @@ export async function rotateDeviceToken(params: {
   role: string;
   scopes?: string[];
   baseDir?: string;
+  /** Scopes of the caller: the new token never carries more (see DeviceScopeCeilingError). */
+  callerScopes?: readonly string[];
 }): Promise<DeviceAuthToken | null> {
   const result = await withLock(async () => {
     const state = await loadState(params.baseDir);
@@ -558,6 +612,17 @@ export async function rotateDeviceToken(params: {
     const tokens = device.tokens ? { ...device.tokens } : {};
     const existing = tokens[role];
     const requestedScopes = normalizeScopes(params.scopes ?? existing?.scopes ?? device.scopes);
+    try {
+      enforceCeiling(requestedScopes, params.callerScopes);
+    } catch (err) {
+      void auditPairing("device.token.issue", "denied", device.deviceId, {
+        role,
+        scopes: requestedScopes,
+        rotated: true,
+        reason: "scope_ceiling",
+      });
+      throw err;
+    }
     const now = Date.now();
     const next: DeviceAuthToken = {
       token: newToken(),

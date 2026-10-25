@@ -8,6 +8,7 @@ import { DEFAULT_GROUP_HISTORY_LIMIT } from "../../auto-reply/reply/history.js";
 import { mergeAllowlist, summarizeMapping } from "../../channels/allowlists/resolve-utils.js";
 import { loadConfig } from "../../config/config.js";
 import { warn } from "../../globals.js";
+import { isEnterpriseProfile } from "../../packaging/release-profile.js";
 import { normalizeMainKey } from "../../routing/session-key.js";
 import { resolveSlackAccount } from "../accounts.js";
 import { resolveSlackWebClientOptions } from "../client.js";
@@ -94,7 +95,10 @@ export async function monitorSlackProvider(opts: MonitorSlackOpts = {}) {
   const groupDmChannels = dmConfig?.groupChannels;
   let channelsConfig = slackCfg.channels;
   const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
-  const groupPolicy = slackCfg.groupPolicy ?? defaultGroupPolicy ?? "open";
+  // Enterprise profile (docs/security/enterprise-profile.md): an unset policy means allow-list, so
+  // no Slack channel reaches an agent before an administrator listed it. Explicit values win.
+  const groupPolicy =
+    slackCfg.groupPolicy ?? defaultGroupPolicy ?? (isEnterpriseProfile(cfg) ? "allowlist" : "open");
   if (
     slackCfg.groupPolicy === undefined &&
     slackCfg.channels === undefined &&

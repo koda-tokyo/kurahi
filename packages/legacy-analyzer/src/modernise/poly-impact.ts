@@ -36,6 +36,15 @@ export type CrossImpact = {
 const MAX_DEPTH = 8;
 const MAX_CALLERS = 500;
 
+/**
+ * The column name as a whole SQL identifier in text. The name is escaped (a quoted identifier may
+ * hold regex syntax) and `$` / `#` count as identifier characters (Oracle, DB2), which `\b` does not.
+ */
+export function columnWord(column: string, flags = ""): RegExp {
+  const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\w$#])${escaped}(?![\\w$#])`, flags);
+}
+
 function language(n: GraphNode | undefined): string {
   if (n?.attrs?.language) {
     return n.attrs.language;
@@ -54,6 +63,7 @@ function language(n: GraphNode | undefined): string {
     case "table":
     case "column":
     case "sql-index":
+    case "routine":
       return "SQL";
     case "common-block":
     case "fortran-module":
@@ -144,7 +154,14 @@ export function crossImpact(poly: Polyglot, graph: KnowledgeGraph, query: string
 
   // Accessors: of the table (a column's accessors are its table's) or data set, or of the
   // type / program.
-  const own = all.filter((a) => (data ? a.target === data : a.program === id));
+  // A bare-name table two schemas define also answers for its schema-qualified nodes.
+  const targets = new Set(data ? [data] : []);
+  for (const e of table && !column ? (view.out.get(table) ?? []) : []) {
+    if (e.kind === "SCHEMA") {
+      targets.add(e.to);
+    }
+  }
+  const own = all.filter((a) => (data ? targets.has(a.target) : a.program === id));
   const grouped = new Map<string, (typeof out.accessors)[number]>();
   for (const a of own) {
     const key = `${a.program}|${a.target}|${a.via}|${a.loc.file}:${a.loc.line}`;
@@ -172,19 +189,26 @@ export function crossImpact(poly: Polyglot, graph: KnowledgeGraph, query: string
 
   // Schema objects tied to the table or column, and Java mappings.
   if (table) {
-    for (const e of view.in.get(table) ?? []) {
+    const into = column ? [table] : [table, ...[...targets].filter((x) => x !== table)];
+    for (const e of into.flatMap((x) => view.in.get(x) ?? [])) {
       const rel =
         e.kind === "VIEW"
           ? "view reads it"
           : e.kind === "FK"
             ? "foreign key references it"
-            : e.kind === "INDEX"
-              ? "index on it"
-              : e.kind === "MAPS"
-                ? "mapped by"
-                : undefined;
+            : e.kind === "JOIN"
+              ? "JPA relationship joins to it"
+              : e.kind === "INDEX"
+                ? "index on it"
+                : e.kind === "MAPS"
+                  ? "mapped by"
+                  : undefined;
       if (rel && (!column || e.kind !== "INDEX" || (e.detail ?? "").split(",").includes(column))) {
-        if (!column || e.kind !== "FK" || new RegExp(`\\b${column}\\b`).test(e.detail ?? "")) {
+        if (
+          !column ||
+          (e.kind !== "FK" && e.kind !== "JOIN") ||
+          columnWord(column).test(e.detail ?? "")
+        ) {
           out.schema.push({ ...entry(e.from, e, e.detail), relation: rel });
         }
       }
@@ -192,6 +216,12 @@ export function crossImpact(poly: Polyglot, graph: KnowledgeGraph, query: string
     for (const e of view.out.get(table) ?? []) {
       if (e.kind === "FK" && (!column || (e.detail ?? "").startsWith(column))) {
         out.schema.push({ ...entry(e.to, e, e.detail), relation: "references (foreign key)" });
+      }
+      if (
+        e.kind === "JOIN" &&
+        (!column || (e.detail ?? "").split(" -> ")[0].split(",").includes(column))
+      ) {
+        out.schema.push({ ...entry(e.to, e, e.detail), relation: "joins to (JPA relationship)" });
       }
       if (e.kind === "VIEW" && !column) {
         out.schema.push({ ...entry(e.to, e, e.detail), relation: "view source" });
@@ -204,7 +234,7 @@ export function crossImpact(poly: Polyglot, graph: KnowledgeGraph, query: string
         out.schema.push({ ...entry(e.from, e, e.detail), relation: "field mapped to the column" });
       }
     }
-    const word = new RegExp(`\\b${column}\\b`, "i");
+    const word = columnWord(column, "i");
     const tname = n.attrs?.table ?? "";
     for (const u of poly.java.tableUses) {
       if (u.table === tname && u.text && word.test(u.text)) {

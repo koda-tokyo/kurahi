@@ -4,8 +4,9 @@
 // DEFAULT, inline and table PRIMARY KEY / UNIQUE / REFERENCES / CHECK), CREATE VIEW (its source
 // tables), CREATE INDEX, ALTER TABLE ... ADD [CONSTRAINT] / ADD [COLUMN], COMMENT ON, DB2 LABEL
 // ON, inline COMMENT '...' and trailing `--` remarks. A routine (PROCEDURE / FUNCTION / TRIGGER /
-// PACKAGE) stays one statement and one gap naming the tables its body mentions; no schema fact is
-// taken from inside it. After a column list, a query fill (AS SELECT / SELECT) makes the table a
+// PACKAGE) stays one statement; a balanced BEGIN ... END body is read for its table access and
+// calls (sql-routine.ts), a PACKAGE BODY is split into its member routines, any other routine is one gap naming the tables its body mentions. No
+// schema fact is taken from inside a routine. After a column list, a query fill (AS SELECT / SELECT) makes the table a
 // gap, and INHERITS or PARTITION BY adds a gap beside it. Every other statement is a gap.
 
 import type {
@@ -15,6 +16,7 @@ import type {
   SqlFile,
   SqlIndex,
   SqlModel,
+  SqlRoutine,
   SqlTable,
 } from "./types.js";
 import {
@@ -26,6 +28,7 @@ import {
   splitTop,
   text,
 } from "./sql-ddl-parts.js";
+import { parsePackageBody, parseRoutine } from "./sql-routine.js";
 import {
   type SqlTok,
   canonical,
@@ -34,6 +37,7 @@ import {
   lexSql,
   readName,
   sqlTables,
+  tableSchemas,
   tablesIn,
 } from "./sql-text.js";
 
@@ -46,9 +50,18 @@ export function parseSqlFile(
   file: SqlFile;
   tables: SqlTable[];
   indexes: SqlIndex[];
-  comments: Array<{ table: string; column?: string; text: string; line: number }>;
+  routines: SqlRoutine[];
+  comments: Array<{
+    table: string;
+    schema?: string;
+    column?: string;
+    text: string;
+    line: number;
+  }>;
   alters: Array<{
     table: string;
+    /** The schema the statement names, when it is qualified. */
+    schema?: string;
     constraint?: SqlConstraint;
     column?: SqlColumn;
     ifNotExists?: boolean;
@@ -62,9 +75,17 @@ export function parseSqlFile(
   const gaps: EngineGap[] = [];
   const tables: SqlTable[] = [];
   const indexes: SqlIndex[] = [];
-  const comments: Array<{ table: string; column?: string; text: string; line: number }> = [];
+  const routines: SqlRoutine[] = [];
+  const comments: Array<{
+    table: string;
+    schema?: string;
+    column?: string;
+    text: string;
+    line: number;
+  }> = [];
   const alters: Array<{
     table: string;
+    schema?: string;
     constraint?: SqlConstraint;
     column?: SqlColumn;
     ifNotExists?: boolean;
@@ -113,7 +134,17 @@ export function parseSqlFile(
         k++;
       }
       if (isW(toks[k], "PROCEDURE", "FUNCTION", "TRIGGER", "PACKAGE")) {
-        gap(routineGap(toks, k));
+        const read = parseRoutine(path, toks, k);
+        const pkg = read ? undefined : parsePackageBody(path, toks, k);
+        if (read) {
+          routines.push(read.routine);
+          gaps.push(...read.gaps);
+        } else if (pkg) {
+          routines.push(...pkg.routines);
+          gaps.push(...pkg.gaps);
+        } else {
+          gap(routineGap(toks, k));
+        }
         continue;
       }
       const unique = isW(toks[k], "UNIQUE");
@@ -220,6 +251,7 @@ export function parseSqlFile(
                 .join(" ")
             : "";
         const q = sqlTables(body);
+        const named = tableSchemas(body);
         tables.push({
           file: path,
           line,
@@ -230,6 +262,7 @@ export function parseSqlFile(
           columns: cols.map((c) => ({ file: path, line, name: c, type: "" })),
           constraints: [],
           sources: q.tables,
+          ...(named.size ? { sourceSchemas: Object.fromEntries(named) } : {}),
           endLine: toks.at(-1)?.line ?? line,
         });
         continue;
@@ -285,6 +318,7 @@ export function parseSqlFile(
           line,
           name: canonical(nm.parts.at(-1) ?? ""),
           table: canonical(tn.parts.at(-1) ?? ""),
+          ...(tn.parts.length > 1 ? { tableSchema: canonical(tn.parts.at(-2) ?? "") } : {}),
           columns: cols,
           unique,
         });
@@ -305,6 +339,7 @@ export function parseSqlFile(
       const nm = readName(toks, k);
       k = nm.next;
       const table = canonical(nm.parts.at(-1) ?? "");
+      const schema = nm.parts.length > 1 ? { schema: nm.parts.at(-2) } : {};
       // One ALTER TABLE can carry several comma-separated actions; each is read on its own.
       const actions = splitTop(toks, k, toks.length);
       if (actions.length === 0) {
@@ -315,13 +350,13 @@ export function parseSqlFile(
         const at = toks[a]?.line ?? line;
         if (!isW(toks[j], "ADD")) {
           gap(`ALTER TABLE ${table} ${toks[j]?.v ?? ""} is not modelled.`);
-          alters.push({ table, unmodelled: true, stmt: si, line: at });
+          alters.push({ table, ...schema, unmodelled: true, stmt: si, line: at });
           continue;
         }
         j++;
         const c = constraint(path, toks, j, b);
         if (c) {
-          alters.push({ table, constraint: c, stmt: si, line: at });
+          alters.push({ table, ...schema, constraint: c, stmt: si, line: at });
           continue;
         }
         if (isW(toks[j], "COLUMN")) {
@@ -335,6 +370,7 @@ export function parseSqlFile(
         if (isIdent(toks[j])) {
           alters.push({
             table,
+            ...schema,
             column: column(path, toks, j, b, remarks),
             ifNotExists,
             stmt: si,
@@ -342,7 +378,7 @@ export function parseSqlFile(
           });
         } else {
           gap(`ALTER TABLE ${table} ADD ... is not modelled.`);
-          alters.push({ table, unmodelled: true, stmt: si, line: at });
+          alters.push({ table, ...schema, unmodelled: true, stmt: si, line: at });
         }
       }
       continue;
@@ -356,10 +392,16 @@ export function parseSqlFile(
         continue;
       }
       if (isW(toks[2], "TABLE")) {
-        comments.push({ table: canonical(nm.parts.at(-1) ?? ""), text: str.v, line: str.line });
+        comments.push({
+          table: canonical(nm.parts.at(-1) ?? ""),
+          ...(nm.parts.length > 1 ? { schema: nm.parts.at(-2) } : {}),
+          text: str.v,
+          line: str.line,
+        });
       } else {
         comments.push({
           table: canonical(nm.parts.at(-2) ?? ""),
+          ...(nm.parts.length > 2 ? { schema: nm.parts.at(-3) } : {}),
           column: canonical(nm.parts.at(-1) ?? ""),
           text: str.v,
           line: str.line,
@@ -369,7 +411,14 @@ export function parseSqlFile(
     }
     gap(`${toks[0].v} statement is not modelled (no schema fact taken from it).`);
   }
-  return { file: { path, statements: stmts.length, gaps }, tables, indexes, comments, alters };
+  return {
+    file: { path, statements: stmts.length, gaps },
+    tables,
+    indexes,
+    routines,
+    comments,
+    alters,
+  };
 }
 
 /** Top-level clauses after a CREATE TABLE column list that change what the list means. */
@@ -437,23 +486,87 @@ function routineGap(toks: SqlTok[], k: number): string {
   );
 }
 
+const qualified = (name: string, schema?: string) => (schema ? `${schema}.${name}` : name);
+const byQualified = (a: SqlTable, z: SqlTable) => {
+  const x = qualified(a.name, a.schema);
+  const y = qualified(z.name, z.schema);
+  return x < y ? -1 : x > y ? 1 : 0;
+};
+
+// Why an ALTER or COMMENT naming `schema` may not be bound to the modelled table `t`, if so.
+function otherSchema(
+  t: SqlTable,
+  schema: string | undefined,
+  collided: Set<string>,
+): string | undefined {
+  if (schema && t.schema && schema !== t.schema) {
+    return `the modelled ${t.name} is ${t.schema}.${t.name}, and ${schema}.${t.name} is not modelled`;
+  }
+  if (!schema && collided.has(t.name)) {
+    return `no schema is named and more than one schema defines ${t.name}`;
+  }
+  return undefined;
+}
+
 export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlModel {
   const parsed = inputs.map((f) => parseSqlFile(f.path, f.text));
   const byName = new Map<string, SqlTable>();
   const duplicates: SqlModel["duplicates"] = [];
-  for (const t of parsed.flatMap((p) => p.tables)) {
-    const first = byName.get(t.name);
-    if (first) {
-      duplicates.push({
-        file: t.file,
-        line: t.line,
-        name: t.name,
-        first: { file: first.file, line: first.line },
-      });
-    } else {
-      byName.set(t.name, t);
+  // Bare names that two explicit schemas define: an unqualified ALTER or COMMENT on one of them
+  // cannot be bound to a table without the session's current schema, which DDL text does not give.
+  const collided = new Set<string>();
+  const schemasOf = new Map<string, Set<string>>();
+  // Each schema's own definition of a collided name, for the schema-qualified graph nodes.
+  const perSchema = new Map<string, SqlTable[]>();
+  for (const p of parsed) {
+    for (const t of p.tables) {
+      const first = byName.get(t.name);
+      // Two explicit, different schemas are two tables, not one table defined twice. Tables join
+      // by bare name across languages, so only the first is modelled and the name is ambiguous.
+      if (first?.schema && t.schema && first.schema !== t.schema) {
+        p.file.gaps.push({
+          file: t.file,
+          line: t.line,
+          construct: `CREATE ${t.kind.toUpperCase()}`,
+          detail:
+            `${t.schema}.${t.name} is a different table from ${first.schema}.${t.name} ` +
+            `(${first.file}:${first.line}); tables are joined by bare name, so ${t.name} is ` +
+            `modelled from ${first.schema}.${t.name}, ${t.schema}.${t.name} is its own node, and ` +
+            `bare references to ${t.name} may mean either schema.`,
+        });
+        collided.add(t.name);
+        const defs = perSchema.get(t.name) ?? [first];
+        if (!defs.some((d) => d.schema === t.schema)) {
+          perSchema.set(t.name, [...defs, t]);
+        }
+        schemasOf.set(t.name, (schemasOf.get(t.name) ?? new Set([first.schema])).add(t.schema));
+        continue;
+      }
+      if (first) {
+        duplicates.push({
+          file: t.file,
+          line: t.line,
+          name: t.name,
+          first: { file: first.file, line: first.line },
+        });
+      } else {
+        byName.set(t.name, t);
+      }
     }
   }
+  // An ALTER or COMMENT naming one schema of a collided name applies to that schema's definition
+  // (the first schema's is also the bare-name table); any other is matched against the bare name.
+  const ofSchema = new Map(
+    [...perSchema.values()].flat().map((d) => [qualified(d.name, d.schema), d] as const),
+  );
+  const resolve = (table: string, schema: string | undefined) => {
+    const own = schema ? ofSchema.get(qualified(table, schema)) : undefined;
+    if (own) {
+      return { t: own, key: qualified(table, schema), other: undefined };
+    }
+    const t = byName.get(table);
+    return { t, key: table, other: t && otherSchema(t, schema, collided) };
+  };
   // Tables an unmodelled ALTER action has touched: their column set is no longer known, so a
   // duplicate there cannot be called a rejection (DROP A, ADD A is accepted by the database).
   const uncertain = new Set<string>();
@@ -466,20 +579,29 @@ export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlMo
     }
     for (const group of groups.values()) {
       const { table, line } = group[0];
-      const unsure = uncertain.has(table) || group.some((a) => a.unmodelled);
+      const { t, key, other } = resolve(table, group[0].schema);
+      const unsure = uncertain.has(key) || group.some((a) => a.unmodelled);
       if (group.some((a) => a.unmodelled)) {
-        uncertain.add(table);
+        uncertain.add(key);
       }
       if (group.every((a) => a.unmodelled)) {
         continue;
       }
-      const t = byName.get(table);
       if (!t) {
         p.file.gaps.push({
           file: p.file.path,
           line,
           construct: "ALTER TABLE",
           detail: `ALTER TABLE ${table}: the table is not defined in the analysed DDL.`,
+        });
+        continue;
+      }
+      if (other) {
+        p.file.gaps.push({
+          file: p.file.path,
+          line,
+          construct: "ALTER TABLE",
+          detail: `ALTER TABLE ${qualified(table, group[0].schema)}: not applied; ${other}.`,
         });
         continue;
       }
@@ -504,7 +626,7 @@ export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlMo
               line: a.line,
               construct: "ALTER TABLE",
               detail:
-                `ALTER TABLE ${table} ADD ${col.name}: the column is in the model, but an ` +
+                `ALTER TABLE ${key} ADD ${col.name}: the column is in the model, but an ` +
                 "unmodelled action on this table may have dropped or renamed it; whether the " +
                 "database accepts this statement is not confirmed, and the column is not added twice.",
             });
@@ -522,7 +644,7 @@ export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlMo
           line: rejected.line,
           construct: "ALTER TABLE",
           detail:
-            `ALTER TABLE ${table} ADD ${rejected.name}: the column already exists, so the ` +
+            `ALTER TABLE ${key} ADD ${rejected.name}: the column already exists, so the ` +
             "database rejects this statement; none of its actions is applied.",
         });
         continue;
@@ -531,7 +653,16 @@ export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlMo
       t.columns.push(...staged);
     }
     for (const c of p.comments) {
-      const t = byName.get(c.table);
+      const { t, other } = resolve(c.table, c.schema);
+      if (other) {
+        p.file.gaps.push({
+          file: p.file.path,
+          line: c.line,
+          construct: "COMMENT ON",
+          detail: `Comment on ${qualified(c.table, c.schema)}${c.column ? `.${c.column}` : ""}: not applied; ${other}.`,
+        });
+        continue;
+      }
       const target = c.column ? t?.columns.find((x) => x.name === c.column) : t;
       if (!target) {
         p.file.gaps.push({
@@ -547,7 +678,7 @@ export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlMo
     }
   }
   // Table-level PRIMARY KEY / UNIQUE marks the columns too.
-  for (const t of byName.values()) {
+  for (const t of new Set([...byName.values(), ...ofSchema.values()])) {
     for (const c of t.constraints) {
       for (const cn of c.columns) {
         const col = t.columns.find((x) => x.name === cn);
@@ -566,5 +697,60 @@ export function analyseSql(inputs: Array<{ path: string; text: string }>): SqlMo
   const indexes = parsed
     .flatMap((p) => p.indexes)
     .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-  return { files: parsed.map((p) => p.file), tables, indexes, duplicates };
+  // A routine name defined twice (an overload, or the same script loaded twice): the first wins.
+  const routines = new Map<string, SqlRoutine>();
+  for (const p of parsed) {
+    for (const r of p.routines) {
+      const first = routines.get(r.name);
+      if (first) {
+        p.file.gaps.push({
+          file: r.file,
+          line: r.line,
+          construct: `CREATE ${r.kind}`,
+          detail: `${r.kind} ${r.name} is defined again (first at ${first.file}:${first.line}); only the first is modelled.`,
+        });
+      } else {
+        routines.set(r.name, r);
+      }
+    }
+  }
+  // `CALL pkg.member` names a package member; a bare CALL inside a package may name a sibling. A
+  // prefix is read as a schema only when the DDL defines that schema and no package of that name;
+  // otherwise the callee keeps PREFIX.NAME (an undefined package member, never a same-named
+  // standalone routine).
+  const schemas = new Set(
+    parsed
+      .flatMap((p) => [...p.tables, ...p.routines].map((x) => x.schema))
+      .filter((x): x is string => Boolean(x))
+      .map(canonical),
+  );
+  const packages = new Set([...routines.values()].flatMap((r) => (r.package ? [r.package] : [])));
+  for (const r of routines.values()) {
+    for (const c of r.calls) {
+      if (
+        c.qualifier &&
+        (routines.has(`${c.qualifier}.${c.name}`) ||
+          packages.has(c.qualifier) ||
+          !schemas.has(c.qualifier))
+      ) {
+        c.name = `${c.qualifier}.${c.name}`;
+      } else if (!c.qualifier && r.package && routines.has(`${r.package}.${c.name}`)) {
+        c.name = `${r.package}.${c.name}`;
+      }
+    }
+  }
+  const ambiguous = [...schemasOf]
+    .map(([name, s]) => ({ name, schemas: [...s].toSorted() }))
+    .toSorted((a, z) => (a.name < z.name ? -1 : a.name > z.name ? 1 : 0));
+  return {
+    files: parsed.map((p) => p.file),
+    tables,
+    indexes,
+    routines: [...routines.values()].toSorted((a, z) =>
+      a.name < z.name ? -1 : a.name > z.name ? 1 : 0,
+    ),
+    duplicates,
+    ambiguous,
+    schemaTables: [...perSchema.values()].flat().toSorted((a, z) => byQualified(a, z)),
+  };
 }

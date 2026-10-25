@@ -39,6 +39,7 @@ export function polyglotFiles(poly: Polyglot): Set<string> {
     ...poly.fortran.includeFiles,
     ...poly.pli.files.map((f) => f.path),
     ...poly.pli.includeFiles,
+    ...poly.plc.files,
   ]);
 }
 
@@ -117,7 +118,9 @@ export function modernisePlan(poly: Polyglot, graphIn?: KnowledgeGraph) {
               ? poly.fortran.files.length
               : d.id === "pli"
                 ? poly.pli.files.length
-                : 0,
+                : d.id === "plc-iec61131"
+                  ? poly.plc.files.length
+                  : 0,
     examples: d.examples,
   }));
   return {
@@ -180,6 +183,7 @@ export function modernisePlan(poly: Polyglot, graphIn?: KnowledgeGraph) {
       },
       fortran: fortranInventory(poly),
       pli: pliInventory(poly),
+      plc: plcInventory(poly),
     },
     tables,
     crossLanguage: {
@@ -232,6 +236,12 @@ export function modernisePlan(poly: Polyglot, graphIn?: KnowledgeGraph) {
         missingIncludes: poly.pli.includes.filter((i) => !i.resolved),
         undeclaredFiles: poly.pli.fileUses.filter((u) => !u.declared),
       },
+      plc: {
+        gaps: poly.plc.gaps,
+        sharedAddresses: poly.plc.sharedAddresses,
+        /** Detected PLCopen XML / vendor ladder exports: counted, not read by this engine. */
+        exportsNotRead: poly.plcExports,
+      },
       unreadFiles: poly.unread,
       scanPartial: poly.scan.partial,
     },
@@ -274,5 +284,24 @@ function pliInventory(poly: Polyglot) {
     calls: p.calls.length,
     sqlStatements: p.procs.reduce((k, x) => k + x.sql.length, 0),
     onUnits: p.procs.reduce((k, x) => k + x.onUnits.length, 0),
+  };
+}
+
+function plcInventory(poly: Polyglot) {
+  const p = poly.plc;
+  return {
+    files: p.files.length,
+    exportsNotRead: poly.plcExports.length,
+    pous: sortedCounts(p.pous.map((x) => x.kind)),
+    types: p.types.length,
+    globals: p.globals.length,
+    ioPoints: sortedCounts(p.io.map((x) => x.area)),
+    sharedAddresses: p.sharedAddresses.length,
+    instanceCalls: p.instances.length,
+    functionCalls: p.pous.reduce(
+      (k, x) => k + x.calls.filter((c) => c.kind === "function").length,
+      0,
+    ),
+    writes: p.pous.reduce((k, x) => k + x.writes.length, 0),
   };
 }

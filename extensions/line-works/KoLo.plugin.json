@@ -1,0 +1,46 @@
+{
+  "id": "line-works",
+  "name": "LINE WORKS",
+  "description": "Business connector for LINE WORKS (API 2.0) through one bot, authenticated as the app's service account. Read-only by default: information and members of the configured channels (LINE WORKS has no API to read message history). Sending a message to a configured channel or user is a separate opt-in and always needs a person's approval.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "description": "Client ID of the app in the LINE WORKS Developer Console. The client secret goes in the secret store: connector.line-works.clientSecret."
+      },
+      "serviceAccount": {
+        "type": "string",
+        "description": "Service Account id of the app (e.g. abcde.serviceaccount@example). Its private key goes in the secret store: connector.line-works.privateKey."
+      },
+      "botId": { "type": "string", "description": "Bot id of the bot registered for the app." },
+      "channels": {
+        "type": "array",
+        "maxItems": 100,
+        "items": { "type": "string" },
+        "description": "Channel ids the bot may read information about and (with write.send) post to."
+      },
+      "users": {
+        "type": "array",
+        "maxItems": 100,
+        "items": { "type": "string" },
+        "description": "User ids the bot may message (with write.send)."
+      },
+      "write": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "send": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow sending text messages (bot.message) to the configured channels and users. Every message needs a person's approval."
+          }
+        }
+      },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 30 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 4, "default": 1 },
+      "approvalTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 600, "default": 120 }
+    }
+  }
+}

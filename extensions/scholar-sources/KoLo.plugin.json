@@ -1,0 +1,36 @@
+{
+  "id": "scholar-sources",
+  "name": "Scholar sources",
+  "description": "Read-only literature tools for Kurahi Scholars: search and look up papers in arXiv, OpenAlex, Crossref and PubMed through their free public APIs (no account or key), check that citations resolve, and fetch open-access PDFs into the Project through quarantine and malware scanning. Rate limits and the providers' etiquette are built in. Off by default; the Research & academic template enables it for its Projects.",
+  "projectScope": true,
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "contactEmail": {
+        "type": "string",
+        "maxLength": 254,
+        "description": "Contact address sent to the providers: Crossref mailto (polite pool), NCBI email, and the User-Agent. Use the researcher's or the lab's address, not a personal address of a third party."
+      },
+      "ncbiTool": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._-]{1,64}$",
+        "default": "kurahi-scholar-sources",
+        "description": "NCBI E-utilities tool name (register it with NCBI together with the contact address)."
+      },
+      "sources": {
+        "type": "array",
+        "maxItems": 4,
+        "items": { "type": "string", "enum": ["arxiv", "openalex", "crossref", "pubmed"] },
+        "description": "Sources scholar_search uses when a call names none (default: all four)."
+      },
+      "timeoutSeconds": {
+        "type": "integer",
+        "minimum": 5,
+        "maximum": 120,
+        "default": 30,
+        "description": "Per-request timeout."
+      }
+    }
+  }
+}

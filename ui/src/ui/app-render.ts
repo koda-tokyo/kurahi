@@ -65,6 +65,7 @@ import {
   renderArtifactPanel,
   renderSaveArtifactDialog,
 } from "./views/artifacts";
+import { renderBusinessChatContext } from "./views/business-chat-context";
 import { renderChannels } from "./views/channels";
 import { renderChat } from "./views/chat";
 import {
@@ -95,8 +96,8 @@ import { renderNodes } from "./views/nodes";
 import { renderOverview } from "./views/overview";
 import { modeBadge, renderProjects } from "./views/projects";
 import { renderSessions } from "./views/sessions";
-import { renderSkills } from "./views/skills";
 import { renderSharedFrameContext, resolveFrameSelection } from "./views/shared-frame";
+import { renderSkills } from "./views/skills";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
@@ -166,8 +167,7 @@ export function renderApp(state: AppViewState) {
               </svg>
             </div>
             <div class="brand-text">
-              <div class="brand-title">Kurahi</div>
-              <div class="brand-sub ent-maker">${t("brand.maker")}</div>
+              <div class="brand-title">${frame.edition.id === "business" ? "Kurahi · Business Edition" : "Kurahi"}</div>
             </div>
           </div>
         </div>
@@ -307,6 +307,10 @@ export function renderApp(state: AppViewState) {
                 },
                 onConnect: () => state.connect(),
                 onRefresh: () => state.loadOverview(),
+                sso: state.ssoConfig,
+                identity: state.identity,
+                onSsoSignIn: (provider) => state.ssoSignIn(provider),
+                onSsoSignOut: () => void state.ssoSignOut(),
               })
             : nothing
         }
@@ -319,7 +323,7 @@ export function renderApp(state: AppViewState) {
                   // Wire fleetState with current client before refreshing
                   state.fleetState.client = state.client;
                   state.fleetState.connected = state.connected;
-                  loadFleetController(state.fleetState);
+                  void loadFleetController(state.fleetState);
                 },
               })
             : nothing
@@ -531,28 +535,14 @@ export function renderApp(state: AppViewState) {
           state.tab === "chat"
             ? html`<div class="ent-chat-layout ${state.chatHistory.open ? "" : "ent-chat-layout--collapsed"}">
               ${renderChatHistoryPanel(state)}
-              <div class="ent-chat-main">${renderChat({
+              <div class="ent-chat-main">${renderBusinessChatContext({
                 sessionKey: state.sessionKey,
-                onSessionKeyChange: (next) => {
-                  state.sessionKey = next;
-                  state.chatMessage = "";
-                  state.chatAttachments = [];
-                  state.chatStream = null;
-                  state.chatStreamStartedAt = null;
-                  state.chatStreamReasoning = null;
-                  state.chatRunId = null;
-                  state.chatQueue = [];
-                  state.resetToolStream();
-                  state.resetChatScroll();
-                  state.applySettings({
-                    ...state.settings,
-                    sessionKey: next,
-                    lastActiveSessionKey: next,
-                  });
-                  void state.loadAssistantIdentity();
-                  void loadChatHistory(state);
-                  void refreshChatAvatar(state);
-                },
+                locale: state.locale,
+                projectName: currentProject(state)?.name ?? "",
+                onOpenWork: () => void state.openBusinessChatWork(),
+              })}${renderChat({
+                sessionKey: state.sessionKey,
+                onSessionKeyChange: (next) => state.switchSession(next),
                 thinkingLevel: state.chatThinkingLevel,
                 showThinking,
                 loading: state.chatLoading,

@@ -1,0 +1,86 @@
+{
+  "id": "kintone",
+  "name": "kintone",
+  "description": "Business connector for kintone (Cybozu) through the kintone REST API, with one API token per app or an OAuth client. Read-only by default and limited to the apps and field codes an administrator lists; adding comments and creating records are separate opt-ins and always need a person's approval.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subdomain": {
+        "type": "string",
+        "description": "kintone subdomain, e.g. example for https://example.cybozu.com."
+      },
+      "domain": {
+        "type": "string",
+        "enum": ["cybozu.com", "kintone.com"],
+        "default": "cybozu.com",
+        "description": "kintone domain: cybozu.com (Japan) or kintone.com (US)."
+      },
+      "auth": {
+        "type": "string",
+        "enum": ["apiToken", "oauth"],
+        "default": "apiToken",
+        "description": "apiToken: one API token per app (kurahi kintone login asks for each). oauth: an OAuth client registered in cybozu.com common settings; its secret goes in the secret store (connector.kintone.clientSecret)."
+      },
+      "clientId": {
+        "type": "string",
+        "description": "OAuth mode only: the OAuth client id."
+      },
+      "redirectPort": {
+        "type": "integer",
+        "minimum": 1024,
+        "maximum": 65535,
+        "description": "OAuth mode only: fixed loopback port, matching the redirect endpoint registered for the client (http://localhost:<port>/callback)."
+      },
+      "apps": {
+        "type": "array",
+        "maxItems": 50,
+        "description": "The apps the connector may read. Each needs its own API token (kurahi kintone login).",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "fields"],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "App id (the number in the app URL)."
+            },
+            "fields": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": { "type": "string" },
+              "description": "Field codes the agent may read (and set, when createRecord is on). Nothing else is requested or returned."
+            }
+          }
+        }
+      },
+      "write": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow adding record comments. Every comment needs a person's approval."
+          },
+          "createRecord": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow creating records (allowed fields only). Every record needs a person's approval."
+          }
+        }
+      },
+      "dailyRequestsPerApp": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000,
+        "default": 10000
+      },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 30 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
+      "approvalTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 600, "default": 120 }
+    }
+  }
+}

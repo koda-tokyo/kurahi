@@ -1,0 +1,30 @@
+{
+  "id": "freee",
+  "name": "freee 会計",
+  "description": "Business connector for freee 会計 (accounting) through the freee API with the customer's own freee app. Read-only, always: companies, deals (取引), partners, account items and receipt metadata of the configured companies. There is no write tool because the deals API has no draft state.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "description": "Client ID of the freee app (freee app store developer console). The client secret goes in the secret store: connector.freee.clientSecret."
+      },
+      "companyIds": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "items": { "type": "integer", "minimum": 1 },
+        "description": "freee company (事業所) ids the agent may read. Requests for other companies are refused."
+      },
+      "redirectPort": {
+        "type": "integer",
+        "minimum": 1024,
+        "maximum": 65535,
+        "description": "Loopback port of the callback URL registered on the freee app (http://localhost:<port>/callback)."
+      },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 60 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 }
+    }
+  }
+}

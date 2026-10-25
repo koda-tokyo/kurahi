@@ -1,5 +1,6 @@
 import { html } from "lit";
 import type { GatewayHelloOk } from "../gateway";
+import type { SsoConfig, SsoProvider, WhoAmI } from "../sso";
 import type { UiSettings } from "../storage";
 import { formatAgo, formatDurationMs } from "../format";
 import { formatNextRun } from "../presenter";
@@ -21,7 +22,46 @@ export type OverviewProps = {
   onSessionKeyChange: (next: string) => void;
   onConnect: () => void;
   onRefresh: () => void;
+  /** Organisation sign-in (shown only when the gateway has SSO providers or a person session). */
+  sso?: SsoConfig | null;
+  identity?: WhoAmI | null;
+  onSsoSignIn?: (provider: SsoProvider) => void;
+  onSsoSignOut?: () => void;
 };
+
+function renderSignIn(props: OverviewProps) {
+  const me = props.identity?.kind === "person" ? props.identity : null;
+  const providers = props.sso?.enabled ? props.sso.providers : [];
+  if (!me && providers.length === 0) {
+    return "";
+  }
+  if (me) {
+    const who = me.person?.displayName ?? me.person?.email ?? me.principal;
+    const roles = [...new Set(me.roles.map((r) => (r.unit ? `${r.role} (${r.unit})` : r.role)))];
+    const until = me.session ? new Date(me.session.expiresAt).toLocaleString() : "n/a";
+    return html`
+      <div class="callout" style="margin-top: 14px;" data-testid="sso-session">
+        <div>Signed in as <strong>${who}</strong>${me.person?.email && me.person.email !== who ? html` (${me.person.email})` : ""}</div>
+        <div class="muted">Roles: ${roles.join(", ") || "none"} · Session until ${until}</div>
+        <div class="row" style="margin-top: 8px;">
+          <button class="btn" @click=${() => props.onSsoSignOut?.()}>Sign out</button>
+        </div>
+      </div>
+    `;
+  }
+  return html`
+    <div class="row" style="margin-top: 14px; flex-wrap: wrap;" data-testid="sso-login">
+      ${providers.map(
+        (p) => html`<button class="btn primary" @click=${() => props.onSsoSignIn?.(p)}>
+          Sign in with ${p.label}
+        </button>`,
+      )}
+      <span class="muted">
+        ${props.sso?.required ? "Organisation sign-in is required." : "Or connect with a gateway token below."}
+      </span>
+    </div>
+  `;
+}
 
 export function renderOverview(props: OverviewProps) {
   const snapshot = props.hello?.snapshot as
@@ -150,6 +190,7 @@ export function renderOverview(props: OverviewProps) {
       <div class="card">
         <div class="card-title">Gateway Access</div>
         <div class="card-sub">Where the dashboard connects and how it authenticates.</div>
+        ${renderSignIn(props)}
         <div class="form-grid" style="margin-top: 16px;">
           <label class="field">
             <span>WebSocket URL</span>

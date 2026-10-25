@@ -18,6 +18,12 @@ export type GatewayClient = {
   connId?: string;
   /** Pairing principal when the socket authenticated with a `kpa_` access token (M3a). */
   pairing?: import("../pair-store.js").PairPrincipal;
+  /** Person principal when the socket authenticated with an SSO session (enterprise identity). */
+  person?: import("../../identity/types.js").PersonPrincipal;
+  /** Owner login admitted as break-glass with a stated reason (audited). */
+  breakGlass?: boolean;
+  /** Credential the handshake verified; personhood is derived from it, never from client fields. */
+  authMethod?: string;
 };
 
 export type RespondFn = (

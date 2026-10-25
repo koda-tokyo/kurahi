@@ -1,4 +1,12 @@
 import type { GatewayRequestHandlers, GatewayRequestOptions } from "./server-methods/types.js";
+import {
+  adminAreaAllows,
+  CONFIG_SCOPE,
+  IDENTITY_SCOPE,
+  legacyScopesForPerson,
+  POLICY_SCOPE,
+} from "../identity/rbac.js";
+import { getIdentityService } from "../identity/service.js";
 import { getPolicyEngine } from "../policy/engine.js";
 import { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import { voiceApprovalRefusal } from "../voice/approval-guard.js";
@@ -7,6 +15,12 @@ import { ErrorCodes, errorShape } from "./protocol/index.js";
 import { scopeSatisfies, wsMethodMinScope } from "./scopes.js";
 import { agentHandlers } from "./server-methods/agent.js";
 import { agentsHandlers } from "./server-methods/agents.js";
+import {
+  AUTOPILOT_APPROVAL_METHODS,
+  AUTOPILOT_READ_METHODS,
+  AUTOPILOT_WRITE_METHODS,
+  autopilotHandlers,
+} from "./server-methods/autopilot.js";
 import { browserHandlers } from "./server-methods/browser.js";
 import { channelsHandlers } from "./server-methods/channels.js";
 import { chatHandlers } from "./server-methods/chat.js";
@@ -19,6 +33,7 @@ import { debugHandlers } from "./server-methods/debug.js";
 import { deviceHandlers } from "./server-methods/devices.js";
 import { execApprovalsHandlers } from "./server-methods/exec-approvals.js";
 import { healthHandlers } from "./server-methods/health.js";
+import { IDENTITY_READ_METHODS, identityHandlers } from "./server-methods/identity.js";
 import { integrityHandlers } from "./server-methods/integrity.js";
 import { jobsHandlers } from "./server-methods/jobs.js";
 import { logsHandlers } from "./server-methods/logs.js";
@@ -62,6 +77,9 @@ const APPROVAL_METHODS = new Set([
   "exec.approval.request",
   "exec.approval.resolve",
   "workitems.decide",
+  "workitems.delegate",
+  "workitems.clearFlag",
+  ...AUTOPILOT_APPROVAL_METHODS,
 ]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
 const PAIRING_METHODS = new Set([
@@ -118,6 +136,8 @@ const READ_METHODS = new Set([
   "plugins.list",
   ...PROJECT_READ_METHODS,
   ...WORKITEMS_READ_METHODS,
+  ...IDENTITY_READ_METHODS,
+  ...AUTOPILOT_READ_METHODS,
 ]);
 const WRITE_METHODS = new Set([
   "send",
@@ -142,7 +162,10 @@ const WRITE_METHODS = new Set([
   "codeMode.run",
   ...VOICE_METHODS,
   ...PROJECT_WRITE_METHODS,
-  ...WORKITEMS_WRITE_METHODS.filter((m) => m !== "workitems.decide"),
+  ...WORKITEMS_WRITE_METHODS.filter(
+    (m) => m !== "workitems.decide" && m !== "workitems.delegate" && m !== "workitems.clearFlag",
+  ),
+  ...AUTOPILOT_WRITE_METHODS,
 ]);
 
 function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["client"]) {
@@ -164,6 +187,16 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     return errorShape(ErrorCodes.INVALID_REQUEST, `unauthorized role: ${role}`);
   }
   if (scopes.includes(ADMIN_SCOPE)) {
+    return null;
+  }
+  // Enterprise identity admin areas: narrow scopes, never operator.admin. identity.* handlers
+  // check the org role themselves.
+  if (method.startsWith("identity.") && !READ_METHODS.has(method)) {
+    return scopes.includes(IDENTITY_SCOPE)
+      ? null
+      : errorShape(ErrorCodes.INVALID_REQUEST, "missing scope: operator.identity");
+  }
+  if ((method === "policy.kill" || method === "policy.release") && scopes.includes(POLICY_SCOPE)) {
     return null;
   }
   if (APPROVAL_METHODS.has(method) && !scopes.includes(APPROVALS_SCOPE)) {
@@ -188,6 +221,11 @@ function authorizeGatewayMethod(method: string, client: GatewayRequestOptions["c
     return null;
   }
   if (WRITE_METHODS.has(method)) {
+    return null;
+  }
+  // Host-level methods (config.*, cron edits, skills, updates, …): the owner (operator.admin) or
+  // the explicit operator.config scope, which no IdP role holds unless configRoles names it.
+  if (scopes.includes(CONFIG_SCOPE)) {
     return null;
   }
   if (ADMIN_METHOD_PREFIXES.some((prefix) => method.startsWith(prefix))) {
@@ -259,8 +297,10 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...healthHandlers,
   ...integrityHandlers,
   ...policyHandlers,
+  ...identityHandlers,
   ...projectsHandlers,
   ...workitemsHandlers,
+  ...autopilotHandlers,
   ...jobsHandlers,
   ...channelsHandlers,
   ...chatHandlers,
@@ -328,6 +368,39 @@ export async function handleGatewayRequest(
       return;
     }
   }
+  // Enterprise identity: an SSO person is re-resolved on every request (logout, SCIM
+  // deactivation, revocation and role changes apply at once) and gated by the same WS scope
+  // matrix as pairing credentials. Its legacy operator scopes follow its roles.
+  if (client?.person) {
+    const live = getIdentityService().principalForSession(client.person.sessionId, {
+      touch: true,
+    });
+    if (!live.ok) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.NOT_PAIRED, `sign-in ${live.reason}; sign in again`),
+      );
+      return;
+    }
+    client.person = live.principal;
+    client.connect.scopes = legacyScopesForPerson(live.principal);
+    const required = wsMethodMinScope(req.method);
+    const areaAllowed =
+      required === "admin" &&
+      adminAreaAllows(live.principal, req.method, {
+        pairing: PAIRING_METHODS.has(req.method),
+        hostLevel: !req.method.startsWith("identity."),
+      });
+    if (!scopeSatisfies(live.principal.scope, required) && !areaAllowed) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `missing scope: ${required}`),
+      );
+      return;
+    }
+  }
   const authError = authorizeGatewayMethod(req.method, client);
   if (authError) {
     respond(false, undefined, authError);
@@ -355,7 +428,7 @@ export async function handleGatewayRequest(
     const decision = getPolicyEngine().evaluate("request", {
       surface: "ws",
       operation: req.method,
-      scope: client?.pairing?.scope ?? "owner",
+      scope: client?.pairing?.scope ?? client?.person?.scope ?? "owner",
       agentId: agentId || undefined,
     });
     if (decision.effect !== "allow") {

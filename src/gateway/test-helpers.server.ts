@@ -335,6 +335,7 @@ export async function connectReq(
   opts?: {
     token?: string;
     password?: string;
+    breakGlass?: string;
     skipDefaultAuth?: boolean;
     minProtocol?: number;
     maxProtocol?: number;
@@ -431,6 +432,7 @@ export async function connectReq(
             ? {
                 token,
                 password,
+                ...(opts?.breakGlass ? { breakGlass: opts.breakGlass } : {}),
               }
             : undefined,
         device,

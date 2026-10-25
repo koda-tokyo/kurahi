@@ -111,6 +111,11 @@ describe("detector", () => {
     expect(d.observe({ kind: "add", path: "/w/HOW_TO_DECRYPT.txt", entropy: 4 })?.reason).toBe(
       "note",
     );
+    // FSEvents may deliver a freshly written note as `change` (create+write coalesced).
+    expect(
+      new ShieldDetector().observe({ kind: "change", path: "/w/HOW_TO_DECRYPT.txt", entropy: 4 })
+        ?.reason,
+    ).toBe("note");
     expect(
       d.observe({ kind: "canary", path: "/w/_kurahi_canary.txt", what: "deleted" })?.reason,
     ).toBe("canary");
@@ -206,21 +211,14 @@ describe("gateway wiring", () => {
     expect(w).not.toBeNull();
     watchers.push(w!);
     await w!.ready;
-    // macOS FSEvents can start delivering a moment after the watcher reports ready, and may drop
-    // the very first event; touch the note again each second (still a real file event each time).
-    const note = path.join(dir, "HOW_TO_DECRYPT_FILES.txt");
-    fs.writeFileSync(note, "pay us");
-    let touches = 0;
-    const retouch = setInterval(() => {
-      if (touches++ < 14) {
-        fs.writeFileSync(note, `pay us ${touches}`);
-      }
-    }, 1000);
-    try {
-      expect(await until(() => engine.status().kill.fleet !== null, 15_000)).toBe(true);
-    } finally {
-      clearInterval(retouch);
+    // Keep dropping notes like real ransomware does: on macOS the first FSEvents batch right
+    // after `ready` can be late, and this test is about the kill-switch wiring, not its timing.
+    let tripped = false;
+    for (let i = 0; i < 8 && !tripped; i++) {
+      fs.writeFileSync(path.join(dir, `HOW_TO_DECRYPT_FILES${i ? `-${i}` : ""}.txt`), "pay us");
+      tripped = await until(() => engine.status().kill.fleet !== null, 2000);
     }
+    expect(tripped).toBe(true);
     expect(engine.status().kill.fleet).toMatchObject({ by: "shield" });
     expect(engine.status().kill.fleet?.reason).toContain("shield: note");
     expect(logs.join("\n")).toContain("stopping every agent");

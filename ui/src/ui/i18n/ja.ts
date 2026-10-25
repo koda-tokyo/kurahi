@@ -1,11 +1,13 @@
 // 日本語カタログ。キーは en.ts と同じメッセージ ID。
 import type { MessageId } from "./en";
+import { autopilotJa } from "./autopilot";
 import { businessJa } from "./business";
 import { industrialJa } from "./industrial";
 import { terminalJa } from "./terminal";
 import { voiceJa } from "./voice";
 
 export const ja: Partial<Record<MessageId, string>> = {
+  ...autopilotJa,
   ...businessJa,
   ...terminalJa,
   ...voiceJa,
@@ -393,6 +395,12 @@ export const ja: Partial<Record<MessageId, string>> = {
   "connectors.capability.teams": "Teams",
   "connectors.capability.sso": "サインイン / SSO",
   "connectors.capability.directoryRead": "ディレクトリ読み取り（ユーザー、グループ）",
+  "connectors.capability.records": "アプリのレコード",
+  "connectors.capability.accounting": "会計（取引、取引先、証憑）",
+  "connectors.capability.invoicing": "請求書・見積書",
+  "connectors.capability.employeeDirectory": "従業員・部署（業務項目のみ）",
+  "connectors.capability.chat": "ビジネスチャット（Bot）",
+  "connectors.capability.files": "ファイル",
   "connectors.whyLabel": "状態の理由",
   "connectors.why.active": "現在の実行時情報で、このコネクターの稼働を確認しています。",
   "connectors.why.unverified": "設定またはインストールを確認しましたが、現在の稼働は未確認です。",

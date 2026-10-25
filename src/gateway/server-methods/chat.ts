@@ -14,8 +14,13 @@ import {
   extractShortModelName,
   type ResponsePrefixContext,
 } from "../../auto-reply/reply/response-prefix-template.js";
+import { resolveDepartmentChat } from "../../projects/department-chat.js";
 import { loadProjectPack } from "../../projects/pack.js";
-import { parseProjectSessionKey, projectContextForAgent } from "../../projects/scope.js";
+import {
+  departmentIdOfProjectChat,
+  parseProjectSessionKey,
+  projectContextForAgent,
+} from "../../projects/scope.js";
 import { getProject, isAgentAllowed } from "../../projects/store.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
@@ -408,7 +413,25 @@ export const chatHandlers: GatewayRequestHandlers = {
         );
         return;
       }
-      projectContext = `${projectContextForAgent(project, loadProjectPack(project).text)}\n\n`;
+      try {
+        const departmentId = departmentIdOfProjectChat(projectRef.chatId);
+        const department = departmentId
+          ? resolveDepartmentChat(
+              project,
+              departmentId,
+              resolveDefaultAgentId(cfg),
+              projectRef.agentId,
+            )
+          : null;
+        projectContext = `${projectContextForAgent(project, loadProjectPack(project).text, department?.context)}\n\n`;
+      } catch (err) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, err instanceof Error ? err.message : String(err)),
+        );
+        return;
+      }
     }
     const timeoutMs = resolveAgentTimeoutMs({
       cfg,

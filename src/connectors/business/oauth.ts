@@ -30,6 +30,13 @@ export type OAuthClientConfig = {
   scopes: string[];
   /** Extra authorize parameters (e.g. Google `access_type=offline`, `prompt=consent`). */
   authorizeParams?: Record<string, string>;
+  /**
+   * How a confidential client authenticates at the token endpoint: `post` (client_secret in the
+   * form, the default) or `basic` (RFC 6749 §2.3.1 HTTP Basic; kintone, some Money Forward apps).
+   */
+  clientAuth?: "post" | "basic";
+  /** Send the client credentials to the revocation endpoint too (Box, freee, Money Forward). */
+  revokeWithClient?: boolean;
 };
 
 export type TokenSet = {
@@ -76,7 +83,10 @@ export function buildAuthorizeUrl(
   url.searchParams.set("client_id", client.clientId);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("redirect_uri", params.redirectUri);
-  url.searchParams.set("scope", client.scopes.join(" "));
+  // Some providers (freee) take no scope parameter: permissions are set on the app itself.
+  if (client.scopes.length > 0) {
+    url.searchParams.set("scope", client.scopes.join(" "));
+  }
   url.searchParams.set("state", params.state);
   url.searchParams.set("code_challenge", params.challenge);
   url.searchParams.set("code_challenge_method", "S256");
@@ -131,7 +141,17 @@ async function postForm(
   url: string,
   form: Record<string, string>,
   deps: OAuthDeps,
+  client?: OAuthClientConfig,
 ): Promise<{ status: number; body: RawToken }> {
+  // RFC 6749 §2.3.1: Basic credentials are the form-encoded id and secret.
+  const basic =
+    client?.clientAuth === "basic" && client.clientSecret
+      ? `Basic ${Buffer.from(
+          `${encodeURIComponent(client.clientId)}:${encodeURIComponent(client.clientSecret)}`,
+        ).toString("base64")}`
+      : undefined;
+  // Empty values (no scope for providers that take none) are left out.
+  const encoded = new URLSearchParams(Object.entries(form).filter(([, v]) => v !== ""));
   const res = await requestWithRetry(
     url,
     {
@@ -139,8 +159,9 @@ async function postForm(
       headers: {
         "content-type": "application/x-www-form-urlencoded",
         accept: "application/json",
+        ...(basic ? { authorization: basic } : {}),
       },
-      body: new URLSearchParams(form).toString(),
+      body: encoded.toString(),
     },
     { ...deps, maxRetries: 2 },
   );
@@ -160,6 +181,9 @@ function tokenError(status: number, body: RawToken): ConnectorError {
 }
 
 function clientForm(client: OAuthClientConfig): Record<string, string> {
+  if (client.clientAuth === "basic" && client.clientSecret) {
+    return { client_id: client.clientId };
+  }
   return {
     client_id: client.clientId,
     ...(client.clientSecret ? { client_secret: client.clientSecret } : {}),
@@ -183,6 +207,7 @@ export async function exchangeAuthorizationCode(
       scope: client.scopes.join(" "),
     },
     deps,
+    client,
   );
   if (status < 200 || status >= 300) {
     throw tokenError(status, body);
@@ -205,6 +230,7 @@ export async function refreshAccessToken(
       scope: client.scopes.join(" "),
     },
     deps,
+    client,
   );
   if (status < 200 || status >= 300) {
     throw tokenError(status, body);
@@ -311,6 +337,11 @@ export async function revokeToken(
   if (!client.endpoints.revokeUrl) {
     return false;
   }
-  const { status } = await postForm(client.endpoints.revokeUrl, { token }, deps);
+  const { status } = await postForm(
+    client.endpoints.revokeUrl,
+    client.revokeWithClient ? { ...clientForm(client), token } : { token },
+    deps,
+    client.revokeWithClient ? client : undefined,
+  );
   return status >= 200 && status < 300;
 }

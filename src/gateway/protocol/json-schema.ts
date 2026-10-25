@@ -57,6 +57,17 @@ const METHOD_SCHEMA_ALIASES: Record<string, { params?: string; result?: string }
   "terminal.resize": { result: "TerminalAckResult" },
   "terminal.cancel": { result: "TerminalAckResult" },
   "terminal.close": { result: "TerminalAckResult" },
+  "identity.org.update": { result: "IdentityAdminResult" },
+  "identity.units.upsert": { result: "IdentityAdminResult" },
+  "identity.units.remove": { result: "IdentityAdminResult" },
+  "identity.roles.assign": { result: "IdentityAdminResult" },
+  "identity.roles.revoke": { result: "IdentityAdminResult" },
+  "identity.groupMappings.set": { result: "IdentityAdminResult" },
+  "identity.groupMappings.remove": { result: "IdentityAdminResult" },
+  "identity.sessions.revoke": { result: "IdentityAdminResult" },
+  "identity.persons.link": { result: "IdentityAdminResult" },
+  "identity.persons.unlink": { result: "IdentityAdminResult" },
+  "identity.persons.restore": { result: "IdentityAdminResult" },
 };
 
 // Events whose payload schema name does not follow `<Pascal(event)>Event`.

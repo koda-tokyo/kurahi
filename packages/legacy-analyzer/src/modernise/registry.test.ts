@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tmpTree } from "../test-fixtures/helpers.js";
+import { B, program, tmpTree } from "../test-fixtures/helpers.js";
 import { POLY_FILES } from "../test-fixtures/payroll-poly.js";
 import { LANGUAGES, detectLanguages } from "./registry.js";
 import { scanProject } from "./scan.js";
@@ -12,7 +12,7 @@ describe("language registry", () => {
       "sql-ddl:active",
       "fortran:active",
       "pli:active",
-      "plc-iec61131:planned",
+      "plc-iec61131:active",
       "batch-scheduler:planned",
       "maintenance:planned",
       "cybersecurity:planned",
@@ -47,5 +47,33 @@ describe("language registry", () => {
     expect(by["batch-scheduler"]).toEqual(["misc/sched.xml"]);
     expect(by.maintenance).toEqual(["misc/wo.csv"]);
     expect(by.cybersecurity).toEqual([]);
+  });
+
+  it("routes a content-sniffed file that embeds SQL to its host engine only", () => {
+    const root = tmpTree({
+      "src/SETUPV": program("SETUPV", {
+        proc: [
+          B("EXEC SQL"),
+          B("  CREATE VIEW V1 AS SELECT A FROM T1"),
+          B("END-EXEC."),
+          B("GOBACK."),
+        ],
+      }),
+      "src/LOADJOB":
+        "//LOADJOB JOB (ACCT)\n//STEP1 EXEC PGM=IKJEFT01\n//SYSIN DD *\n  CREATE TABLE T2 (A INT);\n/*\n",
+      "src/SCHEMA.txt": "CREATE TABLE T3 (A INT);",
+      "plc/MIXED.txt":
+        "       IDENTIFICATION DIVISION.\n       PROGRAM-ID. MIXED.\n* END_PROGRAM\n",
+    });
+    const { detections, byLanguage } = detectLanguages(scanProject(root).files);
+    const by = Object.fromEntries(detections.map((d) => [d.id, d]));
+    expect(by.cobol.examples).toEqual(["plc/MIXED.txt", "src/LOADJOB", "src/SETUPV"]);
+    expect(by["sql-ddl"].examples).toEqual(["src/SCHEMA.txt"]);
+    expect(by["sql-ddl"].routedElsewhere).toBe(2);
+    expect(by.cobol.routedElsewhere).toBeUndefined();
+    expect(byLanguage.get("sql-ddl")?.map((f) => f.path)).toEqual(["src/SCHEMA.txt"]);
+    // The PLC engine is active too: the COBOL program that mentions END_PROGRAM stays COBOL.
+    expect(by["plc-iec61131"].examples).toEqual([]);
+    expect(by["plc-iec61131"].routedElsewhere).toBe(1);
   });
 });

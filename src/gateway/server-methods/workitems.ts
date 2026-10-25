@@ -4,42 +4,63 @@
 // refuses every non-person origin: agent tool connections (backend mode / gateway-client),
 // non-operator roles and calls without a connection. Every change emits `workitems.changed`.
 import path from "node:path";
-import type { Actor, WorkItem } from "../../workitems/types.js";
-import type {
-  GatewayClient,
-  GatewayRequestContext,
-  GatewayRequestHandlers,
-  RespondFn,
-} from "./types.js";
+import type { WorkItem } from "../../workitems/types.js";
+import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { auditSafe } from "../../audit/audit-log.js";
 import { agentCommand } from "../../commands/agent.js";
 import { EVENTS_FILE, readEventsFile } from "../../evidence/store.js";
 import { verifyEvidenceBundle } from "../../evidence/verify.js";
-import { getProject } from "../../projects/store.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
+import {
+  accessConfigured,
+  assertCanRead,
+  assertCanUpdate,
+  isPrivileged,
+  rolesOf,
+  viewerFilter,
+} from "../../workitems/access.js";
 import { DecisionRefused, decideWorkItem } from "../../workitems/decide.js";
 import { assignAgent, type DraftRunner } from "../../workitems/drafting.js";
+import { escalateIfDue } from "../../workitems/escalation.js";
 import { evidenceBundleDir, listEvidenceBundles } from "../../workitems/evidence.js";
 import { createWorkItem, type CreateInput, updateWorkItem } from "../../workitems/lifecycle.js";
-import { loadWorkQueuePolicy } from "../../workitems/policy.js";
+import { departmentQueueMatcher, loadWorkQueuePolicy } from "../../workitems/policy.js";
 import { listWorkItems, readWorkItem } from "../../workitems/store.js";
-import { ErrorCodes, errorShape, formatValidationErrors } from "../protocol/index.js";
-import { workitemsValidators, type WorkitemsMethod } from "../protocol/workitems-validators.js";
+import { DEPARTMENT_IDS, type DepartmentFilter } from "../../workitems/types.js";
+import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
+import { workitemsIntakeHandlers } from "./workitems-intake.js";
+import { workitemsReviewHandlers } from "./workitems-review.js";
+import {
+  actorFor,
+  emit,
+  fail,
+  nonPersonOrigin,
+  projectOf,
+  valid,
+  WORKITEMS_EVENT,
+} from "./workitems-shared.js";
+
+export { nonPersonOrigin, WORKITEMS_EVENT };
 
 export const WORKITEMS_READ_METHODS = [
   "workitems.list",
   "workitems.get",
   "workitems.config",
   "workitems.evidence",
+  "workitems.document",
+  "workitems.draftDiff",
+  "workitems.stats",
 ] as const;
 export const WORKITEMS_WRITE_METHODS = [
   "workitems.create",
   "workitems.update",
   "workitems.assignAgent",
   "workitems.decide",
+  "workitems.delegate",
+  "workitems.intakeEmail",
+  "workitems.clearFlag",
 ] as const;
-export const WORKITEMS_EVENT = "workitems.changed";
 
 let runnerOverride: DraftRunner | null = null;
 /** Tests replace the agent run; null restores agentCommand. */
@@ -78,86 +99,32 @@ function draftRunner(context: GatewayRequestContext | undefined): DraftRunner {
   };
 }
 
-/** Why a connection is not a person for decisions, or null when it is. */
-export function nonPersonOrigin(client: GatewayClient | null | undefined): string | null {
-  if (!client?.connect) {
-    return "no client connection";
+/** Read one item the caller may see (records any due stage escalation first). */
+export function readVisibleItem(
+  project: ReturnType<typeof projectOf>,
+  id: string,
+  client: Parameters<typeof actorFor>[0],
+  context: GatewayRequestContext | undefined,
+): WorkItem {
+  const found = readWorkItem(project.id, id);
+  if (!found) {
+    throw new Error("work item not found");
   }
-  const role = client.connect.role ?? "operator";
-  if (role !== "operator") {
-    return `role ${role}`;
-  }
-  const info = client.connect.client as { id?: string; mode?: string; displayName?: string };
-  if (info?.mode === "backend" || info?.id === "gateway-client") {
-    return "agent tool connection";
-  }
-  if (typeof info?.displayName === "string" && /^agent$/i.test(info.displayName.trim())) {
-    return "agent connection";
-  }
-  return null;
+  const item = escalateIfDue(project, found, { onChange: (next) => emit(context, next) });
+  assertCanRead(item, actorFor(client), loadWorkQueuePolicy(project), new Date());
+  return item;
 }
 
-function actorFor(client: GatewayClient | null | undefined): Actor {
-  return { id: actorOf(client), kind: nonPersonOrigin(client) ? "agent" : "person" };
-}
-
-function fail(respond: RespondFn, err: unknown) {
-  if (err instanceof DecisionRefused) {
-    respond(
-      false,
-      undefined,
-      errorShape(ErrorCodes.INVALID_REQUEST, err.message, {
-        details: { code: err.code, ...err.details },
-      }),
-    );
-    return;
+function assertOwnerOrOperator(
+  project: ReturnType<typeof projectOf>,
+  id: string,
+  client: Parameters<typeof actorFor>[0],
+): void {
+  const item = readWorkItem(project.id, id);
+  if (!item) {
+    throw new Error("work item not found");
   }
-  respond(
-    false,
-    undefined,
-    errorShape(ErrorCodes.INVALID_REQUEST, err instanceof Error ? err.message : String(err)),
-  );
-}
-
-function valid(method: WorkitemsMethod, params: unknown, respond: RespondFn): boolean {
-  const validate = workitemsValidators[method];
-  if (validate(params)) {
-    return true;
-  }
-  respond(
-    false,
-    undefined,
-    errorShape(
-      ErrorCodes.INVALID_REQUEST,
-      `invalid ${method} params: ${formatValidationErrors(validate.errors)}`,
-    ),
-  );
-  return false;
-}
-
-function projectOf(id: unknown) {
-  const project = typeof id === "string" ? getProject(id) : null;
-  if (!project) {
-    throw new Error("project not found");
-  }
-  return project;
-}
-
-function emit(context: GatewayRequestContext | undefined, item: WorkItem) {
-  const last = item.history.at(-1);
-  context?.broadcast?.(
-    WORKITEMS_EVENT,
-    {
-      projectId: item.projectId,
-      id: item.id,
-      queue: item.queue,
-      action: last?.action ?? "update",
-      status: item.status,
-      revision: item.revision,
-      updatedAt: item.updatedAt,
-    },
-    { dropIfSlow: true },
-  );
+  assertCanUpdate(item, actorFor(client), loadWorkQueuePolicy(project));
 }
 
 const arr = <T>(v: T | T[] | undefined): T[] | undefined =>
@@ -166,13 +133,20 @@ const arr = <T>(v: T | T[] | undefined): T[] | undefined =>
 type P = Record<string, unknown> & { projectId: string; id: string; expectedRevision?: number };
 
 export const workitemsHandlers: GatewayRequestHandlers = {
-  "workitems.list": ({ params, respond }) => {
+  "workitems.list": ({ params, respond, client, context }) => {
     if (!valid("workitems.list", params, respond)) {
       return;
     }
     try {
       const p = params as P & Record<string, never>;
       const project = projectOf(p.projectId);
+      const policy = loadWorkQueuePolicy(project);
+      const now = new Date();
+      const where = viewerFilter(actorFor(client), policy, project.id, {
+        mine: p.mine === true,
+        awaitingMe: p.awaitingMe === true,
+        now,
+      });
       respond(
         true,
         listWorkItems(
@@ -186,8 +160,20 @@ export const workitemsHandlers: GatewayRequestHandlers = {
             assigneeId: p.assigneeId,
             overdue: p.overdue,
             q: p.q,
+            stage: p.stage,
+            flagged: p.flagged,
+            where,
+            // View filter only: narrows what the viewer may already read, never widens it.
+            inDepartment: p.department
+              ? departmentQueueMatcher(policy, p.department as DepartmentFilter)
+              : undefined,
           },
           { cursor: p.cursor, limit: p.limit },
+          {
+            now,
+            prepare: (item) =>
+              escalateIfDue(project, item, { now, onChange: (next) => emit(context, next) }),
+          },
         ),
       );
     } catch (err) {
@@ -195,31 +181,39 @@ export const workitemsHandlers: GatewayRequestHandlers = {
     }
   },
 
-  "workitems.get": ({ params, respond }) => {
+  "workitems.get": ({ params, respond, client, context }) => {
     if (!valid("workitems.get", params, respond)) {
       return;
     }
     const p = params as P;
     try {
       const project = projectOf(p.projectId);
-      const item = readWorkItem(project.id, p.id);
-      if (!item) {
-        throw new Error("work item not found");
-      }
-      respond(true, { item });
+      respond(true, { item: readVisibleItem(project, p.id, client, context) });
     } catch (err) {
       fail(respond, err);
     }
   },
 
-  "workitems.config": ({ params, respond }) => {
+  "workitems.config": ({ params, respond, client }) => {
     if (!valid("workitems.config", params, respond)) {
       return;
     }
     try {
-      const policy = loadWorkQueuePolicy(projectOf(params.projectId));
+      const project = projectOf(params.projectId);
+      const policy = loadWorkQueuePolicy(project);
+      const actor = actorFor(client);
+      const me = rolesOf(policy, actor.id, project.id);
+      const privileged = isPrivileged(actor, policy, project.id);
+      const roles = new Set<string>();
+      for (const m of policy.access.members) {
+        m.roles.forEach((r) => roles.add(r));
+      }
+      for (const g of Object.values(policy.access.groups)) {
+        g.roles.forEach((r) => roles.add(r));
+      }
       respond(true, {
         queues: policy.queues,
+        departments: [...DEPARTMENT_IDS],
         rules: policy.rules.map((r) => ({
           id: r.id,
           kind: r.kind,
@@ -231,6 +225,20 @@ export const workitemsHandlers: GatewayRequestHandlers = {
         })),
         timezone: policy.timezone,
         separationOfDuties: policy.separationOfDuties,
+        routes: policy.routes,
+        access: {
+          fallback: policy.access.fallback,
+          configured: accessConfigured(policy),
+          roles: [...roles].toSorted(),
+          members: privileged ? policy.access.members : null,
+        },
+        viewer: {
+          principal: actor.id,
+          privileged,
+          roles: [...me.roles].toSorted(),
+          departments: [...me.departments].toSorted(),
+          listed: me.listed,
+        },
         source: policy.source,
         digest: policy.digest,
         error: policy.error,
@@ -240,17 +248,14 @@ export const workitemsHandlers: GatewayRequestHandlers = {
     }
   },
 
-  "workitems.evidence": async ({ params, respond }) => {
+  "workitems.evidence": async ({ params, respond, client, context }) => {
     if (!valid("workitems.evidence", params, respond)) {
       return;
     }
     const p = params as P;
     try {
       const project = projectOf(p.projectId);
-      const item = readWorkItem(project.id, p.id);
-      if (!item) {
-        throw new Error("work item not found");
-      }
+      const item = readVisibleItem(project, p.id, client, context);
       const bundles = [];
       let prevRoot: string | null = null;
       let chainOk = true;
@@ -295,6 +300,7 @@ export const workitemsHandlers: GatewayRequestHandlers = {
     const p = params as P & { patch: Record<string, unknown> };
     try {
       const project = projectOf(p.projectId);
+      assertOwnerOrOperator(project, p.id, client);
       const item = updateWorkItem(project, p.id, p.patch, actorFor(client), p.expectedRevision);
       emit(context, item);
       respond(true, { item });
@@ -310,6 +316,7 @@ export const workitemsHandlers: GatewayRequestHandlers = {
     const p = params as P;
     try {
       const project = projectOf(p.projectId);
+      assertOwnerOrOperator(project, p.id, client);
       const { item, runId } = assignAgent(
         project,
         p.id,
@@ -328,7 +335,7 @@ export const workitemsHandlers: GatewayRequestHandlers = {
 
   /** Person-only. Approve / send back / cancel; approve may carry override.reason (audited). */
   "workitems.decide": ({ params, respond, client, context }) => {
-    const origin = nonPersonOrigin(client);
+    const origin = nonPersonOrigin(client, { decision: true });
     if (origin) {
       void auditSafe({
         identity: actorOf(client),
@@ -383,6 +390,9 @@ export const workitemsHandlers: GatewayRequestHandlers = {
       fail(respond, err);
     }
   },
+
+  ...workitemsReviewHandlers,
+  ...workitemsIntakeHandlers,
 };
 
 /** Each bundle's job.start must name the previous bundle's root (the item's bundle chain). */

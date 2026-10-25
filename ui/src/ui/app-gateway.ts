@@ -18,6 +18,7 @@ import {
 import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app-tool-stream";
 import { loadAgents } from "./controllers/agents";
 import { loadAssistantIdentity } from "./controllers/assistant-identity";
+import { autopilotEvent, loadAutopilot, resetAutopilot } from "./controllers/autopilot";
 import { businessEvent, loadBusiness, resetBusiness } from "./controllers/business";
 import { loadChatHistory } from "./controllers/chat";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat";
@@ -41,6 +42,7 @@ import {
 import { cancelVoice, voiceEvent, type VoiceHost } from "./controllers/voice";
 import { GatewayBrowserClient } from "./gateway";
 import { matchLocale } from "./i18n";
+import { clearSsoToken, loadSsoToken, type WhoAmI } from "./sso";
 
 type GatewayHost = {
   voice: VoiceHost["voice"];
@@ -71,7 +73,22 @@ type GatewayHost = {
   refreshSessionsAfterChat: Set<string>;
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalError: string | null;
+  identity?: WhoAmI | null;
 };
+
+/** Who this connection is (enterprise identity); null when the gateway predates it. */
+async function loadIdentity(host: GatewayHost, client: GatewayBrowserClient) {
+  try {
+    const me = await client.request<WhoAmI>("identity.whoami", {});
+    if (host.client === client) {
+      host.identity = me;
+    }
+  } catch {
+    if (host.client === client) {
+      host.identity = null;
+    }
+  }
+}
 
 type SessionDefaultsSnapshot = {
   defaultAgentId?: string;
@@ -139,6 +156,7 @@ const terminalConnections = new WeakMap<
 >();
 export function connectGateway(host: GatewayHost) {
   resetBusiness(host as unknown as KoLoApp);
+  resetAutopilot(host as unknown as KoLoApp);
   cancelVoice(host);
   const previous = terminalConnections.get(host);
   const next = {
@@ -165,9 +183,12 @@ export function connectGateway(host: GatewayHost) {
   host.execApprovalError = null;
 
   host.client?.stop();
+  host.identity = null;
+  // An organisation sign-in (SSO session in sessionStorage) wins over a stored gateway token.
+  const ssoToken = loadSsoToken();
   const client = new GatewayBrowserClient({
     url: host.settings.gatewayUrl,
-    token: host.settings.token.trim() ? host.settings.token : undefined,
+    token: ssoToken ?? (host.settings.token.trim() ? host.settings.token : undefined),
     password: host.password.trim() ? host.password : undefined,
     clientName: "kolo-control-ui",
     mode: "webchat",
@@ -192,6 +213,7 @@ export function connectGateway(host: GatewayHost) {
       void loadNodes(host as unknown as KoLoApp, { quiet: true });
       void loadDevices(host as unknown as KoLoApp, { quiet: true });
       void loadOrgLocale(host);
+      void loadIdentity(host, client);
       // The role is known now: a business user on a page outside the role filter goes Home.
       const settingsHost = host as unknown as Parameters<typeof guardTab>[0];
       const allowed = guardTab(settingsHost, settingsHost.tab);
@@ -207,7 +229,16 @@ export function connectGateway(host: GatewayHost) {
         return;
       }
       host.connected = false;
+      // The SSO session ended (logout, expiry, deprovisioning): forget it and stop retrying.
+      if (ssoToken && (code === 4001 || code === 1008 || code === 4008)) {
+        clearSsoToken();
+        host.identity = null;
+        client.stop();
+        host.lastError = "Your sign-in session ended. Sign in again.";
+        return;
+      }
       resetBusiness(host as unknown as KoLoApp);
+      resetAutopilot(host as unknown as KoLoApp);
       cancelVoice(host);
       disconnectTerminal(host);
       // Code 1012 = Service Restart (expected during config saves, don't show as error)
@@ -226,6 +257,7 @@ export function connectGateway(host: GatewayHost) {
       }
       void replayTerminal(host);
       void loadBusiness(host as unknown as KoLoApp);
+      void loadAutopilot(host as unknown as KoLoApp);
       host.lastError = `event gap detected (expected seq ${expected}, got ${received}); refresh recommended`;
     },
   });
@@ -242,6 +274,10 @@ export function handleGatewayEvent(host: GatewayHost, evt: GatewayEventFrame) {
 }
 
 function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
+  if (evt.event === "autopilot.changed") {
+    autopilotEvent(host as unknown as KoLoApp, evt.payload);
+    return;
+  }
   if (evt.event === "workitems.changed") {
     businessEvent(host as unknown as KoLoApp, evt.payload);
     return;

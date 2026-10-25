@@ -131,10 +131,9 @@ describe("modernisation plan", () => {
       "sql-ddl:active:2/2",
       "fortran:active:1/1",
       "pli:active:0/0",
-      "plc-iec61131:planned:1/0",
+      "plc-iec61131:active:1/1",
     ]);
     expect(plan.planned.map((p) => p.id)).toEqual([
-      "plc-iec61131",
       "batch-scheduler",
       "maintenance",
       "cybersecurity",
@@ -163,7 +162,7 @@ describe("modernisation plan", () => {
       "db/db2/payroll.sql:38",
       "db/oracle/audit.ddl:11",
     ]);
-    expect(plan.coverage.cobol.notAnalysedFiles).toBe(2); // PLC, README: not the Java, DDL or FORTRAN files
+    expect(plan.coverage.cobol.notAnalysedFiles).toBe(1); // README: not the Java, DDL, FORTRAN or PLC files
   });
 
   it("ignores Kurahi's own state folder: the MCP server's cache and call log change nothing", () => {
@@ -207,7 +206,7 @@ describe("design document with Java and SQL sections", () => {
     const en = designDoc(index, { lang: "en", poly }).markdown;
     expect(en).toContain("## 4. Java class specifications");
     expect(en).toContain("## 5. FORTRAN program units");
-    expect(en).toContain("## 7. Table definitions");
+    expect(en).toContain("## 8. Table definitions");
     expect(en).toContain("### 4.7 jp.kazanami.payroll.service.PayrollService");
     expect(en).toMatch(/\| `basePay` \| `BigDecimal` \|  \| `EMPLOYEE.BASE_PAY` \(implicit\) \|/);
     expect(en).toMatch(/\| 4 \| `EMP_TYPE` \| `CHAR\(1\)` \| NO \| `'R'` \|/);
@@ -217,7 +216,7 @@ describe("design document with Java and SQL sections", () => {
     const ja = designDoc(index, { lang: "ja", poly }).markdown;
     expect(ja).toContain("## 4. Java クラス仕様");
     expect(ja).toContain("## 5. FORTRAN プログラム単位仕様");
-    expect(ja).toContain("## 7. テーブル定義");
+    expect(ja).toContain("## 8. テーブル定義");
     const only = designDoc(index, { lang: "en", poly, sections: ["tables"] }).markdown;
     expect(only).toContain("## 1. Table definitions");
     expect(only).not.toContain("Java class specifications");
@@ -229,6 +228,258 @@ describe("design document with Java and SQL sections", () => {
     const p = analyseProject(idx);
     expect(designDoc(idx, { lang: "en", poly: p }).markdown).toBe(
       designDoc(idx, { lang: "en" }).markdown,
+    );
+  });
+});
+
+describe("polyglot graph across schemas", () => {
+  it("marks a table node two schemas define as ambiguous, so a Java join to it is not certain", () => {
+    const root = namedTree("two-schemas", {
+      "db/hr.sql": "CREATE TABLE HR.EMPLOYEE (ID INT, NAME VARCHAR(40));",
+      "db/payroll.sql":
+        "CREATE TABLE PAYROLL.EMPLOYEE (ID INT, SALARY DECIMAL(9,2));\nCREATE TABLE PAYROLL.RUN (ID INT);",
+      "src/main/java/jp/fic/Reader.java": [
+        "package jp.fic;",
+        "public class Reader {",
+        "  int count(java.sql.Connection c) throws Exception {",
+        '    return c.prepareStatement("SELECT COUNT(*) FROM EMPLOYEE").executeQuery().getInt(1);',
+        "  }",
+        "}",
+      ].join("\n"),
+    });
+    const p = analyseProject(buildIndex(root));
+    expect(p.sql.ambiguous).toEqual([{ name: "EMPLOYEE", schemas: ["HR", "PAYROLL"] }]);
+    const g = buildPolyglotGraph(p);
+    const emp = g.nodes.find((n) => n.id === "table:EMPLOYEE");
+    expect(emp?.attrs).toMatchObject({ schema: "HR", ambiguousSchemas: "HR,PAYROLL" });
+    expect(g.nodes.find((n) => n.id === "table:RUN")?.attrs?.ambiguousSchemas).toBeUndefined();
+    expect(
+      g.edges.filter((e) => e.to === "table:EMPLOYEE" && e.from === "type:jp.fic.Reader"),
+    ).toHaveLength(1);
+  });
+
+  it("makes a read routine body a node: SQL edges, CALLs, triggers, CRUD and impact through it", () => {
+    const root = namedTree("routines", {
+      "db/schema.sql": [
+        "CREATE TABLE employee (id INT PRIMARY KEY, salary DECIMAL(9,2));",
+        "CREATE TABLE emp_audit (id INT, at TIMESTAMP);",
+      ].join("\n"),
+      "db/routines.sql": [
+        "CREATE PROCEDURE raise_pay (IN p_id INT)",
+        "LANGUAGE SQL",
+        "BEGIN",
+        "  UPDATE employee SET salary = salary * 1.02 WHERE id = p_id;",
+        "  CALL notify_hr(p_id);",
+        "END;",
+        "CREATE TRIGGER emp_aud AFTER UPDATE ON employee FOR EACH ROW",
+        "  INSERT INTO emp_audit VALUES (1, CURRENT TIMESTAMP);",
+      ].join("\n"),
+    });
+    const p = analyseProject(buildIndex(root));
+    const g = buildPolyglotGraph(p);
+    const ids = (kind: string) => g.nodes.filter((n) => n.kind === kind).map((n) => n.id);
+    expect(ids("routine")).toEqual(["routine:EMP_AUD", "routine:NOTIFY_HR", "routine:RAISE_PAY"]);
+    expect(g.nodes.find((n) => n.id === "routine:NOTIFY_HR")?.attrs?.defined).toBe(
+      "not in the analysed DDL",
+    );
+    const fromRoutines = g.edges
+      .filter((e) => e.from.startsWith("routine:") || e.to.startsWith("routine:"))
+      .map((e) => `${e.kind} ${e.from} -> ${e.to} ${e.detail} ${e.loc.file}:${e.loc.line}`);
+    expect(fromRoutines).toEqual([
+      "SQL routine:EMP_AUD -> table:EMP_AUDIT INSERT db/routines.sql:8",
+      "CALL routine:RAISE_PAY -> routine:NOTIFY_HR SQL CALL db/routines.sql:5",
+      "SQL routine:RAISE_PAY -> table:EMPLOYEE UPDATE db/routines.sql:4",
+      "TRIGGER table:EMPLOYEE -> routine:EMP_AUD UPDATE db/routines.sql:7",
+    ]);
+    const m = crudMatrix(viewOf(g));
+    expect(m.cells.get("routine:RAISE_PAY")?.get("table:EMPLOYEE")).toEqual(["U"]);
+    const r = crossImpact(p, g, "employee");
+    expect(r.accessors.map((a) => `${a.name} ${a.ops.join("")} ${a.file}:${a.line}`)).toContain(
+      "RAISE_PAY U db/routines.sql:4",
+    );
+    expect(
+      crossCrud(p, g, { table: "employee" }).rows.map((x) => `${x.language} ${x.name}`),
+    ).toEqual(["SQL RAISE_PAY"]);
+    const idx = buildIndex(root);
+    for (const lang of ["ja", "en"] as const) {
+      expect(uncitedFactLines(designDoc(idx, { lang, poly: p }).markdown)).toEqual([]);
+    }
+    const md = designDoc(idx, { lang: "en", poly: p, sections: ["tables"] }).markdown;
+    expect(md).toContain("Stored routines");
+    expect(md).toContain(
+      "| `EMP_AUD` | TRIGGER | `EMPLOYEE` UPDATE | EMP_AUDIT INSERT |  | `db/routines.sql:7` `db/routines.sql:8` |",
+    );
+    expect(md).toContain(
+      "| `RAISE_PAY` | PROCEDURE |  | EMPLOYEE UPDATE | NOTIFY_HR | `db/routines.sql:1` `db/routines.sql:4` `db/routines.sql:5` |",
+    );
+  });
+
+  it("binds a Java reference naming one schema to that schema's own table node", () => {
+    const root = namedTree("two-schemas-qualified", {
+      "db/hr.sql": "CREATE TABLE HR.EMPLOYEE (ID INT, NAME VARCHAR(40));",
+      "db/payroll.sql": "CREATE TABLE PAYROLL.EMPLOYEE (ID INT, SALARY DECIMAL(9,2));",
+      "src/main/java/jp/fic/Pay.java": [
+        "package jp.fic;",
+        "import jakarta.persistence.*;",
+        "@Entity",
+        '@Table(name = "employee", schema = "payroll")',
+        "public class Pay {",
+        "  @Id String id;",
+        "}",
+      ].join("\n"),
+      "src/main/java/jp/fic/PayRepo.java": [
+        "package jp.fic;",
+        "import org.springframework.data.jpa.repository.*;",
+        "public interface PayRepo extends JpaRepository<Pay, String> {",
+        '  @Query("select p from Pay p")',
+        "  java.util.List<Pay> all();",
+        "}",
+      ].join("\n"),
+      "src/main/java/jp/fic/Reader.java": [
+        "package jp.fic;",
+        "public class Reader {",
+        "  int hr(java.sql.Connection c) throws Exception {",
+        '    return c.prepareStatement("SELECT COUNT(*) FROM hr.employee").executeQuery().getInt(1);',
+        "  }",
+        "  int bare(java.sql.Connection c) throws Exception {",
+        '    return c.prepareStatement("SELECT COUNT(*) FROM EMPLOYEE").executeQuery().getInt(1);',
+        "  }",
+        "}",
+      ].join("\n"),
+    });
+    const p = analyseProject(buildIndex(root));
+    const g = buildPolyglotGraph(p);
+    const into = (from: string, kind: string) =>
+      g.edges
+        .filter((e) => e.from === from && e.kind === kind && e.to.startsWith("table:"))
+        .map((e) => `${e.to} ${e.schema ?? "(bare)"}`)
+        .toSorted();
+    expect(into("type:jp.fic.Pay", "MAPS")).toEqual(["table:PAYROLL.EMPLOYEE PAYROLL"]);
+    expect(into("type:jp.fic.PayRepo", "MAPS")).toEqual(["table:PAYROLL.EMPLOYEE PAYROLL"]);
+    expect(into("type:jp.fic.PayRepo", "SQL")).toEqual(["table:PAYROLL.EMPLOYEE PAYROLL"]);
+    expect(into("type:jp.fic.Reader", "SQL")).toEqual([
+      "table:EMPLOYEE (bare)",
+      "table:HR.EMPLOYEE HR",
+    ]);
+    // Impact on one schema's table reaches only its own callers; the bare name reaches all.
+    const who = (q: string) =>
+      [...new Set(crossImpact(p, g, q).accessors.map((a) => a.name))].toSorted();
+    expect(who("payroll.employee")).toEqual(["PayRepo"]);
+    expect(who("hr.employee")).toEqual(["Reader"]);
+    expect(who("employee")).toEqual(["PayRepo", "Reader"]);
+    const mapped = (q: string) =>
+      crossImpact(p, g, q)
+        .schema.filter((x) => x.relation === "mapped by")
+        .map((x) => x.name)
+        .toSorted();
+    expect(mapped("payroll.employee")).toEqual(["Pay", "PayRepo"]);
+    expect(mapped("hr.employee")).toEqual([]);
+    expect(mapped("employee")).toEqual(["Pay", "PayRepo"]);
+    expect(
+      crossCrud(p, g, { table: "employee" })
+        .rows.map((x) => `${x.name} ${x.table}`)
+        .toSorted(),
+    ).toEqual([
+      "jp.fic.PayRepo PAYROLL.EMPLOYEE",
+      "jp.fic.Reader EMPLOYEE",
+      "jp.fic.Reader HR.EMPLOYEE",
+    ]);
+  });
+
+  it("gives each schema's table of an ambiguous name its own node, columns and SCHEMA edge", () => {
+    const root = namedTree("two-schemas-nodes", {
+      "db/hr.sql": "CREATE TABLE HR.EMPLOYEE (ID INT, NAME VARCHAR(40));",
+      "db/payroll.sql": [
+        "CREATE TABLE PAYROLL.EMPLOYEE (ID INT, SALARY DECIMAL(9,2));",
+        "CREATE TABLE PAYROLL.RUN (ID INT);",
+        "CREATE PROCEDURE PAYROLL.BUMP (IN P INT)",
+        "LANGUAGE SQL",
+        "BEGIN",
+        "  UPDATE PAYROLL.EMPLOYEE SET SALARY = SALARY + 1 WHERE ID = P;",
+        "  UPDATE EMPLOYEE SET SALARY = 0 WHERE ID = P;",
+        "END;",
+      ].join("\n"),
+    });
+    const p = analyseProject(buildIndex(root));
+    expect(p.sql.schemaTables.map((t) => `${t.schema}.${t.name} ${t.file}:${t.line}`)).toEqual([
+      "HR.EMPLOYEE db/hr.sql:1",
+      "PAYROLL.EMPLOYEE db/payroll.sql:1",
+    ]);
+    const g = buildPolyglotGraph(p);
+    const tables = g.nodes.filter((n) => n.kind === "table").map((n) => n.id);
+    expect(tables).toEqual([
+      "table:EMPLOYEE",
+      "table:HR.EMPLOYEE",
+      "table:PAYROLL.EMPLOYEE",
+      "table:RUN",
+    ]);
+    expect(g.nodes.find((n) => n.id === "table:PAYROLL.EMPLOYEE")?.attrs).toMatchObject({
+      schema: "PAYROLL",
+      umbrella: "EMPLOYEE",
+      columns: "2",
+    });
+    expect(g.nodes.find((n) => n.id === "column:PAYROLL.EMPLOYEE.SALARY")?.attrs?.table).toBe(
+      "PAYROLL.EMPLOYEE",
+    );
+    expect(
+      g.edges.filter((e) => e.kind === "SCHEMA").map((e) => `${e.from} -> ${e.to} ${e.detail}`),
+    ).toEqual([
+      "table:EMPLOYEE -> table:HR.EMPLOYEE HR",
+      "table:EMPLOYEE -> table:PAYROLL.EMPLOYEE PAYROLL",
+    ]);
+    expect(
+      g.edges
+        .filter((e) => e.from === "routine:BUMP" && e.kind === "SQL")
+        .map((e) => `${e.to} ${e.loc.line}`),
+    ).toEqual(["table:EMPLOYEE 7", "table:PAYROLL.EMPLOYEE 6"]);
+    // An unambiguous table keeps its single node.
+    expect(g.nodes.some((n) => n.id === "table:PAYROLL.RUN")).toBe(false);
+  });
+
+  it("binds foreign keys, view sources, indexes and ALTERs that name a schema to its own node", () => {
+    const root = namedTree("two-schemas-ddl", {
+      "db/hr.sql": [
+        "CREATE TABLE HR.EMPLOYEE (ID INT PRIMARY KEY, NAME VARCHAR(40));",
+        "CREATE TABLE HR.BADGE (ID INT, EMP INT REFERENCES HR.EMPLOYEE (ID));",
+      ].join("\n"),
+      "db/payroll.sql": [
+        "CREATE TABLE PAYROLL.EMPLOYEE (ID INT, SALARY DECIMAL(9,2), PRIMARY KEY (ID));",
+        "CREATE TABLE PAYROLL.SLIP (ID INT, EMP INT,",
+        "  CONSTRAINT FK_SLIP FOREIGN KEY (EMP) REFERENCES PAYROLL.EMPLOYEE (ID));",
+        "CREATE TABLE PAYROLL.NOTE (ID INT, EMP INT REFERENCES EMPLOYEE (ID));",
+        "CREATE VIEW PAYROLL.V_PAY AS SELECT E.ID, E.SALARY FROM PAYROLL.EMPLOYEE E;",
+        "CREATE INDEX IX_PAY ON PAYROLL.EMPLOYEE (SALARY);",
+        "CREATE INDEX IX_EMP ON EMPLOYEE (ID);",
+        "ALTER TABLE PAYROLL.EMPLOYEE ADD BONUS DECIMAL(9,2);",
+        "ALTER TABLE PAYROLL.EMPLOYEE ADD CONSTRAINT FK_SELF FOREIGN KEY (ID) REFERENCES PAYROLL.SLIP (ID);",
+      ].join("\n"),
+    });
+    const p = analyseProject(buildIndex(root));
+    const g = buildPolyglotGraph(p);
+    const kinds = new Set(["FK", "VIEW", "INDEX"]);
+    expect(
+      g.edges
+        .filter((e) => kinds.has(e.kind))
+        .map((e) => `${e.kind} ${e.from} -> ${e.to}`)
+        .toSorted(),
+    ).toEqual([
+      "FK table:BADGE -> table:HR.EMPLOYEE",
+      // The bare-name table is HR's definition, so the FK added to PAYROLL's is only on its node.
+      "FK table:NOTE -> table:EMPLOYEE",
+      "FK table:PAYROLL.EMPLOYEE -> table:SLIP",
+      "FK table:SLIP -> table:PAYROLL.EMPLOYEE",
+      "INDEX index:IX_EMP -> table:EMPLOYEE",
+      "INDEX index:IX_PAY -> table:PAYROLL.EMPLOYEE",
+      "VIEW table:V_PAY -> table:PAYROLL.EMPLOYEE",
+    ]);
+    // The ALTER and the table-level PRIMARY KEY land on PAYROLL's own node and columns.
+    expect(g.nodes.find((n) => n.id === "table:PAYROLL.EMPLOYEE")?.attrs?.columns).toBe("3");
+    expect(g.nodes.find((n) => n.id === "column:PAYROLL.EMPLOYEE.ID")?.attrs?.primaryKey).toBe(
+      "true",
+    );
+    expect(g.nodes.some((n) => n.id === "column:EMPLOYEE.BONUS")).toBe(false);
+    expect(p.sql.files.flatMap((f) => f.gaps).filter((x) => x.construct === "ALTER TABLE")).toEqual(
+      [],
     );
   });
 });

@@ -51,6 +51,16 @@
             "default": false,
             "description": "Allow sending mail (Mail.Send). Every send needs a person's approval."
           },
+          "mailDraft": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow creating draft messages and draft replies, and attaching Project files to those drafts (Mail.ReadWrite, replaces Mail.Read). Drafts are never sent; a person sends them from Outlook."
+          },
+          "files": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow uploading Project files to the signed-in user's OneDrive app folder (Files.ReadWrite.AppFolder). Never writes outside that folder and never creates sharing links."
+          },
           "calendarWrite": {
             "type": "boolean",
             "default": false,
@@ -61,7 +71,37 @@
       "redirectPort": { "type": "integer", "minimum": 1024, "maximum": 65535 },
       "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 15 },
       "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 50, "default": 8 },
-      "approvalTimeoutSeconds": { "type": "integer", "minimum": 30, "maximum": 600, "default": 120 }
+      "approvalTimeoutSeconds": {
+        "type": "integer",
+        "minimum": 30,
+        "maximum": 600,
+        "default": 120
+      },
+      "mailWatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Autopilot m365.mail event triggers: one Graph delta-query watcher for this sign-in. Only the delta link is stored.",
+        "properties": {
+          "pollSeconds": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 600,
+            "default": 60,
+            "description": "How often subscribed mail folders are polled with a delta query."
+          }
+        }
+      },
+      "notifications": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Optional Graph change notifications (webhooks) on top of delta polling.",
+        "properties": {
+          "publicUrl": {
+            "type": "string",
+            "description": "Public https base URL that reaches this gateway; Graph posts to <publicUrl>/plugins/microsoft-365/notifications. Polling stays on as the fallback."
+          }
+        }
+      }
     }
   }
 }

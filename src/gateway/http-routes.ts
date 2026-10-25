@@ -17,6 +17,7 @@ import {
   type RouteDefinition,
   type RouteHandler,
 } from "./http-registry.js";
+import { IDENTITY_ROUTES } from "./http-routes-identity.js";
 
 const Loose = (properties: Record<string, TSchema>, description?: string) =>
   Type.Object(properties, { additionalProperties: true, ...(description ? { description } : {}) });
@@ -1294,7 +1295,7 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
       "signed at job end with the gateway's continuity key. Prompts and assistant text are " +
       "digests unless evidence.includePrompts is on; arguments and results are redacted and bounded.",
     tags: T.evidence,
-    auth: ["gateway-token", "pair-credential", "session-admin"],
+    auth: ["gateway-token", "pair-credential", "session-admin", "sso-session"],
     minScope: "attach",
     request: { params: Type.Object({ id: Type.String() }) },
     responses: {
@@ -1316,7 +1317,7 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
     operationId: "listJobEvidenceEvents",
     summary: "Page through a job's evidence events",
     tags: T.evidence,
-    auth: ["gateway-token", "pair-credential", "session-admin"],
+    auth: ["gateway-token", "pair-credential", "session-admin", "sso-session"],
     minScope: "attach",
     request: {
       params: Type.Object({ id: Type.String() }),
@@ -1371,7 +1372,7 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
       "written under KOLO_HOME/evidence-exports on the gateway host; the response carries its " +
       "path and manifest. Verify it anywhere with `kurahi evidence verify`.",
     tags: T.evidence,
-    auth: ["gateway-token", "pair-credential", "session-admin"],
+    auth: ["gateway-token", "pair-credential", "session-admin", "sso-session"],
     minScope: "admin",
     request: {
       params: Type.Object({ id: Type.String() }),
@@ -1412,7 +1413,7 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
       "Static page (no scripts, no external assets) rendered from the same events as " +
       "GET /api/jobs/{id}/evidence/events, with the job's state after each step.",
     tags: T.evidence,
-    auth: ["gateway-token", "pair-credential", "session-admin"],
+    auth: ["gateway-token", "pair-credential", "session-admin", "sso-session"],
     minScope: "attach",
     request: { params: Type.Object({ id: Type.String() }) },
     responses: {
@@ -1755,7 +1756,7 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
       "and entry hash). With `seq`, also returns that entry's hash so a client can prove a " +
       "previous head is an ancestor of the current one.",
     tags: T.audit,
-    auth: ["gateway-token", "pair-credential"],
+    auth: ["gateway-token", "pair-credential", "sso-session"],
     request: {
       query: Type.Object({
         seq: Type.Optional(Type.Integer({ minimum: 1, description: "Entry to anchor on." })),
@@ -2422,6 +2423,7 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
       },
     },
   }),
+  ...IDENTITY_ROUTES,
 ];
 
 /** Dispatch order of the mounts is the order below (per phase). */

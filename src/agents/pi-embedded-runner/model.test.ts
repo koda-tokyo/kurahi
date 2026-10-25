@@ -128,3 +128,23 @@ describe("resolveModel", () => {
     expect(result.model?.id).toBe("missing-model");
   });
 });
+
+describe("resolveModel adapters", () => {
+  it("registers the watsonx adapter when a watsonx model is resolved", async () => {
+    const { getApiProvider } = await import("@mariozechner/pi-ai");
+    const cfg = {
+      models: {
+        providers: {
+          watsonx: {
+            baseUrl: "https://jp-tok.ml.cloud.ibm.com?project_id=p-1",
+            api: "watsonx-chat",
+            models: [makeModel("ibm/granite-3-8b-instruct")],
+          },
+        },
+      },
+    } as unknown as KoLoConfig;
+    const result = resolveModel("watsonx", "ibm/granite-3-8b-instruct", "/tmp/agent", cfg);
+    expect(result.model?.api).toBe("watsonx-chat");
+    expect(getApiProvider("watsonx-chat")).toBeDefined();
+  });
+});

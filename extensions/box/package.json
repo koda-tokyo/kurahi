@@ -1,0 +1,14 @@
+{
+  "name": "@KoLo/box",
+  "version": "2.2.0",
+  "description": "Box business connector: search, metadata and scanned fetch into the Project (read-only by default)",
+  "type": "module",
+  "devDependencies": {
+    "kolo": "workspace:kurahi@*"
+  },
+  "KoLo": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

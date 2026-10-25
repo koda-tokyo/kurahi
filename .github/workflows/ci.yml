@@ -159,6 +159,21 @@ jobs:
         if: runner.os == 'Linux'
         run: node scripts/bundle.mjs --verify
 
+      - name: Enterprise bundle + package check (every OS, 2.2)
+        # docs/security/enterprise-profile.md: enterprise-tier extensions only, no family-internal
+        # identifiers, no GPL/AGPL dependency, every extension import resolves. bundle.mjs runs the
+        # check on the staged tree; the second run checks the archive as a customer would.
+        run: |
+          set -euo pipefail
+          node scripts/bundle.mjs --profile enterprise --verify --out release/enterprise
+          checked=0
+          for f in release/enterprise/kolo-*-enterprise.tar.gz release/enterprise/kolo-*-enterprise.zip; do
+            [ -f "$f" ] || continue
+            node scripts/enterprise-check.mjs "$f"
+            checked=$((checked + 1))
+          done
+          [ "$checked" -eq 1 ] || { echo "expected one enterprise archive, found $checked"; exit 1; }
+
       - name: Upload Linux bundle (PR artefact, 3 days)
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4

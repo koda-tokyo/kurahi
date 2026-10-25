@@ -1,0 +1,81 @@
+{
+  "status": "ok",
+  "message-type": "work",
+  "message-version": "1.0.0",
+  "message": {
+    "DOI": "10.1038/nature14539",
+    "title": ["Deep learning"],
+    "author": [
+      {
+        "given": "Yann",
+        "family": "LeCun"
+      },
+      {
+        "given": "Yoshua",
+        "family": "Bengio"
+      },
+      {
+        "given": "Geoffrey",
+        "family": "Hinton"
+      }
+    ],
+    "container-title": ["Nature"],
+    "issued": {
+      "date-parts": [[2015, 5, 27]]
+    },
+    "published": {
+      "date-parts": [[2015, 5, 27]]
+    },
+    "published-online": {
+      "date-parts": [[2015, 5, 27]]
+    },
+    "published-print": {
+      "date-parts": [[2015, 5, 28]]
+    },
+    "URL": "https://doi.org/10.1038/nature14539",
+    "link": [
+      {
+        "URL": "http://www.nature.com/articles/nature14539.pdf",
+        "content-type": "application/pdf",
+        "content-version": "vor",
+        "intended-application": "text-mining"
+      },
+      {
+        "URL": "http://www.nature.com/articles/nature14539",
+        "content-type": "text/html",
+        "content-version": "vor",
+        "intended-application": "text-mining"
+      },
+      {
+        "URL": "http://www.nature.com/articles/nature14539.pdf",
+        "content-type": "application/pdf",
+        "content-version": "vor",
+        "intended-application": "similarity-checking"
+      }
+    ],
+    "license": [
+      {
+        "start": {
+          "date-parts": [[2015, 5, 27]],
+          "date-time": "2015-05-27T00:00:00Z",
+          "timestamp": 1432684800000
+        },
+        "content-version": "tdm",
+        "delay-in-days": 0,
+        "URL": "https://www.springer.com/tdm"
+      },
+      {
+        "start": {
+          "date-parts": [[2015, 5, 27]],
+          "date-time": "2015-05-27T00:00:00Z",
+          "timestamp": 1432684800000
+        },
+        "content-version": "vor",
+        "delay-in-days": 0,
+        "URL": "https://www.springer.com/tdm"
+      }
+    ],
+    "type": "journal-article",
+    "publisher": "Springer Science and Business Media LLC"
+  }
+}

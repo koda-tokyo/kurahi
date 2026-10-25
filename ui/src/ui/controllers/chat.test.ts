@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { handleChatEvent, type ChatEventPayload, type ChatState } from "./chat";
+import { describe, expect, it, vi } from "vitest";
+import {
+  handleChatEvent,
+  loadChatHistory,
+  sendChatMessage,
+  type ChatEventPayload,
+  type ChatState,
+} from "./chat";
 
 function createState(overrides: Partial<ChatState> = {}): ChatState {
   return {
@@ -122,5 +128,140 @@ describe("handleChatEvent reasoning", () => {
     });
     handleChatEvent(state, { runId: "run-1", sessionKey: "main", state: "final" });
     expect(state.chatStreamReasoning).toBeNull();
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function requestClient(request: ReturnType<typeof vi.fn>): NonNullable<ChatState["client"]> {
+  return { request } as unknown as NonNullable<ChatState["client"]>;
+}
+
+describe("chat request isolation", () => {
+  it("keeps newer history when requests complete out of order", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    const state = createState({
+      client: requestClient(
+        vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise),
+      ),
+    });
+    const old = loadChatHistory(state);
+    const current = loadChatHistory(state);
+    first.resolve({ messages: ["old"] });
+    await old;
+    expect(state.chatLoading).toBe(true);
+    expect(state.chatMessages).toEqual([]);
+    second.resolve({ messages: ["new"], thinkingLevel: "high" });
+    await current;
+    expect(state.chatMessages).toEqual(["new"]);
+    expect(state.chatThinkingLevel).toBe("high");
+    expect(state.chatLoading).toBe(false);
+  });
+
+  it.each(["session", "client"])("ignores history results after changing %s", async (change) => {
+    const reply = deferred<unknown>();
+    const state = createState({ client: requestClient(vi.fn().mockReturnValue(reply.promise)) });
+    const pending = loadChatHistory(state);
+    if (change === "session") {
+      state.sessionKey = "other";
+    } else {
+      state.client = requestClient(vi.fn());
+    }
+    state.chatMessages = ["current department"];
+    state.chatLoading = true;
+    reply.resolve({ messages: ["private old history"] });
+    await pending;
+    expect(state.chatMessages).toEqual(["current department"]);
+    expect(state.chatLoading).toBe(true);
+  });
+
+  it("ignores a stale history failure and its loading cleanup", async () => {
+    const reply = deferred<unknown>();
+    const state = createState({ client: requestClient(vi.fn().mockReturnValue(reply.promise)) });
+    const pending = loadChatHistory(state);
+    state.sessionKey = "other";
+    state.lastError = "current error";
+    reply.reject(new Error("old department error"));
+    await pending;
+    expect(state.lastError).toBe("current error");
+    expect(state.chatLoading).toBe(true);
+  });
+
+  it("does not overwrite an optimistic message with pre-send history", async () => {
+    const history = deferred<unknown>();
+    const sent = deferred<unknown>();
+    const state = createState({
+      client: requestClient(
+        vi.fn().mockReturnValueOnce(history.promise).mockReturnValueOnce(sent.promise),
+      ),
+    });
+    const oldHistory = loadChatHistory(state);
+    const pendingSend = sendChatMessage(state, "New question");
+    const optimistic = state.chatMessages;
+    history.resolve({ messages: ["stale"] });
+    await oldHistory;
+    expect(state.chatMessages).toBe(optimistic);
+    expect(state.chatLoading).toBe(false);
+    sent.resolve({});
+    expect(await pendingSend).toBe(state.chatRunId);
+    expect(state.chatSending).toBe(false);
+  });
+
+  it("ignores a late send failure after switching conversations", async () => {
+    const sent = deferred<unknown>();
+    const state = createState({ client: requestClient(vi.fn().mockReturnValue(sent.promise)) });
+    const pending = sendChatMessage(state, "Old department question");
+    state.sessionKey = "other";
+    state.chatRunId = "new-run";
+    state.chatStream = "new answer";
+    state.chatMessages = ["new conversation"];
+    sent.reject(new Error("old failure"));
+    expect(await pending).toBeNull();
+    expect(state.chatMessages).toEqual(["new conversation"]);
+    expect(state.chatStream).toBe("new answer");
+    expect(state.chatRunId).toBe("new-run");
+    expect(state.chatSending).toBe(true);
+    expect(state.lastError).toBeNull();
+  });
+
+  it("does not clear a newer send in the same conversation", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    const state = createState({
+      client: requestClient(
+        vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise),
+      ),
+    });
+    const old = sendChatMessage(state, "First");
+    const current = sendChatMessage(state, "Second");
+    const newRun = state.chatRunId;
+    first.reject(new Error("old failure"));
+    expect(await old).toBeNull();
+    expect(state.chatRunId).toBe(newRun);
+    expect(state.chatSending).toBe(true);
+    expect(state.lastError).toBeNull();
+    second.resolve({});
+    expect(await current).toBe(newRun);
+    expect(state.chatSending).toBe(false);
+  });
+
+  it("clears sending when a final event arrives before the send acknowledgement", async () => {
+    const sent = deferred<unknown>();
+    const state = createState({ client: requestClient(vi.fn().mockReturnValue(sent.promise)) });
+    const pending = sendChatMessage(state, "Question");
+    const runId = state.chatRunId!;
+    handleChatEvent(state, { sessionKey: state.sessionKey, runId, state: "final" });
+    sent.resolve({});
+    expect(await pending).toBe(runId);
+    expect(state.chatSending).toBe(false);
   });
 });

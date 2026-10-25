@@ -1,0 +1,50 @@
+{
+  "id": "smarthr",
+  "name": "SmartHR",
+  "description": "Business connector for SmartHR through the SmartHR API with an administrator-issued access token. Read-only, always: employees (work-related fields only, from a strict allow-list) and departments. My Number, bank, insurance, pay, address and other personal fields are never requested or returned.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tenant": {
+        "type": "string",
+        "description": "SmartHR subdomain, e.g. example for https://example.smarthr.jp."
+      },
+      "sandbox": {
+        "type": "boolean",
+        "default": false,
+        "description": "Use the SmartHR sandbox domain (https://<tenant>.daruma.space)."
+      },
+      "crewFields": {
+        "type": "array",
+        "maxItems": 18,
+        "items": {
+          "type": "string",
+          "enum": [
+            "id",
+            "emp_code",
+            "last_name",
+            "first_name",
+            "last_name_yomi",
+            "first_name_yomi",
+            "business_last_name",
+            "business_first_name",
+            "business_last_name_yomi",
+            "business_first_name_yomi",
+            "emp_status",
+            "employment_type",
+            "department",
+            "departments",
+            "position",
+            "positions",
+            "entered_at",
+            "email"
+          ]
+        },
+        "description": "Employee fields the agent may read, from the connector's fixed allow-list (default: all of it except email). Nothing outside the allow-list can be configured."
+      },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 30 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 }
+    }
+  }
+}

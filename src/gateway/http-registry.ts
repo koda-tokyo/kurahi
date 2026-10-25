@@ -29,6 +29,8 @@ export const HTTP_AUTH_KINDS = [
   "hook-token",
   "migrate-key",
   "plugin",
+  "sso-session",
+  "scim-token",
 ] as const;
 export type HttpAuthKind = (typeof HTTP_AUTH_KINDS)[number];
 
@@ -226,8 +228,9 @@ export function defineRoute<T extends BoundRoute>(def: T): T {
   if (def.minScope !== undefined && !PAIR_SCOPES.includes(def.minScope)) {
     throw new Error(`http route ${def.operationId}: invalid minScope ${String(def.minScope)}`);
   }
-  if (!def.responses[200] && !Object.keys(def.responses).some((code) => code.startsWith("2"))) {
-    throw new Error(`http route ${def.operationId}: needs a 2xx response`);
+  // A success is a 2xx, or a 3xx for browser redirect steps (SSO sign-in).
+  if (!def.responses[200] && !Object.keys(def.responses).some((code) => /^[23]/.test(code))) {
+    throw new Error(`http route ${def.operationId}: needs a 2xx or 3xx response`);
   }
   compilePath(def.path);
   return def;

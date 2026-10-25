@@ -1,0 +1,68 @@
+{
+  "status": "ok",
+  "message-type": "work-list",
+  "message-version": "1.0.0",
+  "message": {
+    "facets": {},
+    "total-results": 667803,
+    "items": [
+      {
+        "license": [
+          {
+            "start": {
+              "date-parts": [[2026, 6, 30]],
+              "date-time": "2026-06-30T00:00:00Z",
+              "timestamp": 1782777600000
+            },
+            "content-version": "tdm",
+            "delay-in-days": 0,
+            "URL": "http:\/\/doi.wiley.com\/10.1002\/tdm_license_1.1"
+          }
+        ],
+        "DOI": "10.1002\/9781394374717.ch03",
+        "type": "other",
+        "title": ["Retrieval\u2010Augmented Generation"],
+        "container-title": ["Advanced Retrieval\u2010Augmented Generation"],
+        "link": [
+          {
+            "URL": "https:\/\/onlinelibrary.wiley.com\/doi\/pdf\/10.1002\/9781394374717.ch03",
+            "content-type": "application\/pdf",
+            "content-version": "vor",
+            "intended-application": "text-mining"
+          },
+          {
+            "URL": "https:\/\/onlinelibrary.wiley.com\/doi\/pdf\/10.1002\/9781394374717.ch03",
+            "content-type": "unspecified",
+            "content-version": "vor",
+            "intended-application": "similarity-checking"
+          }
+        ],
+        "issued": { "date-parts": [[2026, 6, 30]] },
+        "URL": "https:\/\/doi.org\/10.1002\/9781394374717.ch03",
+        "published": { "date-parts": [[2026, 6, 30]] }
+      },
+      {
+        "abstract": "<jats:p>The increased usage of EHRs has created an enormous amount of information generated from structured clinical and unstructured data in pediatric healthcare. Analyzing and efficiently integrating the EHRs for effective clinical decision support remains a challenge and thus require advanced AI techniques. RAG is becoming a new state-of-the-art AI technology that embeds information retrieval techniques to enhance large language models with more context (or knowledge). This paper outlines a RAG-based architecture for extracting and integrating information from pediatric patient electronic health records. To validate the framework experimentally, we have generated synthetic clinical records of patients that replicate different pediatric health scenarios encompassing symptoms, history, and diagnostic findings. The frame work extracts patient specific information from a clinical knowledge base and an integrated trained generative model for generating integrated clinical records and treatment\/diagnostic recommendations. This paper assesses how well the integrated framework performs in terms of retrieval correctness generation accuracy, contextual consistency and information fidelity. A comprehensive evaluation of the implemented architecture is carried out using synthetic clinical EHRs of pediatric-related diseases. The experimental results indicate that RAG improves factual accuracy and reduces hallucination compared with generative transformer-based language models alone.<\/jats:p>",
+        "DOI": "10.2139\/ssrn.6910258",
+        "type": "posted-content",
+        "title": [
+          "RETRIEVAL AUGMENTED GENERATION FOR PEDIATRIC EHR DATA INTEGRATION: EVALUATING RETRIEVAL FIDELITY AND OUTPUT ACCURACY ON SYNTHETIC CLINICAL RECORDS"
+        ],
+        "author": [
+          {
+            "given": "VINOD",
+            "family": "RUFUS MOTANI",
+            "sequence": "first",
+            "affiliation": [],
+            "role": [{ "vocabulary": "crossref", "role": "author" }]
+          }
+        ],
+        "issued": { "date-parts": [[2026]] },
+        "URL": "https:\/\/doi.org\/10.2139\/ssrn.6910258",
+        "published": { "date-parts": [[2026]] }
+      }
+    ],
+    "items-per-page": 2,
+    "query": { "start-index": 0, "search-terms": "retrieval augmented generation clinical" }
+  }
+}

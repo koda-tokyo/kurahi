@@ -1,0 +1,29 @@
+{
+  "id": "money-forward",
+  "name": "マネーフォワード クラウド",
+  "description": "Business connector for マネーフォワード クラウド請求書 (invoicing) through its public API v3 with the customer's own app. Read-only, always: billings, quotes and partners. Only the read scope mfc/invoice/data.read is requested.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "description": "Client ID of the app on the Money Forward Cloud developer portal. The client secret goes in the secret store: connector.money-forward.clientSecret."
+      },
+      "clientAuth": {
+        "type": "string",
+        "enum": ["basic", "post"],
+        "default": "basic",
+        "description": "Client authentication method shown on the app's detail screen: CLIENT_SECRET_BASIC (basic) or CLIENT_SECRET_POST (post)."
+      },
+      "redirectPort": {
+        "type": "integer",
+        "minimum": 1024,
+        "maximum": 65535,
+        "description": "Loopback port of the redirect URI registered on the app (http://localhost:<port>/callback)."
+      },
+      "probeIntervalMinutes": { "type": "integer", "minimum": 5, "maximum": 1440, "default": 60 },
+      "ratePerSecond": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 }
+    }
+  }
+}

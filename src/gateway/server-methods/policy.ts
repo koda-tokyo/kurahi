@@ -29,7 +29,14 @@ function flip(
   client: HandlerArgs["client"],
 ): void {
   const engine = getPolicyEngine();
-  const scope = client?.pairing?.scope ?? "owner";
+  // A person is never the owner: a security-admin flips as admin (kill.mayFlip decides).
+  const scope =
+    client?.pairing?.scope ??
+    (client?.person
+      ? client.person.adminAreas.includes("policy")
+        ? "admin"
+        : client.person.scope
+      : "owner");
   if (!engine.mayFlip(scope)) {
     respond(
       false,
@@ -53,7 +60,7 @@ function flip(
   const agent = parsed.body.all ? null : (parsed.body.agent ?? null);
   const by = client?.pairing
     ? `device:${client.pairing.deviceName}#${client.pairing.fingerprint.slice(0, 12)}`
-    : (client?.connect?.device?.id ?? "operator");
+    : (client?.person?.principal ?? client?.connect?.device?.id ?? "operator");
   if (action === "kill") {
     const result = engine.kill({ agent, by, reason: parsed.body.reason });
     respond(true, { agent, jobsAborted: result.jobsAborted, status: engine.status() });

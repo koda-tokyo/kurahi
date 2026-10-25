@@ -151,7 +151,12 @@ export const slackPlugin: ChannelPlugin<ResolvedSlackAccount> = {
     collectWarnings: ({ account, cfg }) => {
       const warnings: string[] = [];
       const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
-      const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "open";
+      // Mirrors src/slack/monitor/provider.ts: the enterprise profile defaults to allow-list.
+      const enterprise =
+        cfg.profile === "enterprise" ||
+        process.env.KURAHI_PROFILE?.trim().toLowerCase() === "enterprise";
+      const groupPolicy =
+        account.config.groupPolicy ?? defaultGroupPolicy ?? (enterprise ? "allowlist" : "open");
       const channelAllowlistConfigured =
         Boolean(account.config.channels) && Object.keys(account.config.channels ?? {}).length > 0;
 

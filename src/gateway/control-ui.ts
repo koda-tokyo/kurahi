@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +13,42 @@ import {
 } from "./control-ui-shared.js";
 
 const ROOT_PREFIX = "/";
+
+/**
+ * Content-Security-Policy of the console (a Vite-built SPA: one module script, one stylesheet).
+ * Scripts: same origin plus the per-response nonce of the injected bootstrap script, never
+ * inline or eval. Styles: same origin, the Google Fonts stylesheet the console imports, and
+ * inline styles (lit templates use `style=` attributes). connect-src stays open to ws/wss/http
+ * (s) because the console can attach to a gateway URL other than its own origin; images too
+ * (agent avatars are remote or data: URLs). Never framed (clickjacking).
+ */
+export function controlUiCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https: http:",
+    "connect-src 'self' ws: wss: http: https:",
+    "worker-src 'self' blob:",
+    "frame-src 'self'",
+    "manifest-src 'self'",
+  ].join("; ");
+}
+
+/** Served avatar files (may be SVG): no script, no plugins, sandboxed, never framed. */
+export const CONTROL_UI_AVATAR_CSP =
+  "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'none'; sandbox";
+
+function setSecurityHeaders(res: ServerResponse, csp: string) {
+  res.setHeader("Content-Security-Policy", csp);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+}
 
 export type ControlUiRequestOptions = {
   basePath?: string;
@@ -121,6 +158,7 @@ export function handleControlUiAvatarRequest(
     return false;
   }
 
+  setSecurityHeaders(res, CONTROL_UI_AVATAR_CSP);
   const agentIdParts = pathname.slice(pathWithBase.length).split("/").filter(Boolean);
   const agentId = agentIdParts[0] ?? "";
   if (agentIdParts.length !== 1 || !agentId || !isValidAgentId(agentId)) {
@@ -177,17 +215,24 @@ interface ControlUiInjectionOpts {
   basePath: string;
   assistantName?: string;
   assistantAvatar?: string;
+  /** CSP nonce of this response: the only inline script the console page may run. */
+  nonce?: string;
+}
+
+/** JSON for an inline script: `<` escaped so a value can never close the script element. */
+function scriptJson(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
 function injectControlUiConfig(html: string, opts: ControlUiInjectionOpts): string {
-  const { basePath, assistantName, assistantAvatar } = opts;
+  const { basePath, assistantName, assistantAvatar, nonce } = opts;
   const script =
-    `<script>` +
-    `window.__KOLO_CONTROL_UI_BASE_PATH__=${JSON.stringify(basePath)};` +
-    `window.__KOLO_ASSISTANT_NAME__=${JSON.stringify(
+    (nonce ? `<script nonce="${nonce}">` : `<script>`) +
+    `window.__KOLO_CONTROL_UI_BASE_PATH__=${scriptJson(basePath)};` +
+    `window.__KOLO_ASSISTANT_NAME__=${scriptJson(
       assistantName ?? DEFAULT_ASSISTANT_IDENTITY.name,
     )};` +
-    `window.__KOLO_ASSISTANT_AVATAR__=${JSON.stringify(
+    `window.__KOLO_ASSISTANT_AVATAR__=${scriptJson(
       assistantAvatar ?? DEFAULT_ASSISTANT_IDENTITY.avatar,
     )};` +
     `</script>`;
@@ -206,10 +251,11 @@ interface ServeIndexHtmlOpts {
   basePath: string;
   config?: KoLoConfig;
   agentId?: string;
+  nonce: string;
 }
 
 function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndexHtmlOpts) {
-  const { basePath, config, agentId } = opts;
+  const { basePath, config, agentId, nonce } = opts;
   const identity = config
     ? resolveAssistantIdentity({ cfg: config, agentId })
     : DEFAULT_ASSISTANT_IDENTITY;
@@ -231,6 +277,7 @@ function serveIndexHtml(res: ServerResponse, indexPath: string, opts: ServeIndex
       basePath,
       assistantName: identity.name,
       assistantAvatar: avatarValue,
+      nonce,
     }),
   );
 }
@@ -288,6 +335,11 @@ export function handleControlUiHttpRequest(
     }
   }
 
+  // Every console response (page, assets, fallbacks) carries the security headers; the nonce
+  // admits the bootstrap script injected into index.html and nothing else inline.
+  const nonce = randomBytes(16).toString("base64");
+  setSecurityHeaders(res, controlUiCsp(nonce));
+
   const root = resolveControlUiRoot();
   if (!root) {
     res.statusCode = 503;
@@ -329,6 +381,7 @@ export function handleControlUiHttpRequest(
         basePath,
         config: opts?.config,
         agentId: opts?.agentId,
+        nonce,
       });
       return true;
     }
@@ -343,6 +396,7 @@ export function handleControlUiHttpRequest(
       basePath,
       config: opts?.config,
       agentId: opts?.agentId,
+      nonce,
     });
     return true;
   }

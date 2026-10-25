@@ -1,11 +1,16 @@
 import type { IncomingMessage } from "node:http";
 import type { WebSocket } from "ws";
 import os from "node:os";
+import type { PersonPrincipal } from "../../../identity/types.js";
 import type { createSubsystemLogger } from "../../../logging/subsystem.js";
 import type { ResolvedGatewayAuth } from "../../auth.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "../../server-methods/types.js";
 import type { GatewayWsClient } from "../ws-types.js";
 import { loadConfig } from "../../../config/config.js";
+import { ssoRequiredGate } from "../../../identity/connect.js";
+import { legacyScopesForPerson } from "../../../identity/rbac.js";
+import { getIdentityService } from "../../../identity/service.js";
+import { isSsoSessionToken } from "../../../identity/sessions.js";
 import {
   deriveDeviceIdFromPublicKey,
   normalizeDevicePublicKeyBase64Url,
@@ -47,7 +52,7 @@ import {
   validateConnectParams,
   validateRequestFrame,
 } from "../../protocol/index.js";
-import { authAttemptLimiter } from "../../rate-limiter.js";
+import { authAttemptLimiter, refundWsConnectionSlot } from "../../rate-limiter.js";
 import { legacyOperatorScopesFor } from "../../scopes.js";
 import { MAX_BUFFERED_BYTES, MAX_PAYLOAD_BYTES, TICK_INTERVAL_MS } from "../../server-constants.js";
 import { handleGatewayRequest } from "../../server-methods.js";
@@ -61,6 +66,7 @@ import {
   incrementPresenceVersion,
   refreshGatewayHealthSnapshot,
 } from "../health-state.js";
+import { watchPersonConnection } from "./person-watch.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -618,6 +624,35 @@ export function attachGatewayWsMessageHandler(params: {
         let authMethod: string =
           authResult.method ?? (resolvedAuth.mode === "password" ? "password" : "token");
         let authReason = authResult.reason;
+        // Enterprise identity: an SSO session token authenticates a person (never the owner).
+        let person: PersonPrincipal | null = null;
+        const ssoToken = isSsoSessionToken(connectParams.auth?.token);
+        if (ssoToken) {
+          const verified = getIdentityService(configSnapshot).verifyToken(
+            connectParams.auth?.token ?? "",
+            { touch: true },
+          );
+          authOk = verified.ok && role === "operator";
+          if (verified.ok && role === "operator") {
+            person = verified.principal;
+            authMethod = "sso";
+            authReason = undefined;
+          } else {
+            authReason = verified.ok ? "sso_role" : `sso_${verified.reason}`;
+          }
+          recordAuditEvent({
+            action: "identity.sso.connect",
+            outcome: person ? "allowed" : "denied",
+            source: "gateway.ws",
+            identity: person?.principal ?? undefined,
+            scope: person?.scope,
+            detail: {
+              client: connectParams.client.id,
+              reason: person ? null : authReason,
+              ip: reportedClientIp ?? null,
+            },
+          });
+        }
         // M3a: pairing access token. The device block is mandatory (the token is bound to the
         // key fingerprint) and so is the nonce, local or not: the signature over the server
         // nonce is the proof of possession.
@@ -655,7 +690,7 @@ export function attachGatewayWsMessageHandler(params: {
             },
           });
         }
-        if (!authOk && connectParams.auth?.token && device && !pairPrincipal) {
+        if (!authOk && connectParams.auth?.token && device && !pairPrincipal && !ssoToken) {
           const tokenCheck = await verifyDeviceToken({
             deviceId: device.id,
             token: connectParams.auth.token,
@@ -710,12 +745,46 @@ export function attachGatewayWsMessageHandler(params: {
           return;
         }
 
+        // SSO required: people sign in through the IdP; only nodes, local agents and an audited
+        // break-glass owner login get past without a session.
+        const ssoGate = ssoRequiredGate({
+          settings: getIdentityService(configSnapshot).settings,
+          authMethod,
+          person,
+          role,
+          client: connectParams.client,
+          localDirect: isLocalClient,
+          breakGlass: connectParams.auth?.breakGlass ?? null,
+          ip: reportedClientIp ?? null,
+          hasDevice: Boolean(device && devicePublicKey),
+        });
+        if (!ssoGate.ok) {
+          setHandshakeState("failed");
+          setCloseCause("sso-required", { client: connectParams.client.id, authMethod });
+          send({
+            type: "res",
+            id: frame.id,
+            ok: false,
+            error: errorShape(ErrorCodes.INVALID_REQUEST, ssoGate.message, {
+              details: { code: ssoGate.reason },
+            }),
+          });
+          close(1008, truncateCloseReason(ssoGate.message));
+          return;
+        }
+
         // A pairing credential already proved and bound the device key: the legacy
         // device-pairing store (device.pair.*) is not consulted and no device token is issued.
         if (pairPrincipal) {
           connectParams.scopes = legacyOperatorScopesFor(pairPrincipal.scope);
         }
-        const skipPairing = (allowControlUiBypass && hasSharedAuth) || Boolean(pairPrincipal);
+        // A person's scopes come from their roles, never from what the client asked for. No
+        // device token is minted either: it would outlive the SSO session.
+        if (person) {
+          connectParams.scopes = legacyScopesForPerson(person);
+        }
+        const skipPairing =
+          (allowControlUiBypass && hasSharedAuth) || Boolean(pairPrincipal) || Boolean(person);
         if (device && devicePublicKey && !skipPairing) {
           const requirePairing = async (reason: string, _paired?: { deviceId: string }) => {
             if (!isLocalClient) {
@@ -830,7 +899,7 @@ export function attachGatewayWsMessageHandler(params: {
         }
 
         const deviceToken =
-          device && !pairPrincipal
+          device && !pairPrincipal && !person
             ? await ensureDeviceToken({ deviceId: device.id, role, scopes })
             : null;
 
@@ -927,8 +996,22 @@ export function attachGatewayWsMessageHandler(params: {
           connId,
           presenceKey,
           ...(pairPrincipal ? { pairing: pairPrincipal } : {}),
+          ...(person ? { person } : {}),
+          ...(ssoGate.breakGlass ? { breakGlass: true } : {}),
+          authMethod,
         };
         setClient(nextClient);
+        if (person) {
+          // Revocation, expiry, idle timeout, deprovisioning and role changes apply to the open
+          // socket (closed with 4001, or its scopes refreshed) without waiting for a request.
+          const stopWatch = watchPersonConnection({
+            client: nextClient,
+            sessionId: person.sessionId,
+            identity: getIdentityService(configSnapshot),
+            close,
+          });
+          socket.once("close", stopWatch);
+        }
         setHandshakeState("connected");
         if (role === "node") {
           const context = buildRequestContext();
@@ -989,6 +1072,8 @@ export function attachGatewayWsMessageHandler(params: {
         });
 
         send({ type: "res", id: frame.id, ok: true, payload: helloOk });
+        // Authenticated: this connection no longer counts against the per-address WS throttle.
+        refundWsConnectionSlot(upgradeReq, trustedProxies);
         void refreshGatewayHealthSnapshot({ probe: true }).catch((err) =>
           logHealth.error(`post-connect health refresh failed: ${formatError(err)}`),
         );

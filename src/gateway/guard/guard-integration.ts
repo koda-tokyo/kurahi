@@ -10,7 +10,7 @@
  * Integration point: before tools-invoke-http.ts dispatches a tool.
  * The guard returns enriched context — the existing system makes the final decision.
  */
-
+import { isAbsolute, resolve as resolvePath } from "node:path";
 import type { PermissionContext, PermissionDecision } from "./permission-modes.js";
 import { guard, RiskTier, type RiskAssessment } from "./index.js";
 import { securePath } from "./path-guard.js";
@@ -61,12 +61,16 @@ export async function guardToolCall(params: {
   mode?: PermissionMode;
   /** Optional: workspace roots for path validation */
   workspaceRoots?: string[];
+  /** Optional: directory relative paths are resolved against (default: the process cwd). */
+  baseDir?: string;
 }): Promise<GuardResult> {
-  const { toolName, args, paths: explicitPaths, command, mode, workspaceRoots } = params;
+  const { toolName, args, paths: explicitPaths, command, mode, workspaceRoots, baseDir } = params;
   const context: GuardResult["context"] = {};
 
   // ── Step 1: Path validation for file tools ─────────────────────
-  const resolvedPaths = explicitPaths ?? extractPaths(toolName, args);
+  const resolvedPaths = (explicitPaths ?? extractPaths(toolName, args)).map((p) =>
+    baseDir && !isAbsolute(p) ? resolvePath(baseDir, p) : p,
+  );
   if (resolvedPaths.length > 0 && workspaceRoots && workspaceRoots.length > 0) {
     for (const p of resolvedPaths) {
       const result = await securePath(p, workspaceRoots);

@@ -70,6 +70,29 @@ export const SECURITY_SCHEMES: Record<
         "POST /api/auth/redeem (a Bearer session token is accepted too).",
     },
   },
+  "sso-session": {
+    name: "ssoSession",
+    scope: "person",
+    scheme: {
+      type: "http",
+      scheme: "bearer",
+      description:
+        "SSO session token (`kss_…`) of a person who signed in through the organisation's " +
+        "identity provider (OIDC or SAML), as `Authorization: Bearer`. The person's roles give " +
+        "the scope; auditors may also read the audit chain and evidence.",
+    },
+  },
+  "scim-token": {
+    name: "scimToken",
+    scope: "scim",
+    scheme: {
+      type: "http",
+      scheme: "bearer",
+      description:
+        "Provisioning token from `gateway.identity.scim.token` (secrets store), presented by the " +
+        "identity provider's SCIM client.",
+    },
+  },
   "pair-credential": {
     name: "pairToken",
     scope: "pair",
