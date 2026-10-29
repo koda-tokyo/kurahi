@@ -74,32 +74,37 @@ describe("work item journal", () => {
     ]);
   });
 
-  it("re-appends to the live journal when it is replaced mid-append", () => {
-    const root = workItemsRoot(projectId, home);
-    const file = journalPath(root);
-    const replacement = `epoch ${"a".repeat(32)}\n`;
-    const realWrite = fs.writeSync;
-    let swapped = false;
-    // Simulate compaction renaming a new epoch over the journal right after our first write.
-    const spy = (fd: number, data: Buffer) => {
-      const n = realWrite(fd, data);
-      if (!swapped) {
-        swapped = true;
-        fs.writeFileSync(`${file}.new`, replacement);
-        fs.renameSync(`${file}.new`, file);
+  // Renaming over a file another handle has open is refused on Windows (EPERM); compaction is
+  // best-effort there and retried by the next append, so only POSIX can stage this race.
+  it.skipIf(process.platform === "win32")(
+    "re-appends to the live journal when it is replaced mid-append",
+    () => {
+      const root = workItemsRoot(projectId, home);
+      const file = journalPath(root);
+      const replacement = `epoch ${"a".repeat(32)}\n`;
+      const realWrite = fs.writeSync;
+      let swapped = false;
+      // Simulate compaction renaming a new epoch over the journal right after our first write.
+      const spy = (fd: number, data: Buffer) => {
+        const n = realWrite(fd, data);
+        if (!swapped) {
+          swapped = true;
+          fs.writeFileSync(`${file}.new`, replacement);
+          fs.renameSync(`${file}.new`, file);
+        }
+        return n;
+      };
+      (fs as { writeSync: unknown }).writeSync = spy;
+      try {
+        appendJournal(root, { op: "commit", id: "wjournal00009", revision: 7 });
+      } finally {
+        (fs as { writeSync: unknown }).writeSync = realWrite;
       }
-      return n;
-    };
-    (fs as { writeSync: unknown }).writeSync = spy;
-    try {
-      appendJournal(root, { op: "commit", id: "wjournal00009", revision: 7 });
-    } finally {
-      (fs as { writeSync: unknown }).writeSync = realWrite;
-    }
-    const j = journal();
-    expect(j.epoch).toBe("a".repeat(32));
-    expect(j.lines).toEqual([{ op: "commit", id: "wjournal00009", revision: 7 }]);
-  });
+      const j = journal();
+      expect(j.epoch).toBe("a".repeat(32));
+      expect(j.lines).toEqual([{ op: "commit", id: "wjournal00009", revision: 7 }]);
+    },
+  );
 
   it("recreates the journal with an epoch when it is removed before the append opens it", () => {
     const root = path.join(home, "unlinked");
