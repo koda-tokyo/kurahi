@@ -126,17 +126,20 @@ describe("workitems_linked engine check", () => {
     expect(f.linkedCases).toBeUndefined();
   });
 
-  it.skipIf(process.getuid?.() === 0)("reports an unreadable store as unavailable", () => {
-    const p = "pengnoperm1";
-    caseWithChild(p, true);
-    const root = path.dirname(workItemDir(p, "weng000000001", home));
-    fs.chmodSync(root, 0o000);
-    try {
-      expect(facts(p).verdict).toBe("verdict ESCALATE work items unavailable (EACCES)");
-    } finally {
-      fs.chmodSync(root, 0o755);
-    }
-  });
+  it.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
+    "reports an unreadable store as unavailable",
+    () => {
+      const p = "pengnoperm1";
+      caseWithChild(p, true);
+      const root = path.dirname(workItemDir(p, "weng000000001", home));
+      fs.chmodSync(root, 0o000);
+      try {
+        expect(facts(p).verdict).toBe("verdict ESCALATE work items unavailable (EACCES)");
+      } finally {
+        fs.chmodSync(root, 0o755);
+      }
+    },
+  );
 
   it("escalates when a work item cannot be read, since it may hide a stuck case", () => {
     const p = "pengitem001";
