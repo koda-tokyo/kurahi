@@ -16,6 +16,7 @@ import type {
   TalkConfig,
 } from "./types.gateway.js";
 import type { GovernanceConfig } from "./types.governance.js";
+import type { GuardianConfig } from "./types.guardian.js";
 import type { HooksConfig } from "./types.hooks.js";
 import type { LspConfig } from "./types.lsp.js";
 import type { McpConfig } from "./types.mcp.js";
@@ -114,6 +115,7 @@ export type KoLoConfig = {
   evidence?: EvidenceConfig;
   /** Data governance: retention, legal holds, eDiscovery export, personal data guard. */
   governance?: GovernanceConfig;
+  guardian?: GuardianConfig;
   /** The factory: boards, cards, engine runs and pull requests (KoLo 2.0, M15). */
   factory?: FactoryConfig;
   plugins?: PluginsConfig;

@@ -834,10 +834,26 @@ export async function startGatewayServer(
   } catch (err) {
     logShield.warn(`shield: not started (${String(err)})`);
   }
+  // Guardian: audit and Guardian events to the customer's SIEM (guardian.siem). Non-blocking.
+  let siemExport: { stop: () => Promise<void> } | null = null;
+  const siemCfg = cfgAtStart.guardian?.enabled === false ? undefined : cfgAtStart.guardian?.siem;
+  if (siemCfg) {
+    const logSiem = log.child("siem");
+    try {
+      const { startSiemExport } = await import("../guardian/siem.js");
+      siemExport = startSiemExport({
+        cfg: siemCfg,
+        log: { info: (msg) => logSiem.info(msg), warn: (msg) => logSiem.warn(msg) },
+      });
+    } catch (err) {
+      logSiem.warn(`siem: not started (${String(err)})`);
+    }
+  }
   const configReloader = {
     stop: async () => {
       await policyWatcher.stop();
       await shieldWatcher?.stop();
+      await siemExport?.stop();
       await configReloaderInner.stop();
     },
   };

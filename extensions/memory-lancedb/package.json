@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/memory-lancedb",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Kurahi LanceDB-backed long-term memory plugin with auto-recall/capture",
   "type": "module",
   "dependencies": {

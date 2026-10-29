@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/circadian",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Phase-of-day signal for agents and schedules",
   "type": "module",
   "devDependencies": {

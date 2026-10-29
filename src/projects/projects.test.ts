@@ -245,6 +245,7 @@ describe("templates", () => {
       "business-people-operations",
       "business-procurement",
       "business-sales-quotation",
+      "core-guardian",
       "education",
       "industry-legacy-modernisation",
       "professional",

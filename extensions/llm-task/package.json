@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/llm-task",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Kurahi JSON-only LLM task plugin",
   "type": "module",
   "devDependencies": {

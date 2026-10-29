@@ -276,6 +276,28 @@ async function appendUnlocked(dir: string, input: AuditInput, now: Date): Promis
 // In-process single-writer queue (per directory).
 const queues = new Map<string, Promise<unknown>>();
 
+/** Called with every entry this process appends (SIEM export). Must be synchronous and cheap. */
+export type AuditAppendListener = (entry: AuditEntry) => void;
+const appendListeners = new Set<AuditAppendListener>();
+
+/** Subscribe to appended entries; returns the unsubscribe. A throwing listener is ignored. */
+export function onAuditAppend(fn: AuditAppendListener): () => void {
+  appendListeners.add(fn);
+  return () => {
+    appendListeners.delete(fn);
+  };
+}
+
+function notifyAppended(entry: AuditEntry): void {
+  for (const fn of appendListeners) {
+    try {
+      fn(entry);
+    } catch {
+      // a subscriber never fails the append
+    }
+  }
+}
+
 /**
  * Append one entry. Resolves after the line is fsync'd. Rejects on I/O failure; callers on hot
  * paths should use {@link auditSafe}.
@@ -289,11 +311,14 @@ export function appendAudit(input: AuditInput, opts: AuditOptions = {}): Promise
     .then(async () => {
       await fsp.mkdir(dir, { recursive: true, mode: 0o700 });
       const release = await acquireLock(dir);
+      let entry: AuditEntry;
       try {
-        return await appendUnlocked(dir, input, now());
+        entry = await appendUnlocked(dir, input, now());
       } finally {
         await release();
       }
+      notifyAppended(entry);
+      return entry;
     });
   queues.set(dir, run);
   void run

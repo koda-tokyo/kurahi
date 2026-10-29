@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/mattermost",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Kurahi Mattermost channel plugin",
   "type": "module",
   "devDependencies": {

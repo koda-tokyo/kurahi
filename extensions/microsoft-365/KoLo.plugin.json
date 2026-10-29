@@ -42,6 +42,17 @@
           }
         }
       },
+      "security": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "type": "boolean",
+            "default": false,
+            "description": "Read Microsoft Defender / Microsoft 365 security alerts for Guardian (Graph Security alerts_v2, SecurityAlert.Read.All; delegated, admin consent required). Read-only: alerts are never updated."
+          }
+        }
+      },
       "write": {
         "type": "object",
         "additionalProperties": false,

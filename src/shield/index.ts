@@ -38,6 +38,11 @@ export function resolveShieldRoots(
     }
   }
   roots.push(...extra.map(expandHome));
+  // Kurahi Guardian: company file shares the operator listed (docs/security/guardian.md). The
+  // shield plants its decoy file in each, so only explicitly listed shares are watched.
+  if (cfg.guardian?.enabled !== false) {
+    roots.push(...(cfg.guardian?.shares ?? []).map(expandHome));
+  }
   return roots;
 }
 

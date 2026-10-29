@@ -863,7 +863,7 @@
           },
           {
             "group": "Releases",
-            "pages": ["releases/2.3.0", "releases/2.2.0"]
+            "pages": ["releases/2.4.0", "releases/2.3.0", "releases/2.2.0"]
           },
           {
             "group": "Help",
@@ -1041,6 +1041,7 @@
               "security/threat-model-industrial",
               "security/privacy",
               "security/attachment-intake",
+              "security/guardian",
               "security/identity",
               "security/data-governance",
               "security/enterprise-profile",
@@ -1278,7 +1279,7 @@
           },
           {
             "group": "リリース",
-            "pages": ["ja/releases/2.3.0", "ja/releases/2.2.0"]
+            "pages": ["ja/releases/2.4.0", "ja/releases/2.3.0", "ja/releases/2.2.0"]
           },
           {
             "group": "業務コネクター",
@@ -1315,6 +1316,7 @@
               "ja/security/SECURITY_OVERVIEW",
               "ja/security/privacy",
               "ja/security/attachment-intake",
+              "ja/security/guardian",
               "ja/security/identity",
               "ja/security/data-governance",
               "ja/security/enterprise-profile",

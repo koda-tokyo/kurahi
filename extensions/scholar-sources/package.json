@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/scholar-sources",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Read-only literature sources for Kurahi Scholars (arXiv, OpenAlex, Crossref, PubMed): search, lookup, citation check and open-access PDF intake",
   "type": "module",
   "devDependencies": {

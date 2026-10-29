@@ -66,6 +66,9 @@ export function classifyToolRisk(params: {
     "sessions_list",
     "sessions_history",
     "web_search",
+    // Guardian: allow-listed advisory feeds and Defender alerts, read only.
+    "guardian_advisories",
+    "m365_security_alerts",
     "nodes",
     "image",
     "session_status",
@@ -82,6 +85,8 @@ export function classifyToolRisk(params: {
   const NETWORK_TOOLS = new Set([
     "web_fetch",
     "web_search",
+    "guardian_advisories",
+    "m365_security_alerts",
     "browser",
     "message.send",
     "message.broadcast",

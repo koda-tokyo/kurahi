@@ -21,6 +21,8 @@ export const SCOPES = {
   mailReadWrite: "Mail.ReadWrite",
   calendarWrite: "Calendars.ReadWrite",
   filesAppFolder: "Files.ReadWrite.AppFolder",
+  /** Graph Security alerts_v2 (Defender and the other Microsoft security products); read-only. */
+  securityAlerts: "SecurityAlert.Read.All",
 } as const;
 
 export type M365Settings = {
@@ -36,6 +38,8 @@ export type M365Settings = {
   calendarWrite: boolean;
   /** Upload Project files to the user's OneDrive app folder (`write.files`). */
   filesUpload: boolean;
+  /** Read Microsoft security alerts (`security.alerts`, SecurityAlert.Read.All). */
+  securityAlerts: boolean;
   redirectPort?: number;
   probeIntervalMinutes: number;
   ratePerSecond: number;
@@ -83,6 +87,7 @@ export function readSettings(raw: unknown): M365Settings {
     mailDraft: write.mailDraft === true,
     calendarWrite: write.calendarWrite === true,
     filesUpload: write.files === true,
+    securityAlerts: rec(c.security).alerts === true,
     redirectPort: typeof c.redirectPort === "number" ? c.redirectPort : undefined,
     probeIntervalMinutes: intParam(c.probeIntervalMinutes, 15, 5, 1440),
     ratePerSecond: intParam(c.ratePerSecond, 8, 1, 50),
@@ -106,6 +111,9 @@ export function requestedScopes(s: M365Settings): string[] {
   }
   if (s.sharePoint) {
     out.push(SCOPES.sites);
+  }
+  if (s.securityAlerts) {
+    out.push(SCOPES.securityAlerts);
   }
   if (s.mailSend) {
     out.push(SCOPES.mailSend);

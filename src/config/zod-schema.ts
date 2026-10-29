@@ -4,6 +4,7 @@ import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zo
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
 import { GovernanceSchema } from "./zod-schema.governance.js";
+import { GuardianSchema } from "./zod-schema.guardian.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
 import { GatewayIdentitySchema } from "./zod-schema.identity.js";
 import { McpSchema } from "./zod-schema.mcp.js";
@@ -493,6 +494,7 @@ export const KoLoSchema = z
       .strict()
       .optional(),
     governance: GovernanceSchema,
+    guardian: GuardianSchema,
     factory: z
       .object({
         enabled: z.boolean().optional(),

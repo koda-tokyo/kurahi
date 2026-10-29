@@ -1,24 +1,27 @@
 // Malware scanning for inbound files (attachment intake, docs/security/attachment-intake.md).
 //
-// One interface, three adapters:
+// One interface, four adapters (also used by Guardian share scans, src/guardian/scan.ts):
 //   clamav    `clamdscan --fdpass` when the daemon client is installed, else `clamscan`
 //             (exit 0 clean, 1 infected, anything else an error)
 //   defender  Microsoft Defender `MpCmdRun.exe -Scan -ScanType 3 -File <path> -DisableRemediation`
 //             on Windows, and from WSL through the Windows binary on the C: drive mount (WSL
 //             automount root + c/Program Files/...) with the path
 //             translated by `wslpath -w` (exit 0 clean, 2 threat, anything else an error)
+//   yara      `yara --no-warnings -a <secs> <rule files...> <path>` with every *.yar/*.yara under
+//             the configured rules folder (exit 0 with no match lines clean, match lines infected
+//             with the rule names, anything else an error; no rule files is an error)
 //   none      no engine: every file is `unscanned`
 //
-// `auto` picks the first available in that order. Every scan has a bounded wall clock, runs with
-// a minimal environment and FAILS CLOSED: a timeout, a crash, an unknown exit code or an
-// unreadable verdict is `error`, never `clean`. Whether `unscanned` is acceptable is the caller's
-// decision (`security.attachments.requireScan`, default true: refused).
+// `auto` picks the first available of clamav and defender; yara runs only when named. Every scan
+// has a bounded wall clock, runs with a minimal environment and FAILS CLOSED: a timeout, a crash,
+// an unknown exit code or an unreadable verdict is `error`, never `clean`. Whether `unscanned` is
+// acceptable is the caller's decision (`security.attachments.requireScan`, default true: refused).
 
 import fs from "node:fs";
 import path from "node:path";
 import { runBounded, type BoundedExec } from "./bounded-exec.js";
 
-export const SCANNER_NAMES = ["clamav", "defender", "none"] as const;
+export const SCANNER_NAMES = ["clamav", "defender", "yara", "none"] as const;
 export type ScannerName = (typeof SCANNER_NAMES)[number];
 export type ScannerChoice = ScannerName | "auto";
 
@@ -50,6 +53,8 @@ export type ScannerHost = {
   now: () => number;
   /** The Defender binary inside WSL (default: from the automount root). */
   wslDefenderPath?: string;
+  /** The rule files of a YARA rules folder (default: collectYaraRules). */
+  yaraRules?: (dir: string) => string[] | null;
 };
 
 export const DEFAULT_SCAN_TIMEOUT_MS = 120_000;
@@ -267,6 +272,94 @@ export function createDefenderScanner(host: ScannerHost): FileScanner | null {
   };
 }
 
+/** Rule files a rules folder holds, at most this many (a rules folder is not a file share). */
+export const YARA_MAX_RULE_FILES = 1000;
+
+/**
+ * Every *.yar / *.yara under `dir` (recursive, symlinks not followed), sorted so the command line
+ * is stable. Null when the folder cannot be read or holds more than YARA_MAX_RULE_FILES.
+ */
+export function collectYaraRules(dir: string): string[] | null {
+  const out: string[] = [];
+  const stack = [dir];
+  try {
+    while (stack.length > 0) {
+      const cur = stack.pop()!;
+      for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
+        const full = path.join(cur, e.name);
+        if (e.isDirectory()) {
+          stack.push(full);
+        } else if (e.isFile() && /\.(yar|yara)$/i.test(e.name)) {
+          out.push(full);
+          if (out.length > YARA_MAX_RULE_FILES) {
+            return null;
+          }
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return out.toSorted();
+}
+
+/** One `yara` match line: `<RuleName> <path>` (no tags, no metadata: those flags are not passed). */
+const YARA_MATCH_RE = /^([A-Za-z_][A-Za-z0-9_]{0,127}) \S/;
+
+export function createYaraScanner(host: ScannerHost, rulesDir: string): FileScanner | null {
+  const yara = host.which("yara");
+  if (!yara) {
+    return null;
+  }
+  return {
+    name: "yara",
+    async scan(file, { timeoutMs }) {
+      const t0 = host.now();
+      const rules = (host.yaraRules ?? collectYaraRules)(rulesDir);
+      if (!rules || rules.length === 0) {
+        return verdict("yara", t0, host, "error", {
+          detail: rules ? "no YARA rule files in the rules folder" : "YARA rules folder unreadable",
+        });
+      }
+      // yara's own timeout (whole seconds) a little inside ours, so a slow rule set reports.
+      const secs = Math.max(1, Math.floor(timeoutMs / 1000) - 1);
+      const r = await host.exec([yara, "--no-warnings", "-a", String(secs), ...rules, file], {
+        timeoutMs,
+        env: scanEnv(host),
+      });
+      if (r.timedOut) {
+        return verdict("yara", t0, host, "error", { detail: "scan timed out" });
+      }
+      if (r.code !== 0) {
+        // Rule compile errors, unreadable files and yara's own timeout all exit non-zero.
+        return verdict("yara", t0, host, "error", {
+          detail: `yara exit ${r.code ?? r.signal ?? "?"}`,
+        });
+      }
+      const lines = r.stdout
+        .replace(/\r/g, "")
+        .split("\n")
+        .filter((l) => l.trim() !== "");
+      if (lines.length === 0) {
+        return r.truncated
+          ? verdict("yara", t0, host, "error", { detail: "yara output truncated" })
+          : verdict("yara", t0, host, "clean");
+      }
+      const names = new Set<string>();
+      for (const line of lines) {
+        const m = YARA_MATCH_RE.exec(line);
+        if (!m) {
+          return verdict("yara", t0, host, "error", { detail: "unreadable yara output" });
+        }
+        names.add(m[1]);
+      }
+      return verdict("yara", t0, host, "infected", {
+        signature: [...names].toSorted().join(",").slice(0, 120),
+      });
+    },
+  };
+}
+
 export function createNoneScanner(): FileScanner {
   return {
     name: "none",
@@ -289,15 +382,16 @@ export function createNoneScanner(): FileScanner {
 export function resolveScanner(
   choice: ScannerChoice,
   host: ScannerHost = defaultScannerHost(),
+  opts: { yaraRules?: string } = {},
 ): FileScanner {
-  const unavailable = (name: ScannerName): FileScanner => ({
+  const unavailable = (name: ScannerName, detail?: string): FileScanner => ({
     name,
     async scan() {
       return {
         verdict: "error",
         scanner: name,
         signature: null,
-        detail: `${name} is configured but not installed on this host`,
+        detail: detail ?? `${name} is configured but not installed on this host`,
         ms: 0,
       };
     },
@@ -307,6 +401,13 @@ export function resolveScanner(
   }
   if (choice === "defender") {
     return createDefenderScanner(host) ?? unavailable("defender");
+  }
+  if (choice === "yara") {
+    // YARA without a rules folder cannot decide anything: every scan fails closed.
+    if (!opts.yaraRules) {
+      return unavailable("yara", "yara is configured without a rules folder");
+    }
+    return createYaraScanner(host, opts.yaraRules) ?? unavailable("yara");
   }
   if (choice === "none") {
     return createNoneScanner();

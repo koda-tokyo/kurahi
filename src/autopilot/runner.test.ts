@@ -720,3 +720,59 @@ describe("agent for unnamed routines", () => {
     expect(calls.every((c) => c.agentId === "backoffice")).toBe(true);
   });
 });
+
+describe("Guardian escalations always reach a person", () => {
+  const GUARD = {
+    id: "guard",
+    edition: "core",
+    area: "security",
+    trigger: { schedule: "15 2 * * *", tz: "Asia/Tokyo" },
+    gather: [{ id: "backup", tool: "guardian_backup" }],
+    reasoning: { promptText: "Review the checks." },
+    actions: ["workitem.intake"],
+    level: "L1",
+    queue: "ga-requests",
+    metrics: { baselineMinutes: 5 },
+  };
+
+  it("files a case for an escalated check the model ignored, and none twice when cited", async () => {
+    writeRoutines([GUARD]);
+    resetState("guard");
+    const created: Array<{ ref: string; priority?: string; kind: string }> = [];
+    const real = defaultWorkItemSink();
+    const sink = {
+      ...real,
+      create: (req: Parameters<typeof real.create>[0]) => {
+        created.push({ ref: req.item.ref, priority: req.item.priority, kind: req.kind });
+        return real.create(req);
+      },
+    };
+    reply = { items: [] };
+    const run = await runRoutine({ ...deps(), workItems: sink }, project, "guard", manual);
+    expect(run.status).toBe("escalated");
+    expect(created).toEqual([
+      expect.objectContaining({
+        ref: expect.stringMatching(/^guardian_backup:/),
+        kind: "escalation",
+        priority: "high",
+      }),
+    ]);
+
+    created.length = 0;
+    resetState("guard");
+    reply = {
+      items: [
+        {
+          ref: "backup",
+          title: "Backups are not configured",
+          summary: "s",
+          sources: ["backup"],
+          actions: [{ kind: "workitem.intake" }],
+        },
+      ],
+    };
+    await runRoutine({ ...deps(), workItems: sink }, project, "guard", manual);
+    expect(created.map((c) => c.ref)).toEqual(["backup"]);
+    writeRoutines([ROUTINE]);
+  });
+});

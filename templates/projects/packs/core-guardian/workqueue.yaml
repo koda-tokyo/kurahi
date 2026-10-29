@@ -1,0 +1,39 @@
+# Kurahi Guardian / セキュリティインシデント (docs/security/guardian.md).
+# Every Guardian finding (shield trip, infected file, failed posture check, Defender alert,
+# matching advisory) becomes a case here. Agents prepare the case and the recommended response;
+# containment beyond Kurahi itself, restores and any change to company systems are decided by people.
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+queues:
+  - id: sec-incidents
+    department: it
+    name: { ja: セキュリティインシデント, en: Security incidents }
+    types: [case]
+    slaHours: 24
+rules:
+  - id: sec.required
+    kind: required
+    fields: [summary, note]
+    label: { ja: 必須項目（概要・証跡と推奨対応）, en: "Required: summary, evidence and recommended response" }
+  - id: sec.phrases
+    kind: forbiddenPhrases
+    target: both
+    phrases: [駆除しました, 駆除済み, 復旧しました, 復旧済み, 安全です, malware removed, has been cleaned, has been restored, no risk]
+    label: { ja: 人の確認前に駆除・削除・復旧済みや安全と書かない, en: Do not state removal, deletion, restore or safety before a person has confirmed it }
+routes:
+  - id: sec-response
+    name: { ja: インシデント対応, en: Incident response }
+    queues: [sec-incidents]
+    stages:
+      - id: security
+        name: { ja: 情報セキュリティ担当の確認, en: IT security review }
+        approvers: { roles: [security] }
+        dueHours: 4
+        onReturn: requester
+        escalation: { afterHours: 8, to: { roles: [director] } }
+      - id: management
+        name: { ja: 経営層への報告・判断, en: Management decision }
+        when: [{ field: priority, in: [high, urgent] }]
+        approvers: { roles: [director] }
+        dueHours: 24

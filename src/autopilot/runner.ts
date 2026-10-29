@@ -35,7 +35,7 @@ import { auditDemotion, demoteLocked, routineLevel } from "./autonomy-level.js";
 import { briefPlan, isBriefRoutine } from "./brief.js";
 import { globalStopRefusal } from "./control.js";
 import { MAIL_READ_TOOLS, parseListHeaders, safeEmailOrigin } from "./email-origin.js";
-import { engineToolNoInput, isEngineTool, runEngineTool } from "./engine-tools.js";
+import { engineToolNoInput, isEngineTool, runEngineToolAsync } from "./engine-tools.js";
 import { writeRunEvidence } from "./evidence.js";
 import { KnowledgeRefused, loadKnowledge } from "./knowledge.js";
 import { type Reasoner, ReasonerToolUse } from "./reasoner.js";
@@ -285,7 +285,7 @@ async function execute(
       if (!isEngineTool(tool)) {
         throw new Error(`${tool} is not an engine check`);
       }
-      const text = runEngineTool(tool, args, { projectId: project.id, home: deps.home });
+      const text = await runEngineToolAsync(tool, args, { projectId: project.id, home: deps.home });
       const noInput = engineToolNoInput(tool, text);
       return { text, ...(noInput ? { details: { noInput: true, noInputReason: noInput } } : {}) };
     }
@@ -650,6 +650,8 @@ async function execute(
   }
   /** Messages with a refused attachment that an item covered (else they get their own item). */
   const coveredAttachments = new Set<string>();
+  /** Sources cited by an item that reached the queue (Guardian escalations below). */
+  const citedByFiled = new Set<string>();
 
   // ---- authorize + act ----
   if (status === "ok") {
@@ -855,6 +857,9 @@ async function execute(
             },
           });
           workItems.push(created.id);
+          for (const sid of it.sources) {
+            citedByFiled.add(sid);
+          }
           filed = created.id;
           if (intakeOutcome) {
             intakeOutcome.executed = true;
@@ -897,6 +902,44 @@ async function execute(
       }
       if (executedAny && !awaiting) {
         counts.handled++;
+      }
+    }
+    // A Guardian check that escalated reaches a person even when no filed item cites it: the
+    // detector decides, the model only words the case.
+    for (const src of sources) {
+      const last = src.text.slice(src.text.lastIndexOf("\n") + 1);
+      if (!src.tool.startsWith("guardian_") || !last.startsWith("verdict ESCALATE")) {
+        continue;
+      }
+      if (citedByFiled.has(src.id)) {
+        continue;
+      }
+      try {
+        const created = deps.workItems.create({
+          project,
+          routine,
+          runId,
+          item: {
+            ref: `${src.tool}:${runId}`,
+            title: `Guardian: ${src.tool} needs a person`,
+            summary: last.slice("verdict ESCALATE".length).trim().slice(0, 500),
+            category: null,
+            priority:
+              src.tool === "guardian_scan" || src.tool === "guardian_integrity" ? "urgent" : "high",
+            flags: [],
+            sources: [src.id],
+            actions: [],
+          },
+          kind: "escalation",
+          awaitingPerson: `Guardian check ${src.tool} escalated: a person decides`,
+          pending: [],
+          note: src.text.slice(0, 4000),
+        });
+        workItems.push(created.id);
+        counts.escalated++;
+      } catch (err) {
+        sinkFailed = true;
+        reason = `work item intake failed: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`;
       }
     }
     // A message whose attachment the intake refused reaches a person even when no item of

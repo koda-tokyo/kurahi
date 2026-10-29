@@ -2,6 +2,46 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
+## 2.4.0 — 2026-10-30
+
+Kurahi 2.4 adds Kurahi Guardian to Kurahi Core, so every edition has it: the ransomware shield
+over the company's own file shares, scheduled malware scans, nightly security checks, security
+incident cases with signed evidence, SIEM export, JPCERT/CC and IPA advisories and Microsoft
+Defender alerts. Detectors decide, the model only explains, and a check that cannot run is never
+reported as passing.
+
+### Kurahi Guardian
+- **Ransomware shield over company shares:** `guardian.shares` puts the company's own folders under
+  the shield (decoy files, entropy spikes, ransom notes), not only Kurahi's folders. A trip stops
+  every agent and is recorded.
+- **Share scans (`guardian_scan`):** incremental scans through ClamAV, Microsoft Defender or YARA
+  (rules folder, named explicitly). A file counts as unchanged only when size, mtime, ctime and
+  inode all match. Infected files become hashed quarantine copies with a sidecar; the original is
+  moved only when `scan.quarantine.mode: move` is set, never across drives and never for a symbolic
+  link. Kurahi never deletes files. A file too large for the run is reported and the walk goes on.
+- **Posture checks:** `guardian_backup` (age), `guardian_restore_test` (restores one sample file
+  from tar or zip archives and compares its hash, with limits against oversized members),
+  `guardian_secrets`, `guardian_ports`, `guardian_integrity` and `guardian_credentials`. Missing
+  configuration, a disabled Guardian, a timeout or an unreadable result is `ESCALATE`, never `OK`.
+- **Security incident cases:** the `core-guardian` pack brings a Security incidents queue (IT),
+  evidence and wording checks (no "removed", "restored" or "no risk" before a person confirms)
+  and a route that adds a management stage for `high` and `urgent` cases. Routines
+  `guardian-posture` and `guardian-shares` run nightly at L1. When a check escalates and no case
+  cites it, the engine files the case itself; a clean share scan ends without a model call.
+- **SIEM export:** `guardian.siem` sends audit entries the gateway appends and every Guardian
+  result as syslog (RFC 5424 or CEF) over TLS, TCP or UDP, redacted and never blocking the
+  gateway. Plain TCP and UDP log a warning at start.
+- **Advisories (`guardian_advisories`):** JPCERT/CC and IPA feeds from fixed URLs (no redirects),
+  matched against `advisories.products`.
+- **Microsoft Defender alerts (`m365_security_alerts`):** Microsoft Graph Security `alerts_v2`,
+  read only, when the Microsoft 365 connector option `security.alerts` is on.
+- All Guardian paths in the configuration must be absolute.
+
+### Autopilot
+- Engine checks can be asynchronous. Fact values are always one line, so a file name cannot add a
+  verdict line.
+- Work items filed by Autopilot carry their priority in `source.fields`, so routes can use it.
+
 ## 2.3.0 — 2026-10-29
 
 Kurahi 2.3 turns the Business edition into functional packs over your existing systems, adds

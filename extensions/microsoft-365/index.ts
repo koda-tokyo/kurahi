@@ -1,10 +1,10 @@
 // Microsoft 365 business connector (Kurahi Business edition). Off by default.
 //
-// Outlook mail and calendar, OneDrive and SharePoint files through Microsoft Graph, signed in
-// with the customer's own app registration (authorization code + PKCE on a loopback redirect,
-// or device code). Read-only unless an administrator opts in to a write scope; every write that
-// leaves the mailbox or calendar then waits for a person's approval (drafts stay in Drafts for a
-// person to send). Project files can be attached to drafts or uploaded to the OneDrive app
+// Outlook mail and calendar, OneDrive and SharePoint files, and (opted in) Microsoft security
+// alerts for Guardian, through Microsoft Graph, signed in with the customer's own app
+// registration (authorization code + PKCE on a loopback redirect, or device code). Read-only
+// unless an administrator opts in to a write scope; every write that leaves the mailbox or
+// calendar then waits for a person's approval (drafts stay in Drafts for a person to send). Project files can be attached to drafts or uploaded to the OneDrive app
 // folder; neither shares anything. Every call is audited with ids and counts only.
 import type { KoLoPluginApi } from "../../src/plugins/types.js";
 import { registerMailWatchProvider } from "../../src/autopilot/triggers/mail-source.js";
@@ -29,6 +29,7 @@ import {
 import { createFileTools, createFileUploadTool } from "./src/files.js";
 import { M365MailWatcher, NOTIFICATIONS_PATH } from "./src/mail-watch.js";
 import { createMailTools, type MailToolDeps } from "./src/mail.js";
+import { createSecurityTools } from "./src/security.js";
 
 export function createM365Tools(
   settings: M365Settings,
@@ -74,6 +75,9 @@ export function createM365Tools(
   }
   if (settings.filesUpload) {
     tools.push(createFileUploadTool({ runtime, ctx }));
+  }
+  if (settings.securityAlerts) {
+    tools.push(...createSecurityTools({ runtime, ctx }));
   }
   return tools;
 }

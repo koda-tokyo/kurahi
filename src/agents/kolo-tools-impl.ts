@@ -1,6 +1,7 @@
 import type { KoLoConfig } from "../config/config.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
 import type { AnyAgentTool } from "./tools/common.js";
+import { createGuardianAdvisoriesTool } from "../guardian/advisories.js";
 import { createLspTools } from "../lsp/tools.js";
 import { createMcpTools } from "../mcp/client/tools.js";
 import { resolvePluginTools } from "../plugins/tools.js";
@@ -77,6 +78,8 @@ export function createKoLoTools(options?: {
   const workitemsIntakeTool = createWorkitemsIntakeTool({
     agentSessionKey: options?.agentSessionKey,
   });
+  // Guardian: JPCERT/CC and IPA advisories (allow-listed feeds), when guardian.advisories is set.
+  const guardianAdvisoriesTool = createGuardianAdvisoriesTool({ config: options?.config });
   const tools: AnyAgentTool[] = [
     createBrowserTool({
       sandboxBridgeUrl: options?.sandboxBrowserBridgeUrl,
@@ -146,6 +149,7 @@ export function createKoLoTools(options?: {
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),
     ...(workitemsIntakeTool ? [workitemsIntakeTool] : []),
+    ...(guardianAdvisoriesTool ? [guardianAdvisoriesTool] : []),
     // M9b: language server tools (diagnostics, definition, references, hover). Inert until used;
     // servers whose command is absent from PATH answer with a one-line notice.
     ...(options?.sandboxed

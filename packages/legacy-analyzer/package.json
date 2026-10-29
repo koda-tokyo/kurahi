@@ -1,6 +1,6 @@
 {
   "name": "@kodasoken/legacy-analyzer",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "description": "Deterministic static analysis of COBOL programs, copybooks and JCL: facts with file and line for agents.",
   "license": "SEE LICENSE IN ../../LICENSE",

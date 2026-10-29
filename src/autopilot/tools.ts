@@ -22,6 +22,8 @@ const CORE_READ_TOOLS: ReadToolDef[] = [
     "m365_files_search",
     "m365_files_read",
     "m365_sites_search",
+    // Guardian: Microsoft security alerts (Graph alerts_v2), summaries only.
+    "m365_security_alerts",
   ].map((name) => ({ name, provider: "microsoft-365" })),
   ...["gmail_list", "gmail_search", "gmail_read"].map((name) => ({ name, provider: "gmail" })),
   ...[
@@ -99,7 +101,17 @@ const CORE_READ_TOOLS: ReadToolDef[] = [
     "health_evidence",
     "workitems_linked",
     "workitems_po_ready",
+    // Guardian (src/guardian): posture checks and the share scan.
+    "guardian_backup",
+    "guardian_restore_test",
+    "guardian_secrets",
+    "guardian_ports",
+    "guardian_integrity",
+    "guardian_credentials",
+    "guardian_scan",
   ].map((name) => ({ name, provider: "engine" })),
+  // Guardian: JPCERT/CC and IPA advisories from allow-listed feeds (src/guardian/advisories.ts).
+  { name: "guardian_advisories", provider: "core" },
 ];
 
 /** Known write tools: named in errors so a misconfigured routine says what is wrong. */

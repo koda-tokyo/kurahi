@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/nostr",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Kurahi Nostr channel plugin for NIP-04 encrypted DMs",
   "type": "module",
   "dependencies": {

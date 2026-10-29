@@ -63,6 +63,7 @@ const TEAMS_GRAPH_PERMISSION_HINTS: Record<string, string> = {
   "TeamsActivity.Read.All": "teams activity",
   "Sites.Read.All": "files (SharePoint)",
   "Files.Read.All": "files (OneDrive)",
+  "SecurityAlert.Read.All": "security alerts (Guardian)",
 };
 
 function normalizeTimeout(raw: unknown, fallback = 10_000) {

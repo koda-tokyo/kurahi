@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import type { BoundedExecResult } from "./bounded-exec.js";
 import {
+  collectYaraRules,
   createClamavScanner,
   createDefenderScanner,
   createNoneScanner,
+  createYaraScanner,
   type FileScanner,
   resolveScanner,
   type ScannerHost,
@@ -19,6 +24,7 @@ function host(opts: {
   wsl?: boolean;
   files?: string[];
   bins?: Record<string, string>;
+  rules?: string[] | null;
   reply: (argv: string[]) => Partial<BoundedExecResult>;
 }): ScannerHost & { calls: Call[] } {
   const calls: Call[] = [];
@@ -31,6 +37,7 @@ function host(opts: {
     env: { PATH: "/usr/bin", SECRET_TOKEN: "must-not-leak", ProgramFiles: "C:\\Program Files" },
     now: () => 0,
     wslDefenderPath: wslDefenderPath("/wsl-root/"),
+    yaraRules: () => (opts.rules === undefined ? ["/rules/a.yar", "/rules/b.yara"] : opts.rules),
     exec: async (argv, o) => {
       calls.push({ argv, env: o.env, timeoutMs: o.timeoutMs });
       return {
@@ -168,6 +175,79 @@ describe("defender adapter", () => {
   });
 });
 
+describe("yara adapter", () => {
+  const bins = { yara: "/usr/bin/yara" };
+
+  it("runs every rule file against the file, clean when nothing matches", async () => {
+    const h = host({ bins, reply: () => ({ code: 0, stdout: "" }) });
+    const s = createYaraScanner(h, "/rules")!;
+    expect(s.name).toBe("yara");
+    expect(await s.scan("/q/f", opts)).toMatchObject({ verdict: "clean", scanner: "yara" });
+    expect(h.calls[0].argv).toEqual([
+      "/usr/bin/yara",
+      "--no-warnings",
+      "-a",
+      "4",
+      "/rules/a.yar",
+      "/rules/b.yara",
+      "/q/f",
+    ]);
+    expect(h.calls[0].env.SECRET_TOKEN).toBeUndefined();
+  });
+
+  it("infected with the matching rule names", async () => {
+    const h = host({
+      bins,
+      reply: () => ({ code: 0, stdout: "Ransom_Note /q/f\nEicar_Test /q/f\nRansom_Note /q/f\n" }),
+    });
+    expect(await createYaraScanner(h, "/rules")!.scan("/q/f", opts)).toMatchObject({
+      verdict: "infected",
+      signature: "Eicar_Test,Ransom_Note",
+    });
+  });
+
+  it.each([
+    ["a compile error", { code: 1, stderr: "error: syntax error" }, /exit 1/],
+    ["a crash", { code: null, signal: "SIGSEGV" as NodeJS.Signals }, /SIGSEGV/],
+    ["a timeout", { code: null, timedOut: true }, /timed out/],
+    ["unreadable output", { code: 0, stdout: "warning: something odd\n" }, /unreadable/],
+    ["truncated empty output", { code: 0, stdout: "", truncated: true }, /truncated/],
+  ])("fails closed on %s", async (_what, reply, detail) => {
+    const h = host({ bins, reply: () => reply });
+    const v = await createYaraScanner(h, "/rules")!.scan("/q/f", opts);
+    expect(v.verdict).toBe("error");
+    expect(v.detail).toMatch(detail);
+  });
+
+  it("fails closed without rule files, and never runs yara", async () => {
+    for (const rules of [[], null]) {
+      const h = host({ bins, rules, reply: () => ({ code: 0 }) });
+      expect((await createYaraScanner(h, "/rules")!.scan("/q/f", opts)).verdict).toBe("error");
+      expect(h.calls).toHaveLength(0);
+    }
+  });
+
+  it("is unavailable when yara is not installed", () => {
+    expect(createYaraScanner(host({ reply: () => ({}) }), "/rules")).toBeNull();
+  });
+});
+
+describe("YARA rule collection", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kurahi-yara-rules-"));
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it("collects *.yar and *.yara recursively, sorted, and nothing else", () => {
+    fs.mkdirSync(path.join(dir, "sub"));
+    fs.writeFileSync(path.join(dir, "b.yara"), "");
+    fs.writeFileSync(path.join(dir, "sub", "a.YAR"), "");
+    fs.writeFileSync(path.join(dir, "notes.txt"), "");
+    expect(collectYaraRules(dir)).toEqual(
+      [path.join(dir, "b.yara"), path.join(dir, "sub", "a.YAR")].toSorted(),
+    );
+    expect(collectYaraRules(path.join(dir, "missing"))).toBeNull();
+  });
+});
+
 describe("WSL Defender path", () => {
   it("follows the automount root of wsl.conf", () => {
     expect(wslAutomountRoot("")).toBe("/mnt/");
@@ -190,6 +270,20 @@ describe("scanner selection", () => {
       "defender",
     );
     expect(resolveScanner("auto", host({ reply: () => ({}) })).name).toBe("none");
+  });
+
+  it("yara only when named, and only with a rules folder", async () => {
+    const h = host({ bins: { clamscan: "/c", yara: "/usr/bin/yara" }, reply: () => ({}) });
+    expect(resolveScanner("auto", h).name).toBe("clamav");
+    expect(resolveScanner("yara", h, { yaraRules: "/rules" }).name).toBe("yara");
+    const noRules = resolveScanner("yara", h);
+    expect(noRules.name).toBe("yara");
+    expect(await noRules.scan("/q/f", opts)).toMatchObject({
+      verdict: "error",
+      detail: "yara is configured without a rules folder",
+    });
+    const missing = resolveScanner("yara", host({ reply: () => ({}) }), { yaraRules: "/rules" });
+    expect((await missing.scan("/q/f", opts)).verdict).toBe("error");
   });
 
   it("an explicit scanner that is not installed fails every scan (never a silent none)", async () => {

@@ -242,7 +242,8 @@ export function defaultWorkItemSink(opts: { home?: string } = {}): WorkItemSink 
           priority,
           source: {
             documents,
-            fields: { summary, ...fields },
+            // priority too, so a route can send urgent cases to another stage (core-guardian).
+            fields: { summary, priority, ...fields },
           },
         },
         actor,

@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/bluebubbles",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Kurahi BlueBubbles channel plugin",
   "type": "module",
   "devDependencies": {

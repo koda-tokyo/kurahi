@@ -1,0 +1,56 @@
+# Kurahi Guardian routines (docs/security/guardian.md). L1 Prepare: the checks and scans are
+# deterministic; the model only words the cases, and the engine files a case for any escalated check
+# the model left out. Nothing outside Kurahi is
+# changed by these routines; the ransomware shield stops agents on its own when it trips.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: guardian-posture
+    edition: core
+    area: security
+    name: { ja: 夜間のセキュリティ点検, en: Nightly security posture check }
+    trigger: { schedule: "15 2 * * *", tz: Asia/Tokyo }
+    gather:
+      - { id: backup, tool: guardian_backup }
+      - { id: restore, tool: guardian_restore_test }
+      - { id: secrets, tool: guardian_secrets }
+      - { id: ports, tool: guardian_ports }
+      - { id: integrity, tool: guardian_integrity }
+      - { id: credentials, tool: guardian_credentials }
+    reasoning:
+      schema: autopilot.plan.v1
+      promptText: |
+        You review deterministic security checks. Each check ends with "verdict OK" or "verdict ESCALATE".
+        For every ESCALATE verdict propose one workitem.intake: type case; title = the check and the problem
+        in a few words; priority low, normal, high or urgent (urgent only for a failed restore test or an
+        integrity failure); note = the fact lines unchanged, then the recommended response for a person.
+        The item summary is one line; cite the check's SOURCE id. Propose nothing for OK verdicts.
+        Never claim a problem is fixed. An escalated check that no item cites is filed by the engine.
+        日本語で要約してください。
+    actions: [workitem.intake]
+    level: L1
+    limits: { maxItemsPerRun: 10, maxActionsPerDay: 30 }
+    queue: sec-incidents
+    metrics: { baselineMinutes: 30 }
+  - id: guardian-shares
+    edition: core
+    area: security
+    name: { ja: 共有フォルダのウイルス検査, en: Share malware scan }
+    trigger: { schedule: "30 1 * * *", tz: Asia/Tokyo }
+    gather:
+      - { id: scan, tool: guardian_scan, gate: true }
+    reasoning:
+      schema: autopilot.plan.v1
+      promptText: |
+        You review a malware scan of company file shares. For each infected file propose one workitem.intake:
+        type case; priority urgent; title = the signature; note = the facts infected<n>Sha256,
+        infected<n>Signature and infected<n>Quarantine exactly as given (the original location is in the
+        quarantine copy's .json sidecar), then the recommended response for a person. Never invent a path.
+        Scan errors or a truncated scan are one item with priority normal. The item summary is one line;
+        cite the scan's SOURCE id. Never claim a file was removed or cleaned.
+    actions: [workitem.intake]
+    level: L1
+    limits: { maxItemsPerRun: 20, maxActionsPerDay: 50 }
+    queue: sec-incidents
+    metrics: { baselineMinutes: 20 }

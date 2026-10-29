@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/lobster",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Lobster workflow tool plugin (typed pipelines + resumable approvals)",
   "type": "module",
   "devDependencies": {

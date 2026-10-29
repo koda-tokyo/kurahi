@@ -3,6 +3,7 @@ export {
   appendAudit,
   auditSafe,
   flushAudit,
+  onAuditAppend,
   resolveAuditDir,
   setAuditErrorReporter,
   type AuditEntry,

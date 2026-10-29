@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/proactive-triggers",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Config-declared impulse rules that send system events to sessions",
   "type": "module",
   "devDependencies": {

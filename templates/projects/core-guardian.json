@@ -1,0 +1,54 @@
+{
+  "id": "core-guardian",
+  "name": {
+    "ja": "セキュリティ — Kurahi Guardian",
+    "en": "Security — Kurahi Guardian"
+  },
+  "description": {
+    "ja": "ランサムウェアシールド、共有フォルダのウイルス検査、夜間のセキュリティ点検の結果を、証跡付きのインシデント案件として扱います。判断と封じ込めは人が行います。",
+    "en": "Ransomware shield trips, share malware scans and nightly security checks become incident cases with evidence. People decide and contain."
+  },
+  "folders": [
+    "output"
+  ],
+  "rules": {
+    "readOnly": [],
+    "writable": [
+      "output"
+    ],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "判定は検査とエンジンが行います。AI は説明と案件の準備だけを行ってください。",
+        "en": "Checks and engines decide. Only explain and prepare cases."
+      },
+      {
+        "ja": "人の確認前に、駆除・削除・復旧済みや安全と書かないでください。",
+        "en": "Never state removal, deletion, restore or safety before a person confirms it."
+      },
+      {
+        "ja": "ファイルの移動・削除、端末の隔離、復元は行わず、推奨対応として記載してください。",
+        "en": "Do not move or delete files, isolate machines or restore; write them as recommended responses."
+      }
+    ]
+  },
+  "suggestedAgents": [
+    "main"
+  ],
+  "plugins": [],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "未対応のセキュリティインシデントを重大度順にまとめてください。",
+      "en": "Summarise the open security incidents, most urgent first."
+    },
+    {
+      "ja": "このインシデントの証跡を確認し、推奨対応を整理してください（実行しない）。",
+      "en": "Review this incident's evidence and set out the recommended response (do not carry it out)."
+    },
+    {
+      "ja": "今週の Guardian の点検結果から、経営層向けの報告を下書きしてください。",
+      "en": "Draft a management report from this week's Guardian check results."
+    }
+  ]
+}

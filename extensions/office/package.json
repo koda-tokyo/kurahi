@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/office",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Office document tools (PPTX, DOCX, XLSX) that write into the current Project folder",
   "type": "module",
   "devDependencies": {

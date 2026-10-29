@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/opencorporates",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "OpenCorporates company lookup plugin — 200M+ companies worldwide",
   "type": "module",
   "devDependencies": {

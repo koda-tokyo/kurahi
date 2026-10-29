@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/open-prose",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "OpenProse VM skill pack plugin (slash command + telemetry).",
   "type": "module",
   "devDependencies": {

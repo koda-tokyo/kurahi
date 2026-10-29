@@ -15,7 +15,7 @@ import {
   ShieldDetector,
   type ShieldTrigger,
 } from "./detect.js";
-import { resolveShieldMode, startShield } from "./index.js";
+import { resolveShieldMode, resolveShieldRoots, startShield } from "./index.js";
 import {
   CANARY_NAME,
   CANARY_TEXT,
@@ -222,5 +222,20 @@ describe("gateway wiring", () => {
     expect(engine.status().kill.fleet).toMatchObject({ by: "shield" });
     expect(engine.status().kill.fleet?.reason).toContain("shield: note");
     expect(logs.join("\n")).toContain("stopping every agent");
+  });
+});
+
+describe("Guardian shares", () => {
+  const env = { KOLO_STATE_DIR: "/tmp/kurahi-state-test" } as NodeJS.ProcessEnv;
+
+  it("watches the company shares listed under guardian.shares", () => {
+    const cfg = { guardian: { shares: ["/srv/shares/finance", "/srv/shares/hr"] } } as KoLoConfig;
+    const roots = resolveShieldRoots(cfg, [], env);
+    expect(roots).toEqual(expect.arrayContaining(["/srv/shares/finance", "/srv/shares/hr"]));
+  });
+
+  it("leaves the shares alone when Guardian is turned off", () => {
+    const cfg = { guardian: { enabled: false, shares: ["/srv/shares/finance"] } } as KoLoConfig;
+    expect(resolveShieldRoots(cfg, [], env)).not.toContain("/srv/shares/finance");
   });
 });
