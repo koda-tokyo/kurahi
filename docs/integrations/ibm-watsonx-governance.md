@@ -18,7 +18,7 @@ with the attribute names Langfuse maps, through the existing `diagnostics-otel` 
 - to a Langfuse (or Arize, or any OTLP) endpoint that the governance integration reads, and
 - optionally, to the Orchestrate trace intake, so runs appear next to Orchestrate's own traces.
 
-**Status: Preview.** Attribute names follow the Langfuse OpenTelemetry documentation and the
+**Status: Available.** Attribute names follow the Langfuse OpenTelemetry documentation and the
 Orchestrate trace-intake documentation; see [References](#references).
 
 ## What is exported

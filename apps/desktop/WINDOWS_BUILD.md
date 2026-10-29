@@ -85,4 +85,4 @@ Every prerequisite is already on the PC. On a clean Windows build machine instal
 
 `scripts/build-windows-xwin.sh` builds the same exe from WSL with cargo-xwin (MSVC target), so no
 unsigned build script ever runs on Windows. `scripts/build-msix.sh` packs it as an MSIX for the
-Microsoft Store, which signs it.
+Microsoft Store, which signs it. See [MICROSOFT_STORE.md](MICROSOFT_STORE.md).

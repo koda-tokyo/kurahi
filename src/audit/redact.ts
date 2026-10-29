@@ -3,6 +3,7 @@
 // Applied twice: when an entry is appended (secret values never reach disk) and again when
 // `kurahi audit tail` prints (defence in depth for entries written by older code).
 
+import { redactPersonalData, type PersonalDataKind } from "../governance/personal-data.js";
 import { redactSensitiveText } from "../logging/redact.js";
 
 const SECRET_KEY_RE =
@@ -16,9 +17,26 @@ const MAX_STRING = 2000;
 
 export const REDACTED = "[redacted]";
 
+// Personal identifiers (docs/security/data-governance.md#personal-data): a valid マイナンバー is
+// always masked in audit rows and evidence events; `governance.personalData.redactLogs` masks
+// every personal kind the detector knows.
+const MY_NUMBER_ONLY: ReadonlySet<PersonalDataKind> = new Set(["my_number"]);
+let personalKinds: ReadonlySet<PersonalDataKind> = MY_NUMBER_ONLY;
+
+export function setAuditPersonalDataRedaction(kinds: "my_number" | "all"): void {
+  personalKinds =
+    kinds === "all"
+      ? new Set(["my_number", "residence_card", "passport", "bank_account", "phone", "email"])
+      : MY_NUMBER_ONLY;
+}
+
 function redactString(value: string): string {
   const clipped = value.length > MAX_STRING ? `${value.slice(0, MAX_STRING)}…` : value;
-  return redactSensitiveText(clipped, { mode: "tools" });
+  const masked =
+    /[0-9\uFF10-\uFF19]{4}/.test(clipped) || personalKinds !== MY_NUMBER_ONLY
+      ? redactPersonalData(clipped, personalKinds).text
+      : clipped;
+  return redactSensitiveText(masked, { mode: "tools" });
 }
 
 export function redactAuditValue(value: unknown, depth = 0): unknown {

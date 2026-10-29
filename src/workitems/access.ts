@@ -8,7 +8,7 @@
 //     members:
 //       - { principal: device:abc123def456, name: 佐藤, roles: [approver], departments: [sales],
 //           email: sato@example.co.jp }   # optional: where the autopilot morning brief draft goes
-//     groups:                   # future: directory groups (e.g. Entra ID) → roles, via a resolver hook
+//     groups:                   # identity groups (role:, unit:, group:) → roles, via the resolver
 //       "<group-id>": { roles: [finance] }
 //
 // Built-in roles: requester (implied for everyone), approver, finance, operator, admin. Custom
@@ -100,8 +100,9 @@ export function parseAccess(raw: unknown): AccessDef {
 }
 
 /**
- * Future hook for directory groups (for example Entra ID group ids from a sign-in token). The
- * resolver returns the principal's group ids; `access.groups` maps them to roles. None by default.
+ * Resolver for a principal's identity groups, installed by enterprise identity at gateway start
+ * (src/identity/hooks.ts). It returns ids such as `role:approver`, `unit:sales` and
+ * `group:<provider>:<group>`; `access.groups` maps them to roles. None until identity installs it.
  */
 export type PrincipalGroupResolver = (principal: string, projectId: string) => string[] | null;
 let groupResolver: PrincipalGroupResolver | null = null;

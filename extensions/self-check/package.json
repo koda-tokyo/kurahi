@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/self-check",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Security self-check: permissions, config, integrity, ports",
   "type": "module",
   "devDependencies": {

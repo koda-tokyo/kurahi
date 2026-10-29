@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import type { Project } from "../projects/types.js";
+import type { SettlementSod } from "./handoff.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { projectDataDir } from "../projects/store.js";
 import { resolveTemplatesDir } from "../projects/templates.js";
@@ -44,6 +45,12 @@ type RuleBase = {
   severity: "fail" | "warn";
   /** A failing blocking rule stops approval (default: true for fail). */
   blocking: boolean;
+  /**
+   * What a person's override of this failing rule approves. "provisional": the item may be
+   * approved only as a provisional release (e.g. a 暫定見積 with its open items visible), never
+   * as a final approval; the item records that outcome. Absent: an ordinary override.
+   */
+  overrideOutcome?: "provisional";
   types: WorkItemType[];
   queues: string[];
 };
@@ -75,6 +82,8 @@ export type WorkQueuePolicy = {
   timezone: string;
   /** When true, the person who created an item may not approve it (known identities only). */
   separationOfDuties: boolean;
+  /** Settlement attestation by someone who handled the case: refused (strict, default) or recorded (warn). */
+  settlementSod: SettlementSod;
   queues: QueueDef[];
   rules: PolicyRule[];
   /** 稟議 staged approval routes (first matching route wins; none = single-stage review). */
@@ -110,6 +119,7 @@ function parseRule(raw: unknown, i: number): PolicyRule {
     label: text(r.label ?? id),
     severity,
     blocking: severity === "fail" && r.blocking !== false,
+    ...(r.overrideOutcome === "provisional" ? { overrideOutcome: "provisional" as const } : {}),
     types: types(r.types),
     queues: strList(r.queues, ID_RE),
   };
@@ -221,6 +231,8 @@ export function parsePolicy(rawText: string): Omit<WorkQueuePolicy, "source" | "
     version: 1,
     timezone: tz,
     separationOfDuties: doc.separationOfDuties === true,
+    // Only an explicit "warn" relaxes it; anything else stays strict.
+    settlementSod: doc.settlementSod === "warn" ? "warn" : "strict",
     queues,
     rules,
     routes: parseRoutes(doc.routes),
@@ -269,11 +281,25 @@ export function loadWorkQueuePolicy(
         return failedPolicy(c, "", "policy file is larger than 256 KB");
       }
       raw = fs.readFileSync(c.path, "utf8");
-    } catch {
-      continue;
+    } catch (err) {
+      // Only a missing file falls through to the next candidate. A policy that exists but cannot
+      // be read (EACCES, EIO, ...) fails closed: skipping it would let a lower-priority policy,
+      // such as an administrator's settlementSod "warn", take effect without anyone noticing.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR") {
+        continue;
+      }
+      return failedPolicy(c, "", `policy file could not be read (${code ?? "unknown error"})`);
     }
     try {
-      return { ...parsePolicy(raw), source: c, digest: digestOf(raw), error: null };
+      const parsed = parsePolicy(raw);
+      // Relaxing settlement SoD is an administrator's decision. The project folder belongs to the
+      // client (people, and agents with a writable scope, can edit it) and a template is only an
+      // example, so "warn" from either is read as strict.
+      if (c.kind !== "admin") {
+        parsed.settlementSod = "strict";
+      }
+      return { ...parsed, source: c, digest: digestOf(raw), error: null };
     } catch (err) {
       return failedPolicy(c, raw, err instanceof Error ? err.message : String(err));
     }
@@ -282,6 +308,7 @@ export function loadWorkQueuePolicy(
     version: 1,
     timezone: "Asia/Tokyo",
     separationOfDuties: false,
+    settlementSod: "strict",
     queues: [],
     rules: [],
     routes: [],
@@ -301,6 +328,7 @@ function failedPolicy(
     version: 1,
     timezone: "Asia/Tokyo",
     separationOfDuties: false,
+    settlementSod: "strict",
     queues: [],
     rules: [],
     routes: [],

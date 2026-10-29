@@ -608,6 +608,24 @@ export const AutopilotBriefSchema = Type.Object({
         acceptBlocker: Nullable(lit(["above_file_level", "no_standing_approval"] as const)),
       }),
     ),
+    /** Linked cases the person owns that need a step opened, are blocked or cannot be read. */
+    linked: Type.Optional(
+      Type.Array(
+        Type.Object({
+          ...BriefItem,
+          done: Type.Integer(),
+          total: Type.Integer(),
+          ready: Type.Array(Type.String()),
+          missing: Type.Array(Type.String()),
+          blocked: Type.Boolean(),
+          unreadable: Type.Boolean(),
+        }),
+      ),
+    ),
+    /** Unread in-app notifications on items the person can still read (optional: older briefs). */
+    notifications: Type.Optional(
+      Type.Object({ unread: Type.Integer({ minimum: 0 }), unreadable: Type.Boolean() }),
+    ),
   }),
   commitments: Type.Array(Type.Object(BriefItem)),
   /** A list was cut at its cap (optional: briefs delivered before the flag existed lack it). */
@@ -617,6 +635,7 @@ export const AutopilotBriefSchema = Type.Object({
       decisions: Type.Boolean(),
       flagged: Type.Boolean(),
       commitments: Type.Boolean(),
+      linked: Type.Optional(Type.Boolean()),
     }),
   ),
   problems: Type.Object({

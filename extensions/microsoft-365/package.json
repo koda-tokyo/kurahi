@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/microsoft-365",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Microsoft 365 business connector: mail, calendar and files (read-only by default)",
   "type": "module",
   "devDependencies": {

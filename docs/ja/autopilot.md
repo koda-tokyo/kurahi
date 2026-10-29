@@ -1,5 +1,5 @@
 ---
-summary: "Kurahi 全エディション共通のオートパイロット：読み取りツールで収集し、ツールを持たないモデルが判断し、人が設定した自律レベル（L0〜L3）の範囲でのみ実行する。エディションごとの禁止事項、常設承認、署名付き実行記録、実イベントだけに基づく指標"
+summary: "Kurahi 全エディション共通のオートパイロット：読み取りツールで収集し、ツールを持たないモデルが判断し、人が設定した自律レベル（L0〜L3）の範囲でのみ実行する。エディションごとの禁止事項、継続承認、署名付き実行記録、実イベントだけに基づく指標"
 read_when:
   - プロジェクトのルーティン（autopilot.yaml）を書く
   - ゲートウェイに対してオートパイロット画面を実装する
@@ -20,7 +20,7 @@ English: [Autopilot](/autopilot)
 ルーティンの実行は、常に次の 6 段階です。
 
 1. **トリガー**：スケジュール（cron 式とタイムゾーン）または間隔（5 分以上）、イベント（新着メール、案件の変更、期限、ファイル。後述の「トリガー」）、あるいはオペレーターによる手動実行。スケジュールのあるルーティンは Kurahi の cron ジョブ（`autopilot:<projectId>:<routineId>`）として登録され、cron ジョブやイベントで起動したときはモデルのターンを使わずエンジンが直接実行します。
-2. **収集**（決定的、モデルなし）：`gather` の各ステップは**読み取りツールだけ**を、`POST /tools/invoke` と同じ経路で、ルーティン専用のプロジェクトセッションから呼び出します。読み取りツールとして使えるのは、コネクターやプラグインが読み取り専用と宣言したものだけです（例：`m365_mail_list`、`m365_mail_read`、`m365_mail_attachment_fetch`、`legacy_index`、[学術情報源](/ja/connectors/scholar-sources)の `scholar_*` ツール、`web_search`、エンジン内蔵の `health_*` チェック）。添付ファイルは保存前に隔離・スキャンします（[添付ファイルの取り込み](/ja/security/attachment-intake)）。その後、挙動ウォッチドッグ（後述）が操作の実行前に実行を計測します。`gather` に書き込みツールを書いたファイルは無効です。実行時にも、応答したツールが宣言したプラグインのものかを確認します。
+2. **収集**（決定的、モデルなし）：`gather` の各ステップは**読み取りツールだけ**を、`POST /tools/invoke` と同じ経路で、ルーティン専用のプロジェクトセッションから呼び出します。読み取りツールとして使えるのは、コネクターやプラグインが読み取り専用と宣言したものだけです（例：`m365_mail_list`、`m365_mail_read`、`m365_mail_attachment_fetch`、`legacy_index`、[学術情報源](/ja/connectors/scholar-sources)の `scholar_*` ツール、`web_search`、エンジン内蔵の `health_*` チェック、およびルーティン自身のプロジェクトで止まっている未完了の部門間連携案件（取消・停止した工程、見つからない子案件、読み取れない連携記録。担当者がいないため朝のブリーフに出ない案件も含む）を報告する `workitems_linked`。案件の保存先を一覧できない場合や読み取れない案件がある場合は、0 件とせず不明としてエスカレーションします。出力は案件 ID だけです。さらに、発注書の下書きを待つ購買案件（未完了、不正の疑いフラグなし、担当者による発注先の選定が記録済みの見積と一致、その選定からの下書きが未作成）を一覧する `workitems_po_ready`。出力は案件 ID だけで、`gate: true` のステップでは対象がなければモデルを呼ばずに実行を終えます。読み取れない案件があるときは終えません）。添付ファイルは保存前に隔離・スキャンします（[添付ファイルの取り込み](/ja/security/attachment-intake)）。その後、挙動ウォッチドッグ（後述）が操作の実行前に実行を計測します。`gather` に書き込みツールを書いたファイルは無効です。実行時にも、応答したツールが宣言したプラグインのものかを確認します。
 3. **判断**（ツールなしのモデル）：CLI バックエンド（読み取り専用サンドボックスの codex-cli、またはツールを一切持たない claude-cli）を、空の一時フォルダーで、セッションもワークスペースファイルもなしで実行します。収集した内容は `SOURCE` ブロックのデータとして渡し、指示としては扱いません。ルーティンが承認済みの会社情報を宣言している場合は、信頼できる事実として別の `KNOWLEDGE` ブロックで渡します（後述の「承認済みの会社情報」）。それでもバックエンドがツール呼び出しを報告した場合、その出力は破棄されます。
 4. **検証**：応答はルーティンの出力スキーマ（`autopilot.plan.v1`）に一致する JSON オブジェクト一つでなければなりません。項目ごとに参照、要約、フラグ、引用元、提案する操作を持ちます。一致しなければ実行は失敗し、何も実行されず、入力は次回に再処理されます。
 5. **認可と実行**：提案された操作はすべて `authorizeAction`（後述）を通ります。許可された操作はエンジンが実行し、人が必要な操作は `awaitingPerson`（理由）と保留中の操作一覧を付けた案件になり、拒否された操作は記録だけされます。
@@ -35,7 +35,7 @@ English: [Autopilot](/autopilot)
 | L0     | 観察               | 読む・分類する・報告する（実行記録）。操作は一切なし。L0 のルーティンは操作を列挙できません。                              |
 | L1     | 準備               | ＋ `prepare`：案件、返信の下書き、下書きへの添付、文書、アプリ用フォルダーへのアップロード、日程候補（既定）               |
 | L2     | 社内で実行         | ＋ `internal-reversible`：取り消し可能な社内操作（ファイリング、回付、担当割当、社内記録の更新）                           |
-| L3     | ポリシー内で社外へ | ＋ `external`（例：`mail.send`）。すべての宛先・対象、テンプレート、1 日の上限をカバーする有効な**常設承認**がある場合のみ |
+| L3     | ポリシー内で社外へ | ＋ `external`（例：`mail.send`）。すべての宛先・対象、テンプレート、1 日の上限をカバーする有効な**継続承認**がある場合のみ |
 | —      | 自律では行わない   | どのレベルでも必ず人（後述の禁止事項）                                                                                     |
 
 提案は信頼できない内容を読んだモデルから来るため、レベルを上げることも、ルーティンにない操作を加えることも、承認を指定することも、操作が受け付けない引数を渡すこともできません。判定の順序：未知の操作 → 拒否、エディション外 → 拒否、フラグ付き → 拒否、禁止操作 → 人、ルーティンにない → 拒否、不正な引数 → 拒否、L0 → 拒否、1 日の上限到達 → 人、その後にレベル表。
@@ -46,20 +46,21 @@ English: [Autopilot](/autopilot)
 
 ### 基本の操作カタログ
 
-| 操作               | 分類     | 実行方法                                                                        |
-| ------------------ | -------- | ------------------------------------------------------------------------------- |
-| `workitem.intake`  | prepare  | `autopilot:<routineId>` として案件を起票（読んだメールはメール取り込みで）      |
-| `mail.draft`       | prepare  | `m365_mail_create_draft`（下書きのみ。送信は人が Outlook から）                 |
-| `office.create`    | prepare  | 型付きの仕様から Word・PowerPoint・Excel を office プラグインで output/ に作成  |
-| `mail.attach`      | prepare  | `m365_mail_attach_to_draft`：この項目の文書をこの項目の下書きに添付             |
-| `files.upload`     | prepare  | `m365_files_upload`（サインインしたユーザーの OneDrive アプリ用フォルダーのみ） |
-| `calendar.propose` | prepare  | 候補日時を載せた案件。カレンダーには何も書き込みません                          |
-| `brief.deliver`    | prepare  | メンバーの朝のブリーフ。本人宛ての Outlook 下書き、または `output/briefs/`      |
-| `mail.send`        | external | `m365_mail_send` または `gmail_send`。常設承認がある場合のみ                    |
+| 操作               | 分類     | 実行方法                                                                                         |
+| ------------------ | -------- | ------------------------------------------------------------------------------------------------ |
+| `workitem.intake`  | prepare  | `autopilot:<routineId>` として案件を起票（読んだメールはメール取り込みで）                       |
+| `mail.draft`       | prepare  | `m365_mail_create_draft`（下書きのみ。送信は人が Outlook から）                                  |
+| `office.create`    | prepare  | 型付きの仕様から Word・PowerPoint・Excel を office プラグインで output/ に作成                   |
+| `quote.prepare`    | prepare  | 価格表から見積書（Word・Excel）を office プラグインで作成（[見積管理](/ja/business/quotations)） |
+| `mail.attach`      | prepare  | `m365_mail_attach_to_draft`：この項目の文書をこの項目の下書きに添付                              |
+| `files.upload`     | prepare  | `m365_files_upload`（サインインしたユーザーの OneDrive アプリ用フォルダーのみ）                  |
+| `calendar.propose` | prepare  | 候補日時を載せた案件。カレンダーには何も書き込みません                                           |
+| `brief.deliver`    | prepare  | メンバーの朝のブリーフ。本人宛ての Outlook 下書き、または `output/briefs/`                       |
+| `mail.send`        | external | `m365_mail_send` または `gmail_send`。継続承認がある場合のみ                                     |
 
 `workitem.intake` は `title`、`type`、`priority`、`note` と、Business では `department` を受け付けます。プロジェクトに `<department>-work` キューがあればそこへ（企業業務テンプレートにはあります）、なければルーティンの `queue` へ起票します。
 
-コネクター自身の書き込みガードはそのまま有効です。送信のたびに人の承認を求めるコネクターは、常設承認を自ら検証できる場合を除き、求め続けます（後述の「L3 の送信」）。
+コネクター自身の書き込みガードはそのまま有効です。送信のたびに人の承認を求めるコネクターは、継続承認を自ら検証できる場合を除き、求め続けます（後述の「L3 の送信」）。
 
 ## メール取り込みと冪等性
 
@@ -89,7 +90,7 @@ English: [Autopilot](/autopilot)
 
 ### Industrial
 
-本番 OT や PLC へは書き込みません（`ot.write`、`plc.write`）。顧客システムへのマージやデプロイも行いません（`repo.merge`、`deploy`）。プルリクエストの作成（`repo.open_pr`）は `external` で、L3 と対象リポジトリを指定した常設承認が必要です。legacy-analyzer の `legacy.analyze`、`legacy.design_doc`、`legacy.baseline_advance` は `prepare` です（ソースは読み取りのみ、結果は解析キャッシュへ。`legacy.design_doc` に `output_format: docx` を指定すると、設計書を新しい Word ファイルとして `output/design-docs/` にも書き出し、その案件から参照されます）。`legacy.baseline_advance` は案件の起票後にだけ実行されます。エンジンは `workitem.intake` の後に実行し、起票に失敗した場合は実行しないため、担当者に案件が届く前に変更が基準から消えることはありません。
+本番 OT や PLC へは書き込みません（`ot.write`、`plc.write`）。顧客システムへのマージやデプロイも行いません（`repo.merge`、`deploy`）。プルリクエストの作成（`repo.open_pr`）は `external` で、L3 と対象リポジトリを指定した継続承認が必要です。legacy-analyzer の `legacy.analyze`、`legacy.design_doc`、`legacy.baseline_advance` は `prepare` です（ソースは読み取りのみ、結果は解析キャッシュへ。`legacy.design_doc` に `output_format: docx` を指定すると、設計書を新しい Word ファイルとして `output/design-docs/` にも書き出し、その案件から参照されます）。`legacy.baseline_advance` は案件の起票後にだけ実行されます。エンジンは `workitem.intake` の後に実行し、起票に失敗した場合は実行しないため、担当者に案件が届く前に変更が基準から消えることはありません。
 
 ### Scholars
 
@@ -109,9 +110,9 @@ English: [Autopilot](/autopilot)
 
 破壊的な操作、秘密情報・権限の変更は行いません。Core のルーティンは決定的な基盤チェック（ディスク、メモリ、時計、ポリシーと停止スイッチ、エビデンス署名鍵）を実行し、失敗したときに案件を起票します。
 
-## 常設承認
+## 継続承認
 
-常設承認があると、L3 のルーティンは一つの社外操作を、範囲内に限って毎回確認せずに行えます。
+継続承認があると、L3 のルーティンは一つの社外操作を、範囲内に限って毎回確認せずに行えます。
 
 - 送信してよい `addresses` と `domains`（cc を含むすべての宛先が一致すること）、メール以外の操作では `targets`（例：リポジトリ）
 - 使ってよい `templates`（`mail.send` では必須）
@@ -179,9 +180,9 @@ gather:
 
 エディション別の領域：Industrial は `modernisation`、`analysis`、`design-docs`、`ot-monitoring`、`quality`。Business はワークキューの部門（`secretariat`、`finance`、`admin`、`hr` など）。Scholars は `literature`、`data`、`writing`、`grants`、`lab`。Core は `platform-ops`、`security`、`backup`、`integrity`。
 
-組み込みプロンプト：`mail-triage`、`mail-secretariat`、`invoice-intake`、`legacy-changes`、`literature-watch`、`citation-check`、`grant-deadlines`、`platform-health`。
+組み込みプロンプト：`mail-triage`、`mail-secretariat`、`invoice-intake`、`legacy-changes`、`literature-watch`、`citation-check`、`grant-deadlines`、`platform-health`、`linked-cases`。
 
-スターター ルーティン：`secretariat-inbox`（Business 総務パック）、`secretariat-inbox-full` と `morning-brief`（Business 企業業務パック、下記と[朝のブリーフ](#朝のブリーフ)）、`finance-invoice-intake`（Business 経理パック）、`nightly-legacy-analysis`（Industrial パック）、`literature-watch`・`citation-check`・`grant-deadlines`（研究パック、[Scholars](#scholars)を参照）、`platform-health`（`templates/autopilot/core-platform-health.yaml`）。
+スターター ルーティン：`secretariat-inbox`（Business 総務パック）、`secretariat-inbox-full` と `morning-brief`（Business 企業業務パック、下記と[朝のブリーフ](#朝のブリーフ)）、`finance-invoice-intake`（Business 経理パック）、`sales-quote-intake`（Business 販売見積パック、[見積管理](/ja/business/quotations)）、`procurement-po-draft`（Business 購買パック。有効にするまで停止。`proc-requests` の `supplier.selected` と平日 9:30〜18:30 の毎時 30 分に、`workitems_po_ready` が挙げた案件ごとに `po.prepare`。下書きは案件に記録（`purchaseOrderDraft`）され、同じ選定から二度作成しません。見積の更新や選定のやり直しで再び対象になり、実行中に選定が変わった下書きは拒否します）、`nightly-legacy-analysis`（Industrial パック）、`literature-watch`・`citation-check`・`grant-deadlines`（研究パック、[Scholars](#scholars)を参照）、`platform-health`（`templates/autopilot/core-platform-health.yaml`）、`linked-cases`（`templates/autopilot/core-linked-cases.yaml`：平日 9:00 と 15:00。`workitems_linked` が停止・未作成ステップ・読めない記録の連携案件を見つけたとき作業項目を 1 件作成）。
 
 `nightly-legacy-analysis`（L1。毎晩 1:30 Asia/Tokyo と、`source/` にソースが届いた後）は、ソースを保存済みの基準と比較します（[変更検知](/tools/legacy-analyzer#change-detection)、英語）。関門のステップは `legacy_changes` です。初回は基準を作るだけで、変更のない夜は `no_input` で終了し、モデルも呼ばず案件も作りません。変更があると、`legacy-changes` プロンプトが変更点とウェーブ計画を受け取り、案件を 1 件提案します。件名、プロジェクトの言語による概要（各変更とその `path:line` の根拠）、影響（呼出し元、ジョブステップ、テーブル、ウェーブ計画への影響）、担当者が行うべき確認です。デプロイ、マージ、OT への書き込みを行ったとは決して書きません。エンジンはその後、設計書を Word で再生成し（`legacy.design_doc`、`output_format: docx`、`output/design-docs/設計書_<YYYYMMDD>.docx`）、`ind-analysis` に案件を起票し（概要は計画の概要、空なら起票メモ。Word ファイルを参照します）、そのうえで基準を進めます（`legacy.baseline_advance`）。翌晩は今夜の状態と比較します。
 
@@ -209,7 +210,7 @@ trigger:
 | ソース      | シグナルになるもの                                                                                                                                                                                                                                                                   |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `m365.mail` | フォルダーへの新着メール。コネクターのサインインごとに一つの Microsoft Graph 差分クエリ（delta）ウォッチャーが確認します（既定 60 秒ごと。[Microsoft 365](/ja/connectors/microsoft-365) を参照）。伝えるのは「メールが届いた」ことだけで、メールは通常の実行と同じく収集で読みます。 |
-| `workitems` | プロジェクトの案件の作成（`created`）、変更（`changed`）、決裁（`decided`）、フラグ解除（`flag.clear`）。キューで絞り込めます。ルーティン自身による変更では起動しません。                                                                                                            |
+| `workitems` | プロジェクトの案件の作成（`created`）、変更（`changed`）、決裁（`decided`）、フラグ解除（`flag.clear`）、担当者による発注先の決定（`supplier.selected`、`po.prepare` で発注書を作成する時点）。キューで絞り込めます。ルーティン自身による変更では起動しません。                      |
 | `deadline`  | 5 分ごと：期限が `withinHours` 以内の未完了の案件（期限切れを含む）。案件と期限の組み合わせごとに一度だけ通知し、期限が変わると新しい期間として扱います。                                                                                                                            |
 | `files`     | フォルダー内のファイルの変更（fs watch。使えない環境では 30 秒ごとのポーリング）。ルーティンの出力フォルダー、隠しファイル、エディターの一時ファイルは無視します。                                                                                                                   |
 
@@ -260,11 +261,11 @@ trigger:
 
 ルーティンは自分の実績で自律レベルを獲得し、同じく実績で失います。原則は 3 つです。ルーティンファイルの `level` が**上限**（管理者が設定）、エンジンが自分でレベルを動かすのは**下げる方向だけ**、レベルを上げるには必ず**人**が必要です。
 
-**実効レベル**：各ルーティンの状態には `override`（人が承認した低いレベル、または自動引き下げ）が入ることがあります。実効レベルは `min(ファイルのレベル, override)` です。`authorizeAction` はすべての操作をこのレベルで判定し、実行記録の `level` にもこの値が入ります。常設承認による L3 送信の直前にコネクターが行う再確認も実効レベルを見るため、引き下げは L3 送信を即座に止めます。ファイルのレベルを超える override は効果がありません。`autopilot.routines.list` は `level`（ファイルの値）、`effectiveLevel`、`override`（`level`、`kind`：`accepted` または `demoted`、`by`、`at`、`reason`、`changeId`）、`lastDemotion`（`from`、`to`、`cause`、`by`、`reason`、`runId`、`itemId`、`at`）を返します。
+**実効レベル**：各ルーティンの状態には `override`（人が承認した低いレベル、または自動引き下げ）が入ることがあります。実効レベルは `min(ファイルのレベル, override)` です。`authorizeAction` はすべての操作をこのレベルで判定し、実行記録の `level` にもこの値が入ります。継続承認による L3 送信の直前にコネクターが行う再確認も実効レベルを見るため、引き下げは L3 送信を即座に止めます。ファイルのレベルを超える override は効果がありません。`autopilot.routines.list` は `level`（ファイルの値）、`effectiveLevel`、`override`（`level`、`kind`：`accepted` または `demoted`、`by`、`at`、`reason`、`changeId`）、`lastDemotion`（`from`、`to`、`cause`、`by`、`reason`、`runId`、`itemId`、`at`）を返します。
 
-**提案**：`autopilot.autonomy.proposals` は 30 日分の記録を読み、ルーティンごとに実効レベルから 1 段階、上げる（修正率 5% 以下・案件 20 件以上・失敗なし）、下げる（修正率 20% 以上・案件 10 件以上）、または理由付きの据え置きを提案します。レベルは変更しません。各提案には `fileLevel` と `acceptBlocker` が付きます。`above_file_level`（ファイルのレベルを超える。管理者がファイルで上げる）、`no_standing_approval`（L3 への昇格にはそのルーティンの有効な常設承認が必要）、それ以外は `null` です。据え置きは `null` でも承認できません（accept は `nothing_to_accept` で拒否します）。
+**提案**：`autopilot.autonomy.proposals` は 30 日分の記録を読み、ルーティンごとに実効レベルから 1 段階、上げる（修正率 5% 以下・案件 20 件以上・失敗なし）、下げる（修正率 20% 以上・案件 10 件以上）、または理由付きの据え置きを提案します。レベルは変更しません。各提案には `fileLevel` と `acceptBlocker` が付きます。`above_file_level`（ファイルのレベルを超える。管理者がファイルで上げる）、`no_standing_approval`（L3 への昇格にはそのルーティンの有効な継続承認が必要）、それ以外は `null` です。据え置きは `null` でも承認できません（accept は `nothing_to_accept` で拒否します）。
 
-**承認**：`autopilot.autonomy.accept`（人のみ、`operator.approvals`、音声は拒否、理由が必要）は、表示された提案を適用します。提案はその場で再計算され、`kind` と `proposed` が一致しなければ `proposal_changed`（その間に引き下げがあった場合も同じ）、据え置きなら `nothing_to_accept` を返します。`above_file_level` と、L3 への昇格で常設承認がない場合の `no_standing_approval` も拒否されます。承認したレベルはルーティンの override になります。ファイルと同じレベルを承認すると override は消え、ルーティンは再びファイルに従います。
+**承認**：`autopilot.autonomy.accept`（人のみ、`operator.approvals`、音声は拒否、理由が必要）は、表示された提案を適用します。提案はその場で再計算され、`kind` と `proposed` が一致しなければ `proposal_changed`（その間に引き下げがあった場合も同じ）、据え置きなら `nothing_to_accept` を返します。`above_file_level` と、L3 への昇格で継続承認がない場合の `no_standing_approval` も拒否されます。承認したレベルはルーティンの override になります。ファイルと同じレベルを承認すると override は消え、ルーティンは再びファイルに従います。
 
 **見送り**：`autopilot.autonomy.decline`（同じ条件）は、人が表示された提案を見送ったことを記録するだけで、何も変わりません。提案は再計算され、一致しなければ `proposal_changed`、据え置きなら `nothing_to_decline` です。同じ提案は 30 日間、または記録から別の提案が出るまで `declined` 付きで表示されます。
 
@@ -285,7 +286,7 @@ L0 に下がったルーティンは、すべての操作を `level_observe` で
 
 - **処理（handled）**：実行数、項目数、準備、実行、人へ回付、人手なしで完了、返信下書き、失敗した実行、および部門・領域別の同じ件数
 - **文書（documents）**：ルーティンが作成した Office 文書（`office.create`）と、その実行・ルーティン
-- **待ち（waiting）**：その人が今判断できる段階の案件、その人が解除できるフラグ付き案件（`workitems.clearFlag` と同じ規則）、その人が承認できる獲得型自律の提案（見送り済みを除く。`acceptBlocker` 付き）
+- **待ち（waiting）**：その人が今判断できる段階の案件、その人が解除できるフラグ付き案件（`workitems.clearFlag` と同じ規則）、その人が承認できる獲得型自律の提案（見送り済みを除く。`acceptBlocker` 付き）、および `linked`：その人が依頼した・担当している・判断すべき未完了の親案件のうち、開始可能な工程がある、子案件が見つからない、取消・停止した工程がある、または連携記録を読み取れない（`unreadable`）部門間連携案件。読み取りのみで、計画作成・工程の開始・子案件の紐付けは行いません。`notifications` は、その人が現在も閲覧できる案件についての未読のアプリ内通知の件数です（通知記録を読み取れない場合は `unreadable: true`）。既読にはしません
 - **期限（commitments）**：その人が依頼した・担当している・判断すべき未完了の案件で、翌日末までに期限が来るもの（超過を含む）
 - **問題（problems）**：ウォッチドッグの作動、失敗・スキップした実行、期間内の引き下げ、一時停止中のルーティン、無効なルーティンファイル、全体停止
 

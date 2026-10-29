@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/wolfram-alpha",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Wolfram Alpha computation and knowledge plugin",
   "type": "module",
   "devDependencies": {

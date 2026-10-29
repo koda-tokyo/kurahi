@@ -137,6 +137,14 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "governance",
+    description: "Data governance (retention sweep, legal holds, export verification)",
+    register: async (program) => {
+      const mod = await import("../governance-cli.js");
+      mod.registerGovernanceCli(program);
+    },
+  },
+  {
     name: "eval",
     description: "Workflow Evaluator: acceptance specs, offline replay and signed scorecards",
     register: async (program) => {
@@ -278,6 +286,14 @@ const entries: SubCliEntry[] = [
     register: async (program) => {
       const mod = await import("../dns-cli.js");
       mod.registerDnsCli(program);
+    },
+  },
+  {
+    name: "demo",
+    description: "Private online demo invites",
+    register: async (program) => {
+      const mod = await import("../demo-cli.js");
+      mod.registerDemoCli(program);
     },
   },
   {

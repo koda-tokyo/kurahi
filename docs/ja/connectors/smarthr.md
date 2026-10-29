@@ -17,7 +17,7 @@ English: [SmartHR connector](/connectors/smarthr)
 | アクセス         | **常に読み取り専用**。書き込みツールはありません                                        |
 | 認証             | SmartHR の管理者が発行するアクセストークン（`kurahi smarthr login` の非表示プロンプト） |
 | トークンの保存先 | Kurahi のシークレット ストア（`connector.smarthr.token`）                               |
-| 状態             | プレビュー                                                                              |
+| 状態             | 提供中                                                                                  |
 
 ## 項目の許可リスト
 

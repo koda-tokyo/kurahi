@@ -48,6 +48,7 @@ import { sendForbidden, sendUnauthorized } from "./http-common.js";
 import { DOC_VIEWER_CSP, DOC_VIEWER_HTML } from "./http-doc-viewer.js";
 import { createEvidenceHttpHandlers } from "./http-evidence.js";
 import { createFactoryHttpHandlers } from "./http-factory.js";
+import { createGovernanceHttpHandlers } from "./http-governance.js";
 import { cancelJobHandler, getJobHandler, listJobsHandler } from "./http-jobs.js";
 import { type BoundRoute, HTTP_METHODS, type HttpMethod } from "./http-registry.js";
 import {
@@ -432,6 +433,7 @@ export function createGatewayHttpServer(opts: {
   const pluginsHttpHandlers = createPluginsHttpHandlers();
   const continuityHandlers = createContinuityHttpHandlers({ gatewayVersion: PACKAGE_VERSION });
   const evidenceHandlers = createEvidenceHttpHandlers({ gatewayVersion: PACKAGE_VERSION });
+  const governanceHttpHandlers = createGovernanceHttpHandlers();
   const policyHttpHandlers = createPolicyHttpHandlers();
   // M15: the factory reads the per-request config snapshot (kipEngine, factory, evidence).
   const factoryHandlers = createFactoryHttpHandlers({
@@ -529,6 +531,7 @@ export function createGatewayHttpServer(opts: {
         listJobEvidenceEvents: evidenceHandlers.listJobEvidenceEvents,
         exportJobEvidence: evidenceHandlers.exportJobEvidence,
         getEvidenceView: evidenceHandlers.getEvidenceView,
+        downloadGovernanceExport: governanceHttpHandlers.downloadGovernanceExport,
         listFactoryBoards: factoryHandlers.listFactoryBoards,
         listFactoryCards: factoryHandlers.listFactoryCards,
         createFactoryCard: factoryHandlers.createFactoryCard,

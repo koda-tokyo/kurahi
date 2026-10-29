@@ -19,10 +19,22 @@ export type AutopilotFilters = Pick<AutopilotRunsListParams, "edition" | "area">
 
 // Optional metadata keeps the console compatible with older gateways.
 export type AutopilotBrief = AutopilotBriefGetResult["brief"] & {
-  truncated?: { documents: boolean; decisions: boolean; flagged: boolean; commitments: boolean };
+  truncated?: {
+    documents: boolean;
+    decisions: boolean;
+    flagged: boolean;
+    commitments: boolean;
+    linked?: boolean;
+  };
+};
+
+// Optional until all gateways and generated clients expose retention receipts.
+export type AutopilotRunDetail = AutopilotRunsGetResult & {
+  evidence: AutopilotRunsGetResult["evidence"] & { tombstone?: boolean };
 };
 
 export type AutopilotState = {
+  mutationDelayed: boolean;
   reportReasons: Record<string, string>;
   reportPending: string | null;
   reportStatus: "reportSaved" | "reportChanged" | "reportFailed" | "reportInvalid" | null;
@@ -54,12 +66,14 @@ export type AutopilotState = {
   acceptStatus: "acceptSaved" | "acceptChanged" | "acceptFailed" | "acceptInvalid" | null;
   declinePending: string | null;
   declineStatus: "declineSaved" | "declineChanged" | "declineFailed" | "declineInvalid" | null;
+  linkedRun: { id: string; itemId: string } | null;
   selectedRunId: string | null;
   runLoading: boolean;
   runError: boolean;
-  runDetail: AutopilotRunsGetResult | null;
+  runDetail: AutopilotRunDetail | null;
 };
 export const emptyAutopilot = (): AutopilotState => ({
+  mutationDelayed: false,
   reportReasons: {},
   reportPending: null,
   reportStatus: null,
@@ -83,6 +97,7 @@ export const emptyAutopilot = (): AutopilotState => ({
   acceptStatus: null,
   declinePending: null,
   declineStatus: null,
+  linkedRun: null,
   selectedRunId: null,
   runLoading: false,
   runError: false,
@@ -101,8 +116,8 @@ const queued = new WeakSet<AutopilotHost>();
 export function resetAutopilot(host: AutopilotHost) {
   generations.set(host, (generations.get(host) ?? 0) + 1);
   queued.delete(host);
-  mutations.delete(host);
-  host.autopilot = emptyAutopilot();
+  // Navigation invalidates display state, not an unresolved transport write.
+  host.autopilot = { ...emptyAutopilot(), mutationDelayed: mutations.get(host)?.delayed ?? false };
 }
 function active(host: AutopilotHost) {
   return host.connected && host.tab === "projects" && host.projects?.view === "autopilot"
@@ -116,12 +131,28 @@ export async function loadAutopilot(host: AutopilotHost, cursor?: string) {
     return;
   }
   const pending = mutations.get(host);
-  if (pending?.projectId === projectId && pending.client === client) {
-    queued.add(host);
-    return;
-  }
   if (pending) {
-    mutations.delete(host);
+    queued.add(host);
+    if (
+      pending.projectId !== projectId ||
+      pending.client !== client ||
+      host.autopilot.projectId !== projectId ||
+      !host.autopilot.routines
+    ) {
+      // Do not show another scope's data while its write still owns the transport lock.
+      generations.set(host, (generations.get(host) ?? 0) + 1);
+      const sameProject = host.autopilot.projectId === projectId;
+      host.autopilot = {
+        ...emptyAutopilot(),
+        projectId,
+        mutationDelayed: pending.delayed,
+        loading: true,
+        filters: sameProject ? host.autopilot.filters : {},
+        linkedRun: sameProject ? host.autopilot.linkedRun : null,
+        selectedRunId: sameProject ? host.autopilot.selectedRunId : null,
+      };
+    }
+    return;
   }
   const sameProject = host.autopilot.projectId === projectId;
   const routineReasons = sameProject ? host.autopilot.routineReasons : {};
@@ -129,6 +160,7 @@ export async function loadAutopilot(host: AutopilotHost, cursor?: string) {
   const declineReasons = sameProject ? host.autopilot.declineReasons : {};
   const filters = sameProject ? { ...host.autopilot.filters } : {};
   const previousRoutines = sameProject ? host.autopilot.routines : null;
+  const linkedRun = sameProject ? host.autopilot.linkedRun : null;
   const selectedRunId = sameProject ? host.autopilot.selectedRunId : null;
   const selectionTicket = runGenerations.get(host);
   const ticket = (generations.get(host) ?? 0) + 1;
@@ -143,6 +175,7 @@ export async function loadAutopilot(host: AutopilotHost, cursor?: string) {
     filters,
     routines: previousRoutines,
     selectedRunId,
+    linkedRun,
     cursor: cursor ?? null,
     loading: true,
   };
@@ -188,9 +221,10 @@ export async function loadAutopilot(host: AutopilotHost, cursor?: string) {
       autonomyError: autonomy === null,
       brief: briefResult?.brief?.projectId === projectId ? briefResult.brief : null,
       briefError: briefResult?.brief?.projectId !== projectId,
+      linkedRun,
       selectedRunId:
         runGenerations.get(host) === selectionTicket &&
-        runs.runs.some((run) => run.id === selectedRunId)
+        (linkedRun?.id === selectedRunId || runs.runs.some((run) => run.id === selectedRunId))
           ? selectedRunId
           : null,
     };
@@ -210,7 +244,7 @@ export async function loadAutopilot(host: AutopilotHost, cursor?: string) {
   }
   if (current() && queued.has(host)) {
     queued.delete(host);
-    void loadAutopilot(host);
+    await loadAutopilot(host);
   } else if (current() && host.autopilot.selectedRunId) {
     await inspectAutopilotRun(host, host.autopilot.selectedRunId);
   }
@@ -254,6 +288,7 @@ export function closeAutopilotRun(host: AutopilotHost) {
   runGenerations.set(host, (runGenerations.get(host) ?? 0) + 1);
   host.autopilot = {
     ...host.autopilot,
+    linkedRun: null,
     selectedRunId: null,
     runLoading: false,
     runError: false,
@@ -262,7 +297,7 @@ export function closeAutopilotRun(host: AutopilotHost) {
     reportStatus: null,
   };
 }
-/** A run is inspected only within the currently loaded page and project. */
+/** Inspect a loaded run or an explicit Business item link, within the selected Project. */
 export async function inspectAutopilotRun(host: AutopilotHost, id: string) {
   const projectId = active(host);
   const client = host.client;
@@ -271,10 +306,11 @@ export async function inspectAutopilotRun(host: AutopilotHost, id: string) {
     !client ||
     host.autopilot.projectId !== projectId ||
     host.autopilot.loading ||
-    !host.autopilot.runs?.runs.some((run) => run.id === id)
+    (host.autopilot.linkedRun?.id !== id && !host.autopilot.runs?.runs.some((run) => run.id === id))
   ) {
     return;
   }
+  const linkedItemId = host.autopilot.linkedRun?.id === id ? host.autopilot.linkedRun.itemId : null;
   const pageTicket = generations.get(host);
   const ticket = (runGenerations.get(host) ?? 0) + 1;
   runGenerations.set(host, ticket);
@@ -294,14 +330,18 @@ export async function inspectAutopilotRun(host: AutopilotHost, id: string) {
     runGenerations.get(host) === ticket &&
     host.autopilot.selectedRunId === id;
   try {
-    const detail = await client.request<AutopilotRunsGetResult>("autopilot.runs.get", {
+    const detail = await client.request<AutopilotRunDetail>("autopilot.runs.get", {
       projectId,
       id,
     });
     if (!current()) {
       return;
     }
-    if (detail.run.id !== id || detail.run.projectId !== projectId) {
+    if (
+      detail.run.id !== id ||
+      detail.run.projectId !== projectId ||
+      (linkedItemId && !detail.run.workItems.includes(linkedItemId))
+    ) {
       throw new Error("Run scope mismatch");
     }
     host.autopilot = { ...host.autopilot, runLoading: false, runDetail: detail };
@@ -313,7 +353,49 @@ export async function inspectAutopilotRun(host: AutopilotHost, id: string) {
   }
 }
 
-const mutations = new WeakMap<AutopilotHost, { projectId: string; client: GatewayBrowserClient }>();
+type AutopilotMutation = {
+  projectId: string;
+  client: GatewayBrowserClient;
+  delayed: boolean;
+  timer: ReturnType<typeof setTimeout> | null;
+};
+const mutations = new WeakMap<AutopilotHost, AutopilotMutation>();
+function beginMutation(host: AutopilotHost, projectId: string, client: GatewayBrowserClient) {
+  const mutation: AutopilotMutation = { projectId, client, delayed: false, timer: null };
+  mutations.set(host, mutation);
+  // This is a notice, not a request timeout: elapsed time cannot settle an uncertain write.
+  mutation.timer = setTimeout(() => {
+    if (mutations.get(host) !== mutation) {
+      return;
+    }
+    mutation.delayed = true;
+    host.autopilot = { ...host.autopilot, mutationDelayed: true };
+  }, 30_000);
+  return mutation;
+}
+function finishMutation(host: AutopilotHost, mutation: AutopilotMutation) {
+  if (mutations.get(host) !== mutation) {
+    return;
+  }
+  if (mutation.timer !== null) {
+    clearTimeout(mutation.timer);
+  }
+  mutations.delete(host);
+  if (host.autopilot.mutationDelayed) {
+    host.autopilot = { ...host.autopilot, mutationDelayed: false };
+  }
+}
+
+/** Only settlement releases a write; navigation may have queued a read for a new scope. */
+async function settleStaleMutation(host: AutopilotHost, mutation: AutopilotMutation) {
+  if (mutations.get(host) !== mutation) {
+    return;
+  }
+  finishMutation(host, mutation);
+  if (queued.has(host)) {
+    await loadAutopilot(host);
+  }
+}
 /** UI capability only; the gateway authenticates the person and checks approval scopes. */
 export function canDeclineAutonomy(host: Pick<AutopilotHost, "hello">): boolean {
   const auth = host.hello?.auth;
@@ -357,8 +439,7 @@ export async function declineAutonomy(host: AutopilotHost, routineId: string) {
     host.autopilot = { ...a, declineStatus: "declineInvalid" };
     return;
   }
-  const mutation = { projectId, client };
-  mutations.set(host, mutation);
+  const mutation = beginMutation(host, projectId, client);
   const ticket = generations.get(host);
   const current = () =>
     active(host) === projectId &&
@@ -382,12 +463,10 @@ export async function declineAutonomy(host: AutopilotHost, routineId: string) {
     status = reload ? "declineChanged" : "declineFailed";
   }
   if (!current()) {
-    if (mutations.get(host) === mutation) {
-      mutations.delete(host);
-    }
+    await settleStaleMutation(host, mutation);
     return;
   }
-  mutations.delete(host);
+  finishMutation(host, mutation);
   host.autopilot = {
     ...host.autopilot,
     declinePending: null,
@@ -440,8 +519,7 @@ export async function acceptAutonomy(host: AutopilotHost, routineId: string) {
     host.autopilot = { ...a, acceptStatus: "acceptInvalid" };
     return;
   }
-  const mutation = { projectId, client };
-  mutations.set(host, mutation);
+  const mutation = beginMutation(host, projectId, client);
   const ticket = generations.get(host);
   const current = () =>
     active(host) === projectId &&
@@ -471,12 +549,10 @@ export async function acceptAutonomy(host: AutopilotHost, routineId: string) {
     status = reload ? "acceptChanged" : "acceptFailed";
   }
   if (!current()) {
-    if (mutations.get(host) === mutation) {
-      mutations.delete(host);
-    }
+    await settleStaleMutation(host, mutation);
     return;
   }
-  mutations.delete(host);
+  finishMutation(host, mutation);
   host.autopilot = {
     ...host.autopilot,
     acceptPending: null,
@@ -548,8 +624,7 @@ export async function changeAutopilotRoutine(
     host.autopilot = { ...a, routineStatus: "routineInvalid" };
     return;
   }
-  const mutation = { projectId, client };
-  mutations.set(host, mutation);
+  const mutation = beginMutation(host, projectId, client);
   const ticket = generations.get(host);
   const current = () =>
     active(host) === projectId &&
@@ -587,12 +662,10 @@ export async function changeAutopilotRoutine(
             : "routineFailed";
   }
   if (!current()) {
-    if (mutations.get(host) === mutation) {
-      mutations.delete(host);
-    }
+    await settleStaleMutation(host, mutation);
     return;
   }
-  mutations.delete(host);
+  finishMutation(host, mutation);
   host.autopilot = {
     ...host.autopilot,
     routinePending: null,
@@ -652,8 +725,7 @@ export async function reportAutopilotError(host: AutopilotHost, itemId: string) 
     host.autopilot = { ...a, reportStatus: "reportInvalid" };
     return;
   }
-  const mutation = { projectId, client };
-  mutations.set(host, mutation);
+  const mutation = beginMutation(host, projectId, client);
   const ticket = generations.get(host);
   const runTicket = runGenerations.get(host);
   const runId = a.selectedRunId;
@@ -682,12 +754,10 @@ export async function reportAutopilotError(host: AutopilotHost, itemId: string) 
     status = reload ? "reportChanged" : "reportFailed";
   }
   if (!current()) {
-    if (mutations.get(host) === mutation) {
-      mutations.delete(host);
-    }
+    await settleStaleMutation(host, mutation);
     return;
   }
-  mutations.delete(host);
+  finishMutation(host, mutation);
   host.autopilot = {
     ...host.autopilot,
     reportPending: null,
@@ -708,6 +778,8 @@ export async function reportAutopilotError(host: AutopilotHost, itemId: string) 
       generations.get(host) === refreshTicket &&
       showStatus &&
       host.autopilot.selectedRunId === runId &&
+      // loadAutopilot re-inspects the retained run once. Any extra selection change
+      // (including closing and reopening this run) invalidates the report status.
       runGenerations.get(host) === (runTicket ?? 0) + 1
     ) {
       host.autopilot = { ...host.autopilot, reportStatus: status };

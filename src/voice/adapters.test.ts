@@ -36,7 +36,7 @@ describe("local TTS adapter: loopback only", () => {
   it.each(["127.0.0.1", "127.1.2.3", "localhost", "[::1]", "::ffff:127.0.0.1"])("accepts %s", (h) =>
     expect(isLoopbackHostname(h)).toBe(true),
   );
-  it.each(["10.0.0.5", "0.0.0.0", "example.com", "127.0.0.1.nip.io", "[::]", "100.64.0.1"])(
+  it.each(["10.0.0.5", "0.0.0.0", "example.com", "127.0.0.1.nip.io", "[::]", "100.95.60.1"])(
     "rejects %s",
     (h) => expect(isLoopbackHostname(h)).toBe(false),
   );

@@ -24,7 +24,7 @@ The Entra connector does two things, in this order:
 | Sign-in scopes   | `openid`, `profile`, `email`, `offline_access`, `User.Read`                |
 | Directory scopes | `User.ReadBasic.All` (basic) or `Directory.Read.All` (full, admin consent) |
 | Writes           | None. The connector never changes the directory.                           |
-| Status           | Preview                                                                    |
+| Status           | Available                                                                  |
 
 ## What the administrator sets up in Microsoft Entra
 

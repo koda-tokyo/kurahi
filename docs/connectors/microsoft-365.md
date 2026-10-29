@@ -23,7 +23,7 @@ can see, no more.
 | Opt-in access  | Files, SharePoint sites, sending mail, drafts, events, uploads to the app folder |
 | Sign-in        | Authorization code with PKCE on a loopback redirect, or device code              |
 | Token storage  | Kurahi secret store (`connector.microsoft-365.token`), never the config file     |
-| Status         | Preview                                                                          |
+| Status         | Available                                                                        |
 
 ## What the administrator sets up in Microsoft Entra
 

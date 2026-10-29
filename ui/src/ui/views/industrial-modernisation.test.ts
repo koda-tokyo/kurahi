@@ -40,9 +40,9 @@ describe("Industrial modernization workbench", () => {
     expect(root.querySelectorAll(".industrial-pack")).toHaveLength(5);
     expect(root.textContent).toContain("COBOL, copybooks and JCL");
     expect(root.textContent).toContain("Industrial cybersecurity");
-    expect(root.textContent).toContain("Configured, not verified");
-    expect(root.textContent).toContain("Disabled");
-    expect(root.textContent).toContain("Planned");
+    expect(root.textContent).toContain("Setup check needed");
+    expect(root.textContent).toContain("Requires offline setup");
+    expect(root.textContent).toContain("Not available yet");
   });
 
   it("starts ready packs and prevents unavailable packs from claiming operation", () => {
@@ -103,7 +103,7 @@ describe("Industrial modernization workbench", () => {
     );
     for (const id of ["batch", "maintenance", "cybersecurity"]) {
       const card = root.querySelector(`[data-capability="${id}"]`)!;
-      expect(card.textContent).toContain("Planned");
+      expect(card.textContent).toContain("Not available yet");
       const button = card.querySelector("button")!;
       expect(button.disabled).toBe(true);
       button.click();
@@ -134,7 +134,7 @@ describe("Industrial modernization workbench", () => {
     }
     expect(startProjectChat).not.toHaveBeenCalled();
     expect(root.querySelector(".industrial-context")?.textContent).toContain("計画");
-    expect(root.textContent).toContain("ゲートウェイ接続が必要");
+    expect(root.textContent).toContain("サービスへの接続が必要");
   });
 
   it("routes available workbench tabs and keeps unimplemented controls disabled", () => {

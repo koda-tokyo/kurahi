@@ -15,7 +15,7 @@ watsonx.ai is not an OpenAI-compatible endpoint: each call needs a `version` dat
 space id, `model_id` instead of `model`, a separate streaming path, and an IAM bearer token that
 expires. The adapter handles all of that; the agent runtime sees an ordinary provider.
 
-**Status: Preview.** Built on IBM's watsonx.ai API reference and the watsonx.ai Node SDK.
+**Status: Available.** Built on IBM's watsonx.ai API reference and the watsonx.ai Node SDK.
 
 ## What is used
 
@@ -77,9 +77,9 @@ in the Tokyo region, use text chat.
 
 - A run that lasts longer than the token's lifetime keeps working: each model call takes a token
   from the cache, which refreshes it.
-- The autopilot reasoner does not use watsonx.ai yet. Its design admits only CLI backends whose
-  tool-less mode is verified; an HTTP backend that sends no tools is planned, with its own run
-  evidence, but is not part of this release.
+- The autopilot reasoner does not call watsonx.ai's own chat API. Its `api` backend calls
+  OpenAI-compatible model APIs with no tools in the request, so watsonx.ai is reachable from a
+  routine only through an OpenAI-compatible gateway (see [Autopilot](/autopilot)).
 - Deployments (`/ml/v1/deployments/{id}/text/chat`) and AI services are not wired.
 - Image input is sent in OpenAI format when the model definition allows images; whether a given
   watsonx.ai model accepts it is model dependent.

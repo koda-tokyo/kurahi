@@ -4,6 +4,7 @@
 // and its executed actions take exactly the path an operator's tool call takes.
 import type { KoLoConfig } from "../config/config.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
+import { guardOutboundCall } from "../governance/outbound-guard.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { parseProjectSessionKey } from "../projects/scope.js";
 import { getProject, projectDataDir } from "../projects/store.js";
@@ -119,6 +120,27 @@ export async function invokeToolForSession(params: {
         type: "permission_denied",
         message: guardResult.explainer ?? `Access denied for ${toolName}`,
         details: { risk: guardResult.risk.tier, flags: guardResult.risk.flags },
+      };
+    }
+
+    // APPI / マイナンバー guard on outbound connector tools (src/governance/outbound-guard.ts).
+    const personal = guardOutboundCall({
+      toolName,
+      args: toolArgs,
+      agentId,
+      sessionKey,
+      config: cfg,
+    });
+    if (personal.action === "block") {
+      return {
+        ok: false,
+        status: 403,
+        type: "permission_denied",
+        message: personal.reason,
+        details: {
+          rule: "personal-data",
+          kinds: [...new Set(personal.findings.map((f) => f.kind))],
+        },
       };
     }
 

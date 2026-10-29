@@ -3,6 +3,8 @@
 // `<KOLO_HOME>/projects/<projectId>/workitems/<itemId>/` (item.json + one signed evidence bundle
 // per transition). See docs/business/work-queue.md.
 
+import type { SupplierSelection } from "../quotes/supplier-selection.js";
+import type { WorkItemProcurement, WorkItemPurchaseOrderDraft } from "./procurement.js";
 export const WORK_ITEM_TYPES = [
   "request",
   "case",
@@ -11,6 +13,7 @@ export const WORK_ITEM_TYPES = [
   "leave",
   "expense",
   "purchase",
+  "quote",
   "custom",
 ] as const;
 export type WorkItemType = (typeof WORK_ITEM_TYPES)[number];
@@ -140,6 +143,8 @@ export type WorkItemCheck = {
   result: CheckResult;
   /** A failing blocking check stops approval unless a person overrides it with a reason. */
   blocking: boolean;
+  /** Overriding this check approves a provisional release only (policy rule overrideOutcome). */
+  overrideOutcome?: "provisional";
   /** What the rule looked at and why it decided (field, value, threshold, matched phrase …). */
   evidence: Record<string, unknown>;
   checkedAt: string;
@@ -232,6 +237,11 @@ export type WorkItemOverride = {
   at: string;
   reason: string;
   policyIds: string[];
+  /**
+   * "provisional" when any overridden check has overrideOutcome provisional: the approval
+   * authorises a provisional release (open items stay visible), not a final one. Absent = final.
+   */
+  outcome?: "provisional";
 };
 
 export type WorkItemHistoryEntry = {
@@ -286,13 +296,22 @@ export type WorkItem = {
   flagReason?: string;
   /** Flags a person cleared, with who, when and why (append-only). */
   flagClearances?: WorkItemFlagClearance[];
+  /** Request lines and supplier quotes of a procurement case (procurement.ts). */
+  procurement?: WorkItemProcurement;
+  /** The supplier a person chose from `procurement`; absent until someone chooses. */
+  supplierSelection?: SupplierSelection;
+  /**
+   * The latest purchase order draft a routine wrote from `supplierSelection` (po.prepare). It
+   * matches the selection while their comparison digests agree; a new choice needs a new draft.
+   */
+  purchaseOrderDraft?: WorkItemPurchaseOrderDraft;
   updatedAt: string;
   /** Incremented on every write; pass as expectedRevision for optimistic concurrency. */
   revision: number;
 };
 
 /** Summary row for lists (no history). */
-export type WorkItemSummary = Omit<WorkItem, "history" | "source"> & {
+export type WorkItemSummary = Omit<WorkItem, "history" | "source" | "procurement"> & {
   source: { documents: number; fields: string[]; origin?: WorkItemOrigin };
   overdue: boolean;
   currentStage: WorkItemStageSummary | null;

@@ -1,7 +1,14 @@
 // Retention for evidence dirs (KoLo 2.0, M12): a job's evidence is removed once its end time (or,
 // for a log that never got a manifest, its last write) is older than `evidence.retentionDays`.
+// Data governance (docs/security/data-governance.md): a removed job leaves a signed tombstone
+// (tombstone.ts), evidence under an active legal hold is kept, governance records (`gov-*`:
+// deletion manifests) are never pruned, and `minimumDays` (governance.minimumRetentionDays.
+// evidence, when governance is configured) raises `days`.
 import fs from "node:fs";
 import path from "node:path";
+import { resolveStateDir } from "../config/paths.js";
+import { holdsBlockingDeletion } from "../governance/holds.js";
+import { parseProjectSessionKey } from "../projects/scope.js";
 import {
   EVENTS_FILE,
   isSafeJobId,
@@ -9,10 +16,18 @@ import {
   readManifestFile,
   resolveEvidenceRoot,
 } from "./store.js";
+import { tombstoneJobEvidence } from "./tombstone.js";
 
 export type PruneRow = { jobId: string; endedAt: string; bytes: number; removed: boolean };
 
-export type PruneResult = { root: string; cutoff: string; removed: PruneRow[]; kept: number };
+export type PruneResult = {
+  root: string;
+  cutoff: string;
+  removed: PruneRow[];
+  kept: number;
+  /** Jobs past the cutoff kept because a legal hold covers them. */
+  held: number;
+};
 
 function dirBytes(dir: string): number {
   let total = 0;
@@ -40,15 +55,19 @@ function dirBytes(dir: string): number {
  */
 export function pruneEvidence(opts: {
   days: number;
+  /** Floor for `days` (governance minimum evidence retention). */
+  minimumDays?: number;
   dryRun?: boolean;
   env?: NodeJS.ProcessEnv;
   now?: () => Date;
 }): PruneResult {
   const root = resolveEvidenceRoot(opts.env);
   const now = (opts.now ?? (() => new Date()))();
-  const cutoffMs = now.getTime() - Math.max(0, opts.days) * 86_400_000;
+  const days = Math.max(0, opts.days, opts.minimumDays ?? 0);
+  const cutoffMs = now.getTime() - days * 86_400_000;
   const cutoff = new Date(cutoffMs).toISOString();
-  const result: PruneResult = { root, cutoff, removed: [], kept: 0 };
+  const result: PruneResult = { root, cutoff, removed: [], kept: 0, held: 0 };
+  const stateDir = resolveStateDir(opts.env);
   let names: string[];
   try {
     names = fs.readdirSync(root);
@@ -56,7 +75,7 @@ export function pruneEvidence(opts: {
     return result;
   }
   for (const name of names) {
-    if (!isSafeJobId(name)) {
+    if (!isSafeJobId(name) || name.startsWith("gov-")) {
       continue;
     }
     const dir = path.join(root, name);
@@ -80,10 +99,26 @@ export function pruneEvidence(opts: {
       result.kept += 1;
       continue;
     }
+    const held = holdsBlockingDeletion(stateDir, {
+      class: "evidence",
+      id: name,
+      projectId: manifest
+        ? (parseProjectSessionKey(manifest.sessionKey)?.projectId ?? null)
+        : undefined,
+      workItemId: null,
+      custodians: manifest?.agent ? [manifest.agent] : undefined,
+      from: manifest?.startedAt ?? endedAt,
+      to: endedAt,
+    });
+    if (held.length > 0) {
+      result.kept += 1;
+      result.held += 1;
+      continue;
+    }
     const row: PruneRow = { jobId: name, endedAt, bytes: dirBytes(dir), removed: false };
     if (!opts.dryRun) {
       try {
-        fs.rmSync(dir, { recursive: true, force: true });
+        tombstoneJobEvidence({ stateDir, jobId: name, cause: "prune", now });
         row.removed = true;
       } catch {
         row.removed = false;

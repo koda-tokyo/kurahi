@@ -21,7 +21,7 @@ uses open protocols where Orchestrate supports them and adds no IBM code to Kura
 | Orchestrate to Kurahi | OpenAPI tool import                                                    | A2A plugin ask endpoint (`server.rest`)                |
 | Kurahi to Orchestrate | `POST /v1/orchestrate/{agent_id}/chat/completions`                     | `watsonx-orchestrate` plugin, `orchestrate_agent_chat` |
 
-**Status: Preview.** Every path on this page follows IBM's published Orchestrate documentation and
+**Status: Available.** Every path on this page follows IBM's published Orchestrate documentation and
 is covered by Kurahi's conformance tests. See [References](#references).
 
 ## Orchestrate is an untrusted caller

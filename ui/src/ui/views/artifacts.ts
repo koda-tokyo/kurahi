@@ -125,7 +125,9 @@ function download(name: string, text: string, type: string) {
 async function exportArtifact(state: AppViewState): Promise<void> {
   const cur = state.artifacts.current;
   const version = state.artifacts.currentVersion;
-  if (!cur || version === null || state.artifacts.exporting) return;
+  if (!cur || version === null || state.artifacts.exporting) {
+    return;
+  }
   const stored = cur.versions.find((item) => item.version === version)?.sha256;
   state.patchArtifacts({ exporting: true, exportSha256: null, error: null });
   try {
@@ -194,7 +196,7 @@ export function renderArtifactPanel(state: AppViewState) {
               <label>${t("artifacts.panel.version")}
                 <select .value=${String(ver.version)} @change=${(e: Event) =>
                   state.openArtifactPanel(cur.id, Number((e.target as HTMLSelectElement).value))}>
-                  ${cur.versions.map((v) => html`<option value=${v.version}>v${v.version}</option>`)}
+                  ${cur.versions.map((v) => html`<option value=${v.version} ?selected=${v.version === ver.version}>v${v.version}</option>`)}
                 </select>
               </label>
               <label>${t("artifacts.panel.compare")}
@@ -204,8 +206,8 @@ export function renderArtifactPanel(state: AppViewState) {
                   const v = (e.target as HTMLSelectElement).value;
                   void state.compareArtifact(v ? Number(v) : null);
                 }}>
-                  <option value="">${t("artifacts.panel.noCompare")}</option>
-                  ${cur.versions.filter((v) => v.version !== ver.version).map((v) => html`<option value=${v.version}>v${v.version}</option>`)}
+                  <option value="" ?selected=${a.compareVersion === null}>${t("artifacts.panel.noCompare")}</option>
+                  ${cur.versions.filter((v) => v.version !== ver.version).map((v) => html`<option value=${v.version} ?selected=${v.version === a.compareVersion}>v${v.version}</option>`)}
                 </select>
               </label>
             </div>

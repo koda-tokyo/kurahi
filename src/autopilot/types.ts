@@ -80,7 +80,15 @@ export type ItemFlag = (typeof ITEM_FLAGS)[number];
 export const EVENT_SOURCES = ["m365.mail", "workitems", "deadline", "files"] as const;
 export type EventSourceKind = (typeof EVENT_SOURCES)[number];
 /** Work item changes a `workitems` trigger may filter on. */
-export const WORKITEM_TRIGGER_ACTIONS = ["created", "changed", "decided", "flag.clear"] as const;
+export const WORKITEM_TRIGGER_ACTIONS = [
+  "created",
+  "changed",
+  "decided",
+  "flag.clear",
+  // A person recorded the supplier on a procurement case (workitems.selectSupplier): the point
+  // a routine may draft the purchase order (po.prepare).
+  "supplier.selected",
+] as const;
 export type WorkItemTriggerAction = (typeof WORKITEM_TRIGGER_ACTIONS)[number];
 
 export type EventSpec =

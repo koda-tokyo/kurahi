@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GatewayBrowserClient } from "../gateway";
 import type { BusinessHost } from "./business";
 import { emptyBusiness, loadBusinessItem, resetBusiness, selectBusinessQueue } from "./business";
-import { verifyBusinessEvidence } from "./business-evidence";
+import { businessHistoryEvidenceStatus, verifyBusinessEvidence } from "./business-evidence";
 import { DEFAULT_PROJECTS_STATE } from "./projects";
 
 function fixture() {
@@ -180,4 +180,104 @@ describe("Business explicit evidence verification", () => {
       expect(request).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("Business retention verification", () => {
+  it.each([true, false, undefined])(
+    "trusts only an explicit tombstone marker: %s",
+    async (tombstone) => {
+      const { host, response, request } = fixture();
+      request.mockResolvedValue({
+        ...response,
+        bundles: response.bundles.map((b) => ({ ...b, tombstone })),
+      });
+      await verifyBusinessEvidence(host);
+      expect(host.business.evidence?.retainedTombstones).toBe(tombstone === true ? 1 : 0);
+    },
+  );
+  it("does not claim a verified deletion record for failed checks", async () => {
+    const { host, response, request } = fixture();
+    request.mockResolvedValue({
+      ...response,
+      chainOk: false,
+      bundles: response.bundles.map((b) => ({ ...b, tombstone: true })),
+    });
+    await verifyBusinessEvidence(host);
+    expect(host.business.evidence).toMatchObject({ status: "failed", retainedTombstones: 0 });
+  });
+  it("rejects malformed retention metadata", async () => {
+    const { host, response, request } = fixture();
+    request.mockResolvedValue({
+      ...response,
+      bundles: response.bundles.map((b) => ({ ...b, tombstone: "true" })),
+    });
+    await verifyBusinessEvidence(host);
+    expect(host.business.evidence?.status).toBe("unavailable");
+  });
+});
+
+describe("Business history evidence results", () => {
+  it("identifies only matching failed events in a mixed response without leaking problems", async () => {
+    const { host, response } = fixture();
+    const first = host.business.item!.history[0];
+    host.business.item!.history.push({
+      ...first,
+      evidence: { bundle: "second", root: "b".repeat(64) },
+    });
+    response.bundles.push({
+      ...response.bundles[0],
+      bundle: "second",
+      root: "b".repeat(64),
+      ok: false,
+      problems: ["/private/failed"],
+    });
+    await verifyBusinessEvidence(host);
+    expect(host.business.evidence?.historyChecks?.map((check) => check.status)).toEqual([
+      "unavailable",
+      "failed",
+    ]);
+    expect(JSON.stringify(host.business.evidence)).not.toContain("/private/failed");
+  });
+  it.each(["retained", "wrong-root", "duplicate", "chain", "no-marker"])(
+    "handles %s evidence conservatively",
+    async (kind) => {
+      const { host, response, request } = fixture();
+      const reference = host.business.item!.history[0].evidence!;
+      const bundle = { ...response.bundles[0], tombstone: kind !== "no-marker" };
+      if (kind === "wrong-root") {
+        bundle.root = "different";
+      }
+      request.mockResolvedValue({
+        chainOk: kind !== "chain",
+        bundles: kind === "duplicate" ? [bundle, bundle] : [bundle],
+      });
+      await verifyBusinessEvidence(host);
+      expect(businessHistoryEvidenceStatus(host.business.evidence, reference)).toBe(
+        kind === "retained" ? "retained" : kind === "no-marker" ? "verified" : "unavailable",
+      );
+    },
+  );
+  it("clears old row results during retry and ignores stale completion", async () => {
+    const { host, request, response } = fixture();
+    await verifyBusinessEvidence(host);
+    let finish!: (value: typeof response) => void;
+    request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = verifyBusinessEvidence(host);
+    expect(host.business.evidence?.historyChecks).toBeUndefined();
+    expect(
+      businessHistoryEvidenceStatus(
+        host.business.evidence,
+        host.business.item!.history[0].evidence!,
+      ),
+    ).toBe("loading");
+    resetBusiness(host);
+    finish(response);
+    await pending;
+    expect(host.business.evidence).toBeNull();
+  });
 });

@@ -12,6 +12,9 @@
  * `profile: "enterprise"`. Neither source can switch the other off: an enterprise config stays
  * enterprise whatever the environment says, and the launcher of an enterprise bundle always sets
  * the variable.
+ *
+ * The private online demo (`KURAHI_DEMO=1`) is the enterprise profile plus a refusal of every
+ * outbound tool (src/governance/outbound-guard.ts): nothing a visitor does leaves the demo.
  */
 import type { KoLoConfig } from "../config/types.js";
 import ENTERPRISE_PROFILE_JSON from "./profiles/enterprise.json" with { type: "json" };
@@ -29,6 +32,7 @@ export type ProfileManifest = {
 };
 
 export const RELEASE_PROFILE_ENV = "KURAHI_PROFILE";
+export const DEMO_PROFILE_ENV = "KURAHI_DEMO";
 
 export const ENTERPRISE_PROFILE = ENTERPRISE_PROFILE_JSON as ProfileManifest;
 
@@ -38,10 +42,16 @@ export function resolveReleaseProfile(
   env: Record<string, string | undefined> = process.env,
 ): ReleaseProfile {
   const fromEnv = env[RELEASE_PROFILE_ENV]?.trim().toLowerCase();
-  if (fromEnv === "enterprise" || cfg?.profile === "enterprise") {
+  if (fromEnv === "enterprise" || cfg?.profile === "enterprise" || isDemoProfile(env)) {
     return "enterprise";
   }
   return "standard";
+}
+
+/** The private online demo: set by its launcher only, so the environment is the one source. */
+export function isDemoProfile(env: Record<string, string | undefined> = process.env): boolean {
+  const value = env[DEMO_PROFILE_ENV]?.trim().toLowerCase();
+  return value === "1" || value === "true";
 }
 
 export function isEnterpriseProfile(

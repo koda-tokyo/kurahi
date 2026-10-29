@@ -1,0 +1,52 @@
+{
+  "id": "business-employee-requests",
+  "name": {
+    "ja": "従業員依頼（プレビュー）",
+    "en": "Employee requests (Preview)"
+  },
+  "description": {
+    "ja": "備品・IT機器、名刺、施設、証明書の申請書と担当者承認。メールは受付キューと返信下書きまで。",
+    "en": "Forms and reviewer routes for equipment, business cards, facilities and certificates. Mail intake prepares a triage item and acknowledgement draft."
+  },
+  "folders": ["requests", "output"],
+  "rules": {
+    "readOnly": ["requests"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "申請書は人が記入し、項目をワークアイテムに転記します。自動取込・自動実施はしません。",
+        "en": "A person completes forms and transfers fields to the work item; forms are not automatically imported or fulfilled."
+      },
+      {
+        "ja": "承認、送信、発注、予約、証明書発行、アクセス変更、支払は人が行います。",
+        "en": "Approval, sending, ordering, booking, certificate issuance, access changes and payment remain human actions."
+      },
+      {
+        "ja": "不明な情報は要確認とし、機密情報を返信に転記しないでください。",
+        "en": "Mark missing facts as to confirm; do not copy confidential details into replies."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "依頼を分類し、不足項目と担当キューを示してください。",
+      "en": "Classify this request and list missing fields and the target queue."
+    },
+    {
+      "ja": "事実に基づく受付返信の下書きを作成してください。",
+      "en": "Draft an acknowledgement using only supplied facts."
+    }
+  ],
+  "terminalProfile": "data",
+  "plugins": ["office"],
+  "starterFiles": [
+    "requests/equipment.md",
+    "requests/cards.md",
+    "requests/facilities.md",
+    "requests/certificates.md",
+    "requests/fulfillment.md"
+  ]
+}

@@ -272,10 +272,29 @@ setLocale(locale);
 document.documentElement.lang = locale;
 document.documentElement.dataset.theme = theme;
 document.body.className = "business-visual-fixture";
+// Not-offered worksheet plans with an unbreakable pack path, for the narrow-screen check.
+const omittedPath = `requests/${"onboarding_worksheet_".repeat(6)}final.md`;
+const linkedOmitted = new URLSearchParams(location.search).get("linked") === "omitted";
 const state = {
   locale,
   connected: true,
   business: {
+    linked: linkedOmitted
+      ? { itemId: item.id, revision: item.revision, status: "none", linkedCase: null }
+      : null,
+    linkedCreate: linkedOmitted
+      ? {
+          itemId: item.id,
+          revision: item.revision,
+          steps: [{ department: "it", title: "Accounts", after: [] }],
+          pending: false,
+          notice: null,
+          omitted: [
+            { file: omittedPath, reason: "problems", problems: ["untrusted_file", "no_manifest"] },
+            { file: omittedPath.replace("final", "loop"), reason: "order", problems: [] },
+          ],
+        }
+      : null,
     expensePending: false,
     expenseUncertain: false,
     expenseNotice: null,

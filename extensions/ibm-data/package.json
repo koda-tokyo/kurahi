@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/ibm-data",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Read-only watsonx.data SQL (Presto/Trino HTTP protocol) and allowlisted Db2 REST services (off by default)",
   "type": "module",
   "devDependencies": {

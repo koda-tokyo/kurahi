@@ -7,6 +7,7 @@ import YAML from "yaml";
 import type { Project } from "../projects/types.js";
 import type { Reasoner } from "./reasoner.js";
 import type { ToolCall, ToolInvoker } from "./runner.js";
+import { flushAudit } from "../audit/audit-log.js";
 import { verifyEvidenceBundle } from "../evidence/verify.js";
 import { AutopilotAutonomyChangeSchema } from "../gateway/protocol/schema/autopilot.js";
 import { createProject } from "../projects/store.js";
@@ -105,7 +106,8 @@ beforeAll(() => {
   );
 });
 
-afterAll(() => {
+afterAll(async () => {
+  await flushAudit();
   process.env.KOLO_HOME = saved.home;
   process.env.KOLO_STATE_DIR = saved.state;
   if (saved.home === undefined) {

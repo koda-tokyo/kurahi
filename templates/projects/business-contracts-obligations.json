@@ -1,0 +1,52 @@
+{
+  "id": "business-contracts-obligations",
+  "name": {
+    "ja": "契約・履行義務（プレビュー）",
+    "en": "Contracts and obligations (Preview)"
+  },
+  "description": {
+    "ja": "契約台帳、レビュー依頼、更新・通知期限、履行義務と人による署名引継ぎ。",
+    "en": "Contract register, review requests, renewal and notice dates, obligations and human signature handoff."
+  },
+  "folders": ["contracts", "output"],
+  "rules": {
+    "readOnly": ["contracts"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "人が原本を記入し、source.fields に転記します。",
+        "en": "A person completes source forms and transfers values into source.fields."
+      },
+      {
+        "ja": "日付ルールは提出時の検証のみ。更新通知・署名・送信を自動実行しません。",
+        "en": "Date rules validate submissions only. They do not schedule renewal alerts, sign or send."
+      },
+      {
+        "ja": "承認と法的判断、署名、通知送付、履行の確認は権限を持つ人が行います。",
+        "en": "Authorized people make legal decisions, approve, sign, send notices and verify fulfillment."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "契約の不足項目と担当キューを示してください。",
+      "en": "List missing contract fields and the target queue."
+    },
+    {
+      "ja": "原本に基づいて署名引継ぎの下書きを作成してください。",
+      "en": "Draft a signature handoff from the supplied source."
+    }
+  ],
+  "terminalProfile": "data",
+  "plugins": ["office"],
+  "starterFiles": [
+    "contracts/register.md",
+    "contracts/review.md",
+    "contracts/renewals.md",
+    "contracts/obligations.md",
+    "contracts/signature.md"
+  ]
+}

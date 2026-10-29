@@ -1,12 +1,12 @@
 ---
-summary: "Workflow Evaluator (preview): acceptance specs, offline replay with simulated tools, signed scorecards"
+summary: "Workflow Evaluator: acceptance specs, offline replay with simulated tools, signed scorecards"
 read_when:
   - You want to measure whether an agent's work on a workflow is acceptable
   - You need a signed, offline-verifiable record of an evaluation
 title: "Workflow Evaluator"
 ---
 
-# Workflow Evaluator (preview)
+# Workflow Evaluator
 
 The Workflow Evaluator scores the work an agent does on one workflow against a signed acceptance
 spec. Checks are deterministic and read the job's signed evidence and its declared outputs. Security

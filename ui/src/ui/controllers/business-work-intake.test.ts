@@ -233,3 +233,13 @@ describe("generic business work intake", () => {
     expect(h.business.workForm).toBeNull();
   });
 });
+
+it("blocks work creation while a report form is open", async () => {
+  const { h, request } = fixture();
+  h.business.reportForm = { id: "a", revision: 1, reason: "Wrong amount" };
+  await createBusinessWork(h);
+  expect(request).not.toHaveBeenCalled();
+  cancelBusinessWork(h);
+  beginBusinessWork(h);
+  expect(h.business.workForm).toBeNull();
+});

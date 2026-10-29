@@ -1,3 +1,5 @@
+import JSZip from "jszip";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,7 +12,7 @@ import { saveArtifact } from "../projects/artifacts.js";
 import { createProject, projectDataDir } from "../projects/store.js";
 import { decideWorkItem } from "./decide.js";
 import { diffLines } from "./diff.js";
-import { draftDiff, escapeHtml, previewDocument } from "./documents.js";
+import { draftDiff, escapeHtml, previewDocument, previewDocumentText } from "./documents.js";
 import { assignAgent } from "./drafting.js";
 import { createWorkItem, updateWorkItem } from "./lifecycle.js";
 import { computeStats, median, percentile } from "./stats.js";
@@ -132,6 +134,177 @@ describe("document preview", () => {
       "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;",
     );
   });
+
+  it("previews PDF/Office text extracted in the child, only for the attached bytes", async () => {
+    const att = path.join(projectDataDir(project.id), "attachments");
+    fs.mkdirSync(att, { recursive: true });
+    const z = new JSZip();
+    z.file(
+      "word/document.xml",
+      '<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>見積書 &lt;b&gt;42&lt;/b&gt;</w:t></w:r></w:p></w:body></w:document>',
+    );
+    const docx = await z.generateAsync({ type: "nodebuffer" });
+    const sha256 = createHash("sha256").update(docx).digest("hex");
+    fs.writeFileSync(path.join(att, "quote.docx"), docx);
+    fs.writeFileSync(path.join(att, "moved.docx"), docx);
+    fs.writeFileSync(path.join(att, "photo.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0]));
+    const item = createWorkItem(
+      project,
+      {
+        queue: "docs",
+        title: "Quote",
+        source: {
+          documents: [
+            { kind: "attachment", ref: path.join(att, "quote.docx"), sha256 },
+            { kind: "attachment", ref: path.join(att, "moved.docx"), sha256 },
+            { kind: "attachment", ref: path.join(att, "photo.png") },
+          ],
+        },
+      },
+      clerk,
+    );
+    const [quote, moved, photo] = item.source.documents;
+    expect(previewDocument(project, item, quote.ref, { home: home() })).toMatchObject({
+      binary: true,
+      text: null,
+      textSource: null,
+    });
+    const p = await previewDocumentText(project, item, quote.ref, { home: home() });
+    expect(p).toMatchObject({
+      binary: true,
+      text: "見積書 &lt;b&gt;42&lt;/b&gt;",
+      textSource: "extracted",
+      extractError: null,
+      sha256Matches: true,
+      untrusted: true,
+      escaped: "html",
+      mediaType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    expect(
+      (await previewDocumentText(project, item, quote.ref, { home: home(), maxChars: 3 })).text,
+    ).toBe("見積書");
+    // Bytes replaced after attaching: the reviewer is not shown text that was never reviewed.
+    const z2 = new JSZip();
+    z2.file("word/document.xml", "<w:document><w:t>swapped</w:t></w:document>");
+    fs.writeFileSync(moved.ref, await z2.generateAsync({ type: "nodebuffer" }));
+    expect(await previewDocumentText(project, item, moved.ref, { home: home() })).toMatchObject({
+      text: null,
+      textSource: null,
+      extractError: "changed",
+      sha256Matches: false,
+    });
+    const crash = path.join(root, "crash.mjs");
+    fs.writeFileSync(crash, "process.exit(3);");
+    expect(
+      await previewDocumentText(project, item, quote.ref, {
+        home: home(),
+        extract: { childScript: crash },
+      }),
+    ).toMatchObject({ text: null, textSource: null, extractError: "crashed" });
+    // Bytes swapped while the child reads them: its text is not of the bytes that were hashed.
+    const racing = await previewDocumentText(project, item, quote.ref, {
+      home: home(),
+      extract: {
+        exec: async () => {
+          fs.appendFileSync(quote.ref, "x");
+          return {
+            code: 0,
+            signal: null,
+            stdout: '{"ok":true,"text":"swapped mid-read"}',
+            stderr: "",
+            timedOut: false,
+            truncated: false,
+          };
+        },
+      },
+    });
+    expect(racing).toMatchObject({ text: null, textSource: null, extractError: "changed" });
+    fs.writeFileSync(quote.ref, docx);
+    // Bytes swapped and restored while the child reads: the child read the hashed snapshot.
+    const swapped = Buffer.from("swapped bytes");
+    let childPath = "";
+    const restored = await previewDocumentText(project, item, quote.ref, {
+      home: home(),
+      extract: {
+        exec: async (_argv, o) => {
+          childPath = (JSON.parse(o.input ?? "{}") as { file: string }).file;
+          fs.writeFileSync(quote.ref, swapped);
+          const read = fs.readFileSync(childPath);
+          fs.writeFileSync(quote.ref, docx);
+          return {
+            code: 0,
+            signal: null,
+            stdout: JSON.stringify({ ok: true, text: read.equals(docx) ? "pinned" : "transient" }),
+            stderr: "",
+            timedOut: false,
+            truncated: false,
+          };
+        },
+      },
+    });
+    expect(restored).toMatchObject({ text: "pinned", extractError: null, sha256Matches: true });
+    expect(childPath).not.toBe(quote.ref);
+    expect(fs.existsSync(childPath)).toBe(false);
+    // Images are not extracted.
+    expect(await previewDocumentText(project, item, photo.ref, { home: home() })).toMatchObject({
+      binary: true,
+      text: null,
+      textSource: null,
+      extractError: null,
+    });
+  }, 90_000);
+
+  it("extracts a PDF without NUL bytes instead of showing its raw syntax", async () => {
+    const att = path.join(projectDataDir(project.id), "attachments");
+    fs.mkdirSync(att, { recursive: true });
+    const stream = "BT /F1 12 Tf 50 700 Td (Invoice total 42) Tj ET";
+    const objects = [
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+      `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    ];
+    let pdf = "%PDF-1.4\n";
+    const offsets: number[] = [];
+    objects.forEach((body, i) => {
+      offsets.push(pdf.length);
+      pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+    });
+    const xref = pdf.length;
+    pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}`;
+    pdf += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    const file = path.join(att, "invoice.pdf");
+    fs.writeFileSync(file, pdf);
+    const sha256 = createHash("sha256").update(pdf).digest("hex");
+    const item = createWorkItem(
+      project,
+      {
+        queue: "docs",
+        title: "Invoice",
+        source: { documents: [{ kind: "attachment", ref: file, sha256 }] },
+      },
+      clerk,
+    );
+    const [doc] = item.source.documents;
+    expect(previewDocument(project, item, doc.ref, { home: home() })).toMatchObject({
+      binary: false,
+      textSource: "raw",
+    });
+    const p = await previewDocumentText(project, item, doc.ref, { home: home() });
+    expect(p).toMatchObject({ textSource: "extracted", extractError: null, sha256Matches: true });
+    expect(p.text).toContain("Invoice total 42");
+    expect(p.text).not.toContain("endobj");
+    // A failed extraction shows no text, not the raw PDF syntax.
+    const crash = path.join(root, "crash-ascii.mjs");
+    fs.writeFileSync(crash, "process.exit(3);");
+    expect(
+      await previewDocumentText(project, item, doc.ref, {
+        home: home(),
+        extract: { childScript: crash },
+      }),
+    ).toMatchObject({ text: null, textSource: null, extractError: "crashed" });
+  }, 60_000);
 
   it("previews the pinned draft with its version, sha256 and provenance", () => {
     const art = saveArtifact(

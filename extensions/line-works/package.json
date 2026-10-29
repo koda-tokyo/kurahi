@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/line-works",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "LINE WORKS business connector: bot channel information and members (read-only by default), approval-gated sends",
   "type": "module",
   "devDependencies": {

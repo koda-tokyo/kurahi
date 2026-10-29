@@ -294,3 +294,202 @@ it("discloses a local display cap even when the server reports no truncation", (
   expect(box.textContent).toContain("Some entries are omitted");
   expect(box.textContent).not.toContain("document-50");
 });
+
+it.each(["en", "ja"])("renders linked cases that need a person in %s", (locale) => {
+  setLocale(locale);
+  const brief = fixture();
+  const base = {
+    projectId: "p1",
+    queue: "sales",
+    status: "open",
+    priority: "normal",
+    dueAt: null,
+    overdue: false,
+  };
+  brief.waiting.linked = [
+    {
+      ...base,
+      itemId: "parent-1",
+      title: "<b>Onboard client</b>",
+      done: 1,
+      total: 3,
+      ready: ["legal-review"],
+      missing: ["finance-setup"],
+      blocked: true,
+      unreadable: false,
+    },
+    {
+      ...base,
+      itemId: "parent-2",
+      title: "Broken case",
+      done: 0,
+      total: 0,
+      ready: [],
+      missing: [],
+      blocked: false,
+      unreadable: true,
+    },
+  ];
+  render(
+    renderAutopilotBrief({ ...emptyAutopilot(), projectId: "p1", brief }, "p1", true, locale, now),
+    box,
+  );
+  const [first, second] = box.querySelectorAll("[data-brief-linked]");
+  expect(box.textContent).toContain(
+    locale === "en" ? "Linked cases that need a person" : "対応が必要な部門間連携案件",
+  );
+  expect(first.textContent).toContain("1/3");
+  expect(first.textContent).toContain("legal-review");
+  expect(first.textContent).toContain("finance-setup");
+  expect(first.textContent).toContain(
+    locale === "en" ? "cancelled or stuck" : "取消・停止した工程あり",
+  );
+  expect(first.querySelector("b")).toBeNull();
+  expect(second.textContent).toContain(
+    locale === "en" ? "cannot be read" : "連携記録を読み取れません",
+  );
+  expect(second.textContent).not.toContain("0/0");
+  expect(box.textContent).not.toContain("autopilot.");
+});
+
+it("discloses a server-capped linked list and tolerates briefs without linked", () => {
+  const brief = fixture();
+  render(
+    renderAutopilotBrief({ ...emptyAutopilot(), projectId: "p1", brief }, "p1", true, "en", now),
+    box,
+  );
+  expect(box.querySelectorAll("[data-brief-linked]")).toHaveLength(0);
+  brief.waiting.linked = [];
+  brief.truncated = {
+    documents: false,
+    decisions: false,
+    flagged: false,
+    commitments: false,
+    linked: true,
+  };
+  render(
+    renderAutopilotBrief({ ...emptyAutopilot(), projectId: "p1", brief }, "p1", true, "en", now),
+    box,
+  );
+  expect(box.textContent).toContain("Some entries are omitted");
+});
+
+it.each(["en", "ja"])(
+  "distinguishes missing, empty and truncated linked snapshots in %s",
+  (locale) => {
+    setLocale(locale);
+    const brief = fixture();
+    const state = { ...emptyAutopilot(), projectId: "p1", brief };
+    const draw = () => render(renderAutopilotBrief(state, "p1", true, locale, now), box);
+    const section = () => box.querySelector("[data-brief-linked-section]")!;
+    const unavailable =
+      locale === "en" ? "Linked case information unavailable" : "連携案件の情報を取得できません";
+    const none = locale === "en" ? "None" : "なし";
+    draw();
+    expect(section().textContent).toContain(unavailable);
+    expect(section().textContent).not.toContain(none);
+    expect(section().querySelector('[role="status"]')).not.toBeNull();
+    brief.waiting.linked = [];
+    draw();
+    expect(section().textContent).toContain(none);
+    expect(section().textContent).not.toContain(unavailable);
+    brief.truncated = {
+      documents: false,
+      decisions: false,
+      flagged: false,
+      commitments: false,
+      linked: true,
+    };
+    draw();
+    expect(section().textContent).not.toContain(none);
+    expect(section().querySelector("[data-brief-limit]")).not.toBeNull();
+    delete brief.waiting.linked;
+    draw();
+    expect(section().textContent).toContain(unavailable);
+    expect(section().querySelector("[data-brief-limit]")).toBeNull();
+    for (const [projectId, connected, loading, briefError] of [
+      ["other", true, false, false],
+      ["p1", false, false, false],
+      ["p1", true, true, false],
+      ["p1", true, false, true],
+    ] as const) {
+      render(
+        renderAutopilotBrief({ ...state, loading, briefError }, projectId, connected, locale, now),
+        box,
+      );
+      expect(box.querySelector("[data-brief-linked-section]")).toBeNull();
+    }
+  },
+);
+
+it.each(["en", "ja"])(
+  "distinguishes unread notification counts from unavailable snapshots in %s",
+  (locale) => {
+    setLocale(locale);
+    const brief = fixture();
+    const state = { ...emptyAutopilot(), projectId: "p1", brief };
+    const draw = () => render(renderAutopilotBrief(state, "p1", true, locale, now), box);
+    const unavailable =
+      locale === "en" ? "Notification count unavailable" : "通知件数を取得できません";
+    draw();
+    expect(box.querySelector("[data-brief-notifications]")!.textContent).toContain(unavailable);
+    expect(box.querySelector("[data-brief-notifications-count]")).toBeNull();
+    for (const unread of [0, 17]) {
+      brief.waiting.notifications = { unread, unreadable: false };
+      draw();
+      expect(box.querySelector("[data-brief-notifications-count]")!.textContent).toBe(
+        String(unread),
+      );
+      expect(box.querySelector("[data-brief-notifications]")!.textContent).not.toContain(
+        unavailable,
+      );
+    }
+    brief.waiting.notifications = { unread: 17, unreadable: true };
+    draw();
+    expect(box.querySelector("[data-brief-notifications-count]")).toBeNull();
+    expect(box.querySelector("[data-brief-notifications]")!.textContent).toContain(unavailable);
+    expect(box.textContent).toContain(
+      locale === "en" ? "does not mark notifications as read" : "通知は既読になりません",
+    );
+    expect(box.textContent).not.toContain("autopilot.");
+  },
+);
+
+it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+  "does not show invalid notification count %s as evidence",
+  (unread) => {
+    const brief = fixture();
+    brief.waiting.notifications = { unread, unreadable: false };
+    render(
+      renderAutopilotBrief({ ...emptyAutopilot(), projectId: "p1", brief }, "p1", true, "en", now),
+      box,
+    );
+    expect(box.querySelector("[data-brief-notifications-count]")).toBeNull();
+    expect(box.querySelector("[data-brief-notifications]")!.textContent).toContain(
+      "Notification count unavailable",
+    );
+  },
+);
+
+it("hides notification counts across project changes and unavailable brief states", () => {
+  const brief = fixture();
+  brief.waiting.notifications = { unread: 17, unreadable: false };
+  for (const [projectId, connected, loading, briefError] of [
+    ["other", true, false, false],
+    ["p1", false, false, false],
+    ["p1", true, true, false],
+    ["p1", true, false, true],
+  ] as const) {
+    render(
+      renderAutopilotBrief(
+        { ...emptyAutopilot(), projectId: "p1", brief, loading, briefError },
+        projectId,
+        connected,
+        "en",
+        now,
+      ),
+      box,
+    );
+    expect(box.querySelector("[data-brief-notifications]")).toBeNull();
+  }
+});

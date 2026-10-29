@@ -2,6 +2,124 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
+## 2.3.0 — 2026-10-29
+
+Kurahi 2.3 turns the Business edition into functional packs over your existing systems, adds
+quotations and purchasing, cases that span departments and data governance, and lets Autopilot
+reason with any OpenAI-compatible model API or a local model, so routines can run without a
+command-line model and without content leaving the network.
+
+### Autopilot
+- **Reasoning through a model API (`backend: api`):** a routine names `<provider>/<model>` from the
+  registry or `models.providers` (Sakura AI Engine, a Qwen endpoint, IBM watsonx.ai through an
+  OpenAI-compatible gateway, a local Ollama …). The call carries no tools; a reply with tool calls,
+  cut off at the token limit, stopped by a content filter or refused is discarded with the reason.
+  HTTPS is required except for a model on this machine or a private network; redirects are
+  refused and API keys never reach run reasons.
+- **Local models on modest hardware:** a local Ollama model is asked for a context that fits the
+  gathered content, and an answer whose prompt filled the context is discarded instead of resting
+  on half of the evidence. Calls wait as long as the routine's `timeoutSeconds` allows (up to 900 s),
+  not a fixed 300 s.
+- A routines file that names a reasoning backend the engine cannot run, or `api` without a
+  `<provider>/<model>`, is refused when it is loaded, not at the first run.
+
+### Business edition
+- **Quotations (見積管理):** quotation requests become cases with a 見積書 in Word and Excel.
+  Unit prices come from the company price list (CSV, UTF-8 or Shift_JIS); Kurahi computes every
+  amount and the consumption tax per rate, rounded once per rate per document (インボイス制度).
+  Items not in the price list are 【要確認】. A quotation with open items can be released only as a
+  provisional estimate (御見積書（暫定）); a final quotation needs every item priced or explicitly
+  taken out of scope with a reason. Revisions (R2, R3 …) name the version they supersede, and
+  approval is bound to the exact files. Sending is always a person's action. Price lists can also
+  be Excel workbooks (.xlsx, read with a strict XML parser); a price list older than the company's
+  limit is flagged and needs a person's recorded confirmation.
+- **Purchasing:** keep a case's supplier quotes, compare them, record a person's supplier
+  choice (passing over the lowest quote needs a reason) and draft each chosen supplier's purchase
+  order once. Supplier quotation sheets (CSV or .xlsx under quotes/) are read into the comparison,
+  and each recorded quote and purchase order keeps the sheet it came from.
+- **Functional packs:** Employee requests, Contracts and obligations, People operations
+  and Management oversight join the Sales quotation pack, each with forms, routes, checks and
+  JA/EN guidance. A published catalogue lists every pack's status and limits.
+- **Cases across departments:** a linked case plans steps in several departments (for example
+  onboarding), tracks dependencies and completion, and escalates stuck cases. A pack's worksheet
+  can be started as a linked case from the console, with every step and dependency shown first.
+- **Hand-offs to other systems:** each hand-off of an approved case is tracked from approval to
+  confirmation, reconciliation and closure, with evidence at every step; closure says what was
+  achieved (for example, hand-off completed and payment not verified). Only a person can attest
+  that a payment settled, under separation of duties.
+- **Notifications:** people are notified in the console when a case newly concerns them
+  (awaiting their decision, delegated, escalated, a linked step opened); the morning brief counts
+  unread notices.
+- **Delegation:** an approver can withdraw a delegation before the delegate uses it.
+- **Document previews:** reviewers can read the text of attached PDF and Office documents; the
+  text is dropped if the file changes.
+- **Faster work queues:** lists and statistics read an index instead of every item, for large
+  queues.
+- Overrides of checks marked "provisional" release a provisional result only, never a final
+  approval.
+
+### Data governance
+- Retention sweeper with signed manifests, legal holds, eDiscovery export, a My Number (マイナンバー)
+  guard on outbound tools, and data subject requests (APPI).
+
+### Console
+- Business notifications panel, supplier-quote review, evidence verification beside every history
+  event, Autopilot writes kept safe across navigation, and Industrial readiness wording, in English
+  and Japanese.
+
+### Fixes
+- Project files reached through a symlinked folder (macOS /var, /tmp) are accepted when their real
+  path is inside the Project.
+- Price lists refuse oversized cells and duplicated item codes instead of guessing.
+
+### Detailed changes
+
+- Business: supplier quote comparison and purchase order drafting accept up to 20 suppliers and 200 items, the same as a stored procurement case; a case refuses item codes, descriptions and supplier names longer than those tools accept, so every recorded case can be drafted.
+
+- Business: add a bilingual People operations closure worksheet covering every required task, exception decisions and re-review after checklist changes; reviewer notes retain policy and source versions. This is a manual workflow.
+
+- Business: require a human-supplied source version for Contracts register and review requests, with bilingual decision and re-review guidance. This starter does not verify document versions or migrate existing Project policies.
+
+- Console: review persisted supplier quotes and explicitly record a supplier choice with revision checks, a reason for higher quotes, and English/Japanese refusal guidance.
+
+- Console: show more retained notifications in batches of 50 and keep loaded rows visible during refresh; confirmed read acknowledgements survive refresh failures, with stale actions disabled.
+
+- Console: open a notification’s item without marking it read or changing department filters; pending edits and writes block navigation.
+
+- Console: add a Project-wide Business notification panel with unread counts, English/Japanese reasons and explicit mark-read actions; stale or unavailable inboxes never appear empty.
+
+- Console: distinguish unavailable linked-case snapshots from confirmed empty lists in the morning brief; truncated empty lists no longer claim there are no cases (English and Japanese).
+
+- Work queue: a stored in-app notification with a missing or malformed field (read time, reason, revision, ids, times) now makes the inbox unreadable instead of silently dropping out of the unread count; the morning brief reports it as unavailable.
+- Work queue: a linked case step reaching done or cancelled notifies the parent's requester in-app when it opens the next step, completes the case or blocks it (`linked_step_ready`, `linked_case_complete`, `linked_case_blocked`, with `childId`, and `stepKey` for the step that opened). Two steps finishing at the same moment report a complete or blocked case, or the step they both opened, once, and never miss it.
+- Console: show unread in-app notification counts in the morning brief in English and Japanese; distinguish unavailable snapshots from zero without marking notifications read.
+
+- Work queue: every transition stores in-app notification records for the people it newly concerns (awaiting, delegated, delegation withdrawn, escalated, decided), readable through `workitems.notifications.list` and marked read explicitly with `workitems.notifications.markRead`. Ids and reasons only; members known only through a group are not notified yet; no mail or chat delivery.
+
+- Work queue: an approver can withdraw their own delegation on the current stage before the delegate uses it (`workitems.withdrawDelegation`, person only, audited with evidence; refusals `no_delegation`, `already_approved`).
+
+- Console: use heading punctuation consistently for the Japanese unavailable-page title.
+
+- Console: describe current page, file and export availability without outdated release promises in English and Japanese; refresh Industrial payroll captures.
+
+- Console: align artifact version and comparison selectors with displayed content on initial render.
+
+- Industrial: explain analysis availability and setup requirements in English and Japanese; add fictional payroll visual examples and bilingual page-copy handoff.
+
+- Business: add a Management oversight starter with bilingual manual workload, exception and outcome report worksheets and precise statistics definitions.
+
+- Console: explain Autopilot writes still awaiting confirmation after 30 seconds in English and Japanese, keeping duplicate changes blocked across navigation.
+
+- Console: keep Autopilot writes locked through navigation and reconnects until they settle, then refresh the current view without restoring stale notices or drafts.
+
+- Console: distinguish verified Autopilot evidence deletion records from live evidence, with English/Japanese notices and safe verification failures.
+
+- Console: show verification results beside each Business history event, including verified deletion records and failed or unavailable evidence, in English and Japanese.
+
+- Console: open originating Autopilot runs from Business items, verify linked item membership, and distinguish verified deletion records from available event evidence in English and Japanese.
+
+- Business: let authorized people report serious errors directly from routine-created item details, with explicit reasons and English/Japanese guidance.
+
 ## 2.2.0 — 2026-10-25
 
 The Business Edition and Autopilot release: 稟議 approval routes and business connectors, routines that carry repetitive work end to end in every edition, deeper Industrial analysis, a Scholars research workspace, enterprise identity and the enterprise package. Upgrade notes: [Kurahi 2.2.0](https://docs.kodasoken.com/releases/2.2.0).

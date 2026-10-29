@@ -12,6 +12,8 @@ import type {
   WorkitemsGetResult,
   WorkitemsIntakeEmailParams,
   WorkitemsIntakeEmailResult,
+  WorkitemsLinkedCreateParams,
+  WorkitemsLinkedGetResult,
   WorkitemsListParams,
   WorkitemsListResult,
   WorkitemsStatsResult,
@@ -61,6 +63,11 @@ export type WorkItemIntakeEmailInput = Omit<WorkitemsIntakeEmailParams, "project
 export type WorkItemIntakeEmailResult = WorkitemsIntakeEmailResult;
 export type WorkItemClearFlagInput = Omit<WorkitemsClearFlagParams, "projectId" | "id">;
 
+export type WorkItemLinkedCase = NonNullable<WorkitemsLinkedGetResult["linkedCase"]>;
+export type WorkItemLinkedPlan = WorkitemsLinkedCreateParams["plan"];
+export type WorkItemLinkedStep = WorkItemLinkedPlan["steps"][number];
+export type WorkItemLinkedStepState = WorkItemLinkedCase["steps"][number]["state"];
+
 /** `error.details.code` values workitems.decide answers with when it refuses. */
 export const WORK_ITEM_DECISION_REFUSALS = [
   "not_a_person",
@@ -77,7 +84,7 @@ export const WORK_ITEM_DECISION_REFUSALS = [
 ] as const;
 export type WorkItemDecisionRefusal = (typeof WORK_ITEM_DECISION_REFUSALS)[number];
 
-/** `error.details.code` values workitems.delegate answers with when it refuses. */
+/** `error.details.code` values workitems.delegate and workitems.withdrawDelegation refuse with. */
 export const WORK_ITEM_DELEGATION_REFUSALS = [
   "not_a_person",
   "not_awaiting_review",
@@ -87,6 +94,7 @@ export const WORK_ITEM_DELEGATION_REFUSALS = [
   "invalid_delegate",
   "reason_required",
   "invalid_expiry",
+  "no_delegation",
 ] as const;
 export type WorkItemDelegationRefusal = (typeof WORK_ITEM_DELEGATION_REFUSALS)[number];
 
@@ -111,6 +119,73 @@ export const WORK_ITEM_FLAG_REFUSALS = [
 ] as const;
 export type WorkItemFlagRefusal = (typeof WORK_ITEM_FLAG_REFUSALS)[number];
 
+/**
+ * `error.details.code` values workitems.handoffs, workitems.handoff.open and
+ * workitems.handoff.event answer with when they refuse. `handoff_sod_conflict` carries
+ * `details.roles`; strict settlement SoD also refuses an unknown requester.
+ */
+export const WORK_ITEM_HANDOFF_REFUSALS = [
+  "not_a_person",
+  "not_authorised",
+  "handoff_person_required",
+  "handoff_evidence_missing",
+  "handoff_bad_transition",
+  "handoff_not_writable",
+  "handoff_lookup_required",
+  "handoff_unknown_difference",
+  "handoff_stale_revision",
+  "handoff_open_exceptions",
+  "handoff_sod_conflict",
+  "handoff_requester_unknown",
+  "handoff_not_found",
+  "handoff_tampered",
+  "handoff_case_not_found",
+  "handoff_case_not_approved",
+  "handoff_duplicate",
+] as const;
+export type WorkItemHandOffRefusal = (typeof WORK_ITEM_HANDOFF_REFUSALS)[number];
+
 /** `error.details.code` values workitems.intakeEmail answers with when it refuses. */
 export const WORK_ITEM_INTAKE_REFUSALS = ["duplicate_source"] as const;
 export type WorkItemIntakeRefusal = (typeof WORK_ITEM_INTAKE_REFUSALS)[number];
+
+/**
+ * `error.details.code` values workitems.linked.get, workitems.linked.create and
+ * workitems.linked.attach answer with when they refuse. Access codes
+ * (WORK_ITEM_ACCESS_REFUSALS) also apply. `linked_plan_invalid` carries `details.problems`,
+ * each with a code from WORK_ITEM_LINKED_PLAN_PROBLEMS.
+ */
+export const WORK_ITEM_LINKED_REFUSALS = [
+  "linked_case_not_found",
+  "linked_case_corrupt",
+  "linked_case_closed",
+  "linked_case_exists",
+  "linked_plan_invalid",
+  "linked_step_unknown",
+  "linked_step_attached",
+  "linked_step_not_ready",
+  "linked_child_in_use",
+  "linked_child_not_found",
+  "linked_child_closed",
+  "linked_child_wrong_department",
+] as const;
+export type WorkItemLinkedRefusal = (typeof WORK_ITEM_LINKED_REFUSALS)[number];
+
+/** `error.details.code` values workitems.notifications.markRead refuses with. */
+export const WORK_ITEM_NOTIFICATION_REFUSALS = ["notification_not_found"] as const;
+export type WorkItemNotificationRefusal = (typeof WORK_ITEM_NOTIFICATION_REFUSALS)[number];
+
+/** `code` values in `details.problems` of a `linked_plan_invalid` refusal. */
+export const WORK_ITEM_LINKED_PLAN_PROBLEMS = [
+  "empty",
+  "bad_step",
+  "bad_dependencies",
+  "too_many_steps",
+  "bad_key",
+  "duplicate_key",
+  "bad_department",
+  "unknown_dependency",
+  "self_dependency",
+  "cycle",
+] as const;
+export type WorkItemLinkedPlanProblem = (typeof WORK_ITEM_LINKED_PLAN_PROBLEMS)[number];

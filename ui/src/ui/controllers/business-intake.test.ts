@@ -125,7 +125,7 @@ describe("Business expense intake", () => {
 
   it("requires an expense-capable queue and a healthy settled queue", () => {
     const { h } = host();
-    h.business.config = { ...config, queues: [config.queues[0]!] };
+    h.business.config = { ...config, queues: [config.queues[0]] };
     expect(canBeginExpense(h)).toBe(false);
     h.business.config = config;
     h.business.loading = true;
@@ -496,4 +496,18 @@ describe("saved expense edits and submission", () => {
     resetBusiness(h);
     expect(h.business.expenseNotice).toContain("update outcome");
   });
+});
+
+it.each(["form", "pending"])("blocks expense creation during a report %s", async (stage) => {
+  const { h, request } = host();
+  if (stage === "form") {
+    h.business.reportForm = { id: "a", revision: 1, reason: "Wrong amount" };
+  } else {
+    h.business.decisionPending = true;
+  }
+  beginBusinessExpense(h);
+  expect(h.business.expenseForm).toBeNull();
+  h.business.expenseForm = validForm();
+  await createBusinessExpense(h);
+  expect(request).not.toHaveBeenCalled();
 });

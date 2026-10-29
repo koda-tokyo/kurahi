@@ -139,3 +139,169 @@ describe("expense submit focus handoff", () => {
     expect(s.button.focus).toHaveBeenCalledOnce();
   });
 });
+
+describe("notification item navigation", () => {
+  function notificationSetup() {
+    const s = setup();
+    s.host.business.notifications = {
+      ...s.host.business.notifications,
+      open: true,
+      records: [
+        {
+          id: "n1",
+          itemId: "item-2",
+          principal: "alice",
+          reason: "linked_case_complete",
+          revision: 2,
+          childId: "child-1",
+          createdAt: "2026-10-26T06:00:00Z",
+          readAt: null,
+        },
+      ],
+    };
+    const item = {
+      ...s.host.business.item!,
+      id: "item-2",
+      type: "expense" as const,
+      source: { fields: {}, documents: [] },
+    };
+    const request = vi.fn().mockResolvedValue({ item });
+    s.host.client = { request } as unknown as KoLoApp["client"];
+    return { ...s, request, item };
+  }
+  it.each(["all", "finance"])(
+    "opens the parent with fresh access checks and focuses it in %s",
+    async (department) => {
+      const s = notificationSetup();
+      s.host.business.department = department;
+      s.host.business.queue = "filtered-queue";
+      const action = KoLoApp.prototype.openBusinessNotification.call(s.host, "n1");
+      s.finishUpdate();
+      await action;
+      expect(s.request.mock.calls).toEqual([
+        ["workitems.get", { projectId: "p1", id: "item-2" }],
+        ["workitems.linked.get", { projectId: "p1", id: "item-2" }],
+      ]);
+      expect(s.host.business.item?.id).toBe("item-2");
+      expect(s.host.business.department).toBe(department);
+      expect(s.host.business.queue).toBe("filtered-queue");
+      expect(s.host.business.notifications.records![0].readAt).toBeNull();
+      expect(s.button.focus).toHaveBeenCalledOnce();
+    },
+  );
+  it.each([
+    "unknown",
+    "closed",
+    "loading",
+    "error",
+    "project",
+    "client",
+    "tab",
+    "view",
+    "offline",
+    "decisionPending",
+    "expensePending",
+    "workPending",
+    "decisionForm",
+    "reportForm",
+    "expenseForm",
+    "workForm",
+    "expenseUncertain",
+    "workUncertain",
+    "pendingId",
+  ])("refuses %s navigation", async (kind) => {
+    const s = notificationSetup();
+    if (kind === "closed") {
+      s.host.business.notifications.open = false;
+    }
+    if (kind === "loading") {
+      s.host.business.notifications.loading = true;
+    }
+    if (kind === "error") {
+      s.host.business.notifications.error = true;
+    }
+    if (kind === "project") {
+      s.host.projects.selectedId = "p2";
+    }
+    if (kind === "client") {
+      s.host.client = null;
+    }
+    if (kind === "tab") {
+      s.host.tab = "chat";
+    }
+    if (kind === "view") {
+      s.host.projects.view = "chat";
+    }
+    if (kind === "offline") {
+      s.host.connected = false;
+    }
+    if (kind === "pendingId") {
+      s.host.business.notifications.pendingId = "n1";
+    }
+    if (
+      [
+        "decisionPending",
+        "expensePending",
+        "workPending",
+        "decisionForm",
+        "reportForm",
+        "expenseForm",
+        "workForm",
+        "expenseUncertain",
+        "workUncertain",
+      ].includes(kind)
+    ) {
+      Object.assign(s.host.business, { [kind]: true });
+    }
+    s.finishUpdate();
+    await KoLoApp.prototype.openBusinessNotification.call(
+      s.host,
+      kind === "unknown" ? "missing" : "n1",
+    );
+    expect(s.request).not.toHaveBeenCalled();
+    expect(s.button.focus).not.toHaveBeenCalled();
+  });
+  it.each(["project", "client", "tab", "view", "offline", "reset", "selection"])(
+    "does not steal focus after %s changes",
+    async (kind) => {
+      const s = notificationSetup();
+      const action = KoLoApp.prototype.openBusinessNotification.call(s.host, "n1");
+      await vi.waitFor(() => expect(s.host.business.item?.id).toBe("item-2"));
+      if (kind === "project") {
+        s.host.projects.selectedId = "p2";
+      }
+      if (kind === "client") {
+        s.host.client = null;
+      }
+      if (kind === "tab") {
+        s.host.tab = "chat";
+      }
+      if (kind === "view") {
+        s.host.projects.view = "chat";
+      }
+      if (kind === "offline") {
+        s.host.connected = false;
+      }
+      if (kind === "reset") {
+        s.host.business = emptyBusiness();
+      }
+      if (kind === "selection") {
+        s.host.business.selectedId = "newer";
+      }
+      s.finishUpdate();
+      await action;
+      expect(s.button.focus).not.toHaveBeenCalled();
+    },
+  );
+  it("shows safe detail failure when the item is no longer accessible", async () => {
+    const s = notificationSetup();
+    s.request.mockRejectedValue(new Error("private path"));
+    s.finishUpdate();
+    await KoLoApp.prototype.openBusinessNotification.call(s.host, "n1");
+    expect(s.host.business.item).toBeNull();
+    expect(s.host.business.detailError).toBeTruthy();
+    expect(s.host.business.detailError).not.toContain("private path");
+    expect(s.host.business.notifications.records![0].readAt).toBeNull();
+    expect(s.button.focus).not.toHaveBeenCalled();
+  });
+});

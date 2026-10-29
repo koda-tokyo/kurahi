@@ -148,7 +148,14 @@ export type IntakeResult = { item: WorkItem; created: boolean };
  * attribution fields kept on a NEW item's source.fields (routine, run …). Ignored when the
  * message was taken in before.
  */
-export type IntakeExtras = { fields?: Record<string, string | number | boolean | null> };
+export type IntakeExtras = {
+  fields?: Record<string, string | number | boolean | null>;
+  /**
+   * Project files the engine's actions wrote for this item (a quotation, a 設計書), as source
+   * documents of the NEW item; createWorkItem checks each one is inside the Project.
+   */
+  documents?: Array<{ kind: "file"; ref: string }>;
+};
 
 /** The item already made from this message in the Project, if any. */
 export function findByEmailOrigin(
@@ -211,7 +218,14 @@ export function intakeEmail(
       title: input.title,
       priority: input.priority,
       ...(input.dueAt !== undefined ? { dueAt: input.dueAt } : {}),
-      ...(extras.fields ? { source: { fields: extras.fields } } : {}),
+      ...(extras.fields || extras.documents?.length
+        ? {
+            source: {
+              ...(extras.fields ? { fields: extras.fields } : {}),
+              ...(extras.documents?.length ? { documents: extras.documents } : {}),
+            },
+          }
+        : {}),
     };
     const item = createWorkItem(
       project,

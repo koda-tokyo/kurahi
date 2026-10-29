@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   AutopilotAutonomyProposalsResult,
   AutopilotRoutinesListResult,
@@ -442,6 +442,17 @@ describe("Autopilot run inspection", () => {
     expect(host.autopilot.selectedRunId).toBeNull();
     expect(host.autopilot.runDetail).toBeNull();
   });
+  it.each([true, false])("preserves a retention receipt with verification %s", async (ok) => {
+    const { host, request } = await detailSetup();
+    const receipt = {
+      ...detail,
+      evidence: { ok, problems: ok ? [] : ["Invalid signature"], tombstone: true },
+    };
+    request.mockResolvedValueOnce(receipt);
+    await inspectAutopilotRun(host, "r1");
+    expect(host.autopilot.runDetail).toEqual(receipt);
+    expect(host.autopilot.selectedRunId).toBe("r1");
+  });
   it("does not inspect an unknown run or while page data loads", async () => {
     const { host, request } = await detailSetup();
     await inspectAutopilotRun(host, "unknown");
@@ -497,7 +508,10 @@ describe("Autopilot run inspection", () => {
       await inspectAutopilotRun(host, change === "run" ? "r2" : "r1");
     }
     const before = host.autopilot;
-    wait.resolve(detail);
+    wait.resolve({
+      ...detail,
+      evidence: { ok: true, problems: [], tombstone: true },
+    } as typeof detail);
     await pending;
     expect(host.autopilot).toBe(before);
   });
@@ -676,7 +690,7 @@ describe("Autonomy decline", () => {
     expect(host.autopilot.declineReasons.receipt).toBe("  Needs review  ");
     expect(host.autopilot.declineStatus).toBe("declineChanged");
   });
-  it("allows a new project's mutation while ignoring the old project's delayed response", async () => {
+  it("waits for the old project write before allowing a new project mutation", async () => {
     const { host, request } = await ready();
     const proposals = host.autopilot.autonomy;
     const old = deferred<unknown>();
@@ -684,6 +698,12 @@ describe("Autonomy decline", () => {
     const pending = declineAutonomy(host, "receipt");
     host.projects.selectedId = "p2";
     await loadAutopilot(host);
+    await declineAutonomy(host, "receipt");
+    expect(request).toHaveBeenCalledTimes(1);
+    old.resolve({});
+    await pending;
+    expect(host.autopilot.projectId).toBe("p2");
+    expect(host.autopilot.declineStatus).toBeNull();
     host.autopilot.autonomy = proposals;
     setAutonomyDeclineReason(host, "receipt", "x".repeat(1000));
     await declineAutonomy(host, "receipt");
@@ -694,11 +714,6 @@ describe("Autonomy decline", () => {
       proposed: "L2",
       reason: "x".repeat(1000),
     });
-    const latest = host.autopilot;
-    old.resolve({});
-    await pending;
-    expect(host.autopilot).toBe(latest);
-    expect(host.autopilot.projectId).toBe("p2");
   });
   it.each(["proposal_changed", "nothing_to_decline", "not_a_person", "forbidden"])(
     "localizes %s and refreshes stale proposals",
@@ -901,7 +916,7 @@ describe("Autonomy accept", () => {
     expect(host.autopilot.declineReasons.receipt).toBe("  Needs review  ");
     expect(host.autopilot.acceptStatus).toBe("acceptChanged");
   });
-  it("allows a new project's mutation while ignoring the old project's delayed response", async () => {
+  it("waits for the old project write before allowing a new project mutation", async () => {
     const { host, request } = await ready();
     const proposals = host.autopilot.autonomy;
     const old = deferred<unknown>();
@@ -909,6 +924,12 @@ describe("Autonomy accept", () => {
     const pending = acceptAutonomy(host, "receipt");
     host.projects.selectedId = "p2";
     await loadAutopilot(host);
+    await acceptAutonomy(host, "receipt");
+    expect(request).toHaveBeenCalledTimes(1);
+    old.resolve({});
+    await pending;
+    expect(host.autopilot.projectId).toBe("p2");
+    expect(host.autopilot.acceptStatus).toBeNull();
     host.autopilot.autonomy = proposals;
     setAutonomyDeclineReason(host, "receipt", "x".repeat(1000));
     await acceptAutonomy(host, "receipt");
@@ -919,11 +940,6 @@ describe("Autonomy accept", () => {
       proposed: "L2",
       reason: "x".repeat(1000),
     });
-    const latest = host.autopilot;
-    old.resolve({});
-    await pending;
-    expect(host.autopilot).toBe(latest);
-    expect(host.autopilot.projectId).toBe("p2");
   });
   it.each([
     "proposal_changed",
@@ -1034,6 +1050,67 @@ describe("routine pause and resume", () => {
     request.mockClear();
     return { host, request };
   }
+  afterEach(() => vi.useRealTimers());
+  it.each([false, true])(
+    "blocks a pause while the current read is pending (read rejects=%s)",
+    async (reject) => {
+      const { host, request } = await ready();
+      const listed = host.autopilot.routines!;
+      const pending = deferred<typeof routines>();
+      request.mockImplementationOnce(async () => {
+        await pending.promise;
+        if (reject) {
+          throw new Error("Read failed");
+        }
+        return listed;
+      });
+      const reading = loadAutopilot(host);
+      expect(host.autopilot.loading).toBe(true);
+      await changeAutopilotRoutine(host, "receipt", "pause");
+      expect(request.mock.calls.some(([method]) => method === "autopilot.pause")).toBe(false);
+      pending.resolve(listed);
+      await reading;
+      expect(host.autopilot.loading).toBe(false);
+      expect(host.autopilot.error).toBe(reject);
+      expect(host.autopilot.mutationDelayed).toBe(false);
+    },
+  );
+  it.each([false, true])(
+    "preserves a delayed pause when a superseded read settles (read rejects=%s)",
+    async (reject) => {
+      vi.useFakeTimers();
+      const { host, request } = await ready();
+      const listed = host.autopilot.routines!;
+      const oldRead = deferred<typeof routines>();
+      request.mockImplementationOnce(async () => {
+        await oldRead.promise;
+        if (reject) {
+          throw new Error("Old read failed");
+        }
+        return routines;
+      });
+      const reading = loadAutopilot(host);
+      request.mockResolvedValueOnce(listed);
+      await loadAutopilot(host);
+      const pendingWrite = deferred<typeof routines>();
+      request.mockImplementationOnce(() => pendingWrite.promise);
+      const writing = changeAutopilotRoutine(host, "receipt", "pause");
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(host.autopilot.mutationDelayed).toBe(true);
+      const before = host.autopilot;
+      oldRead.resolve(routines);
+      await reading;
+      expect(host.autopilot).toBe(before);
+      expect(host.autopilot.mutationDelayed).toBe(true);
+      await changeAutopilotRoutine(host, "receipt", "pause");
+      expect(request.mock.calls.filter(([method]) => method === "autopilot.pause")).toHaveLength(1);
+      pendingWrite.resolve(routines);
+      await writing;
+      expect(host.autopilot.mutationDelayed).toBe(false);
+      expect(host.autopilot.routineStatus).toBe("routinePaused");
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
   it.each([null, "watchdog", "stopAll"])(
     "resumes a %s pause and displays refreshed server state",
     async (pausedBy) => {
@@ -1315,6 +1392,9 @@ describe("Autopilot error reports", () => {
     });
     expect(host.autopilot.reportStatus).toBe("reportSaved");
     expect(host.autopilot.reportReasons.item1).toBe("");
+    expect(request.mock.calls.filter(([method]) => method === "autopilot.runs.get")).toHaveLength(
+      1,
+    );
   });
   it.each([
     "reader",
@@ -1462,4 +1542,196 @@ describe("Autopilot error reports", () => {
       request.mock.calls.filter(([method]) => method === "autopilot.reportError"),
     ).toHaveLength(1);
   });
+});
+
+describe("Business linked runs", () => {
+  it.each([true, false])(
+    "checks item membership outside the loaded run page: %s",
+    async (matches) => {
+      const { host, request } = await detailSetup();
+      host.autopilot.runs = { runs: [], total: 0, nextCursor: null };
+      host.autopilot.linkedRun = { id: "r1", itemId: "item1" };
+      request.mockResolvedValue({
+        ...detail,
+        run: { ...detail.run, workItems: matches ? ["item1"] : [] },
+      });
+      await inspectAutopilotRun(host, "r1");
+      expect(host.autopilot.runError).toBe(!matches);
+      expect(host.autopilot.runDetail !== null).toBe(matches);
+      closeAutopilotRun(host);
+      expect(host.autopilot.linkedRun).toBeNull();
+    },
+  );
+  it("keeps a linked run after refreshing a page that does not contain it", async () => {
+    const { host } = setup();
+    host.autopilot = {
+      ...emptyAutopilot(),
+      projectId: "p1",
+      linkedRun: { id: "r1", itemId: "item1" },
+      selectedRunId: "r1",
+    };
+    host.client = {
+      request: vi.fn(async (method) =>
+        method === "autopilot.runs.get"
+          ? { ...detail, run: { ...detail.run, workItems: ["item1"] } }
+          : method === "autopilot.runs.list"
+            ? runs
+            : method === "autopilot.routines.list"
+              ? routines
+              : stats,
+      ),
+    } as unknown as GatewayBrowserClient;
+    await loadAutopilot(host);
+    expect(host.autopilot.selectedRunId).toBe("r1");
+    expect(host.autopilot.runDetail?.run.id).toBe("r1");
+  });
+});
+
+describe("Autopilot mutations survive navigation", () => {
+  afterEach(() => vi.useRealTimers());
+  it.each(
+    (["report", "accept", "decline", "pause"] as const).flatMap((action) =>
+      (["reset", "linked-reset", "project", "client"] as const).flatMap((navigation) =>
+        [false, true].map((reject) => ({ action, navigation, reject })),
+      ),
+    ),
+  )(
+    "keeps $action locked through $navigation until settlement (reject=$reject)",
+    async ({ action, navigation, reject }) => {
+      vi.useFakeTimers();
+      const { host } = setup();
+      host.hello = {
+        type: "hello-ok",
+        protocol: 3,
+        auth: { role: "operator", scopes: ["operator.approvals"] },
+      };
+      const listedRoutines = {
+        ...routines,
+        routines: [{ id: "receipt", state: { paused: false, pausedBy: null } }],
+      } as AutopilotRoutinesListResult;
+      const proposals = {
+        ...autonomy,
+        proposals: [
+          {
+            routineId: "receipt",
+            kind: "promote",
+            proposed: "L2",
+            declined: null,
+            acceptBlocker: null,
+          },
+        ],
+      } as AutopilotAutonomyProposalsResult;
+      const request = vi.fn(async (method: string): Promise<unknown> => {
+        if (method === "autopilot.routines.list") {
+          return listedRoutines;
+        }
+        if (method === "autopilot.autonomy.proposals") {
+          return proposals;
+        }
+        const run = { ...detail.run, projectId: host.projects.selectedId!, workItems: ["item1"] };
+        if (method === "autopilot.runs.list") {
+          return { runs: [run], total: 1, nextCursor: null };
+        }
+        if (method === "autopilot.runs.get") {
+          return { ...detail, run };
+        }
+        return stats;
+      });
+      host.client = { request } as unknown as GatewayBrowserClient;
+      const prepare = async () => {
+        await inspectAutopilotRun(host, "r1");
+        setAutopilotReportReason(host, "item1", "Wrong recipient");
+        setAutonomyDeclineReason(host, "receipt", "Reviewed proposal");
+        setAutopilotRoutineReason(host, "receipt", "Needs review");
+      };
+      const write = () =>
+        action === "report"
+          ? reportAutopilotError(host, "item1")
+          : action === "accept"
+            ? acceptAutonomy(host, "receipt")
+            : action === "decline"
+              ? declineAutonomy(host, "receipt")
+              : changeAutopilotRoutine(host, "receipt", "pause");
+      const method =
+        action === "report"
+          ? "autopilot.reportError"
+          : action === "pause"
+            ? "autopilot.pause"
+            : `autopilot.autonomy.${action}`;
+      await loadAutopilot(host);
+      await prepare();
+      request.mockClear();
+      const pending = deferred<unknown>();
+      request.mockImplementationOnce(async () => {
+        await pending.promise;
+        if (reject) {
+          throw new Error("Transport lost");
+        }
+        return {};
+      });
+      const writing = write();
+      expect(host.autopilot.mutationDelayed).toBe(false);
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(host.autopilot.mutationDelayed).toBe(false);
+      // Exercise notice onset both before and after navigation.
+      if (!reject) {
+        await vi.advanceTimersByTimeAsync(1);
+        expect(host.autopilot.mutationDelayed).toBe(true);
+      }
+      if (navigation === "reset" || navigation === "linked-reset") {
+        resetAutopilot(host);
+      }
+      if (navigation === "linked-reset") {
+        host.autopilot = {
+          ...host.autopilot,
+          projectId: "p1",
+          filters: { edition: "business" },
+          linkedRun: { id: "r1", itemId: "item1" },
+          selectedRunId: "r1",
+        };
+      }
+      if (navigation === "project") {
+        host.projects.selectedId = "p2";
+      }
+      if (navigation === "client") {
+        host.client = { request } as unknown as GatewayBrowserClient;
+      }
+      await loadAutopilot(host);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(host.autopilot.mutationDelayed).toBe(true);
+      autopilotEvent(host, { projectId: host.projects.selectedId });
+      await prepare();
+      await write();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(host.autopilot.mutationDelayed).toBe(true);
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(host.autopilot.projectId).toBe(host.projects.selectedId);
+      expect(host.autopilot.loading).toBe(true);
+      expect(host.autopilot.runs).toBeNull();
+      if (navigation === "linked-reset") {
+        expect(host.autopilot.filters).toEqual({ edition: "business" });
+        expect(host.autopilot.linkedRun).toEqual({ id: "r1", itemId: "item1" });
+      }
+      pending.resolve({});
+      await writing;
+      expect(host.autopilot.mutationDelayed).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(host.autopilot.loading).toBe(false);
+      expect(host.autopilot.runs?.runs[0].projectId).toBe(host.projects.selectedId);
+      expect(host.autopilot.reportStatus).toBeNull();
+      expect(host.autopilot.acceptStatus).toBeNull();
+      expect(host.autopilot.declineStatus).toBeNull();
+      expect(host.autopilot.routineStatus).toBeNull();
+      expect(host.autopilot.reportReasons).toEqual({});
+      expect(host.autopilot.declineReasons).toEqual({});
+      expect(host.autopilot.routineReasons).toEqual({});
+      expect(request.mock.calls.filter(([called]) => called === method)).toHaveLength(1);
+      await prepare();
+      await write();
+      expect(request.mock.calls.filter(([called]) => called === method)).toHaveLength(2);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(host.autopilot.mutationDelayed).toBe(false);
+    },
+  );
 });

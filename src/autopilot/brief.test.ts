@@ -10,10 +10,12 @@ import type { Reasoner } from "./reasoner.js";
 import type { ToolCall, ToolInvoker } from "./runner.js";
 import { flushAudit } from "../audit/audit-log.js";
 import { AutopilotBriefSchema } from "../gateway/protocol/schema/autopilot.js";
-import { createProject } from "../projects/store.js";
+import { createProject, projectDataDir } from "../projects/store.js";
 import { loadTemplates, resolveTemplatesDir } from "../projects/templates.js";
 import { createWorkItem } from "../workitems/lifecycle.js";
-import { readWorkItem, writeWorkItem } from "../workitems/store.js";
+import { createLinkedCase } from "../workitems/links-store.js";
+import { markNotificationRead, recordNotifications } from "../workitems/notifications-store.js";
+import { readWorkItem, workItemDir, writeWorkItem } from "../workitems/store.js";
 import { buildBrief, renderBriefText } from "./brief.js";
 import { loadRoutines, parseRoutines } from "./routines.js";
 import { runRoutine } from "./runner.js";
@@ -218,7 +220,7 @@ describe("morning brief contents", () => {
     ]).toEqual([]);
     for (const b of [alice, bob, carol, outsider]) {
       expect(Value.Check(AutopilotBriefSchema, b)).toBe(true);
-      expect(Object.values(b.truncated)).toEqual([false, false, false, false]);
+      expect(Object.values(b.truncated)).toEqual([false, false, false, false, false]);
     }
   });
 
@@ -312,6 +314,7 @@ describe("morning brief caps", () => {
       decisions: false,
       flagged: false,
       commitments: true,
+      linked: false,
     });
     expect(Value.Check(AutopilotBriefSchema, bob)).toBe(true);
     const text = renderBriefText(bob).body;
@@ -319,5 +322,96 @@ describe("morning brief caps", () => {
     expect(text).toContain("More not shown");
     // Another person's short list stays untruncated.
     expect(buildBrief(project, person(ALICE)).truncated.commitments).toBe(false);
+  });
+});
+
+describe("morning brief linked cases", () => {
+  it("lists the owner's linked case with ready steps, and an unreadable record, nobody else's", () => {
+    const parent = createWorkItem(
+      project,
+      { queue: "secretariat-work", title: "Onboard Eve", source: { documents: [], fields: {} } },
+      person(BOB),
+    );
+    createLinkedCase(
+      project.id,
+      parent.id,
+      {
+        steps: [
+          { key: "prepare", department: "hr", title: { en: "Prepare" }, dependsOn: [] },
+          { key: "account", department: "it", title: { en: "Account" }, dependsOn: ["prepare"] },
+        ],
+      },
+      person(BOB),
+      new Date(),
+    );
+    const bob = buildBrief(project, person(BOB));
+    expect(bob.waiting.linked).toEqual([
+      expect.objectContaining({
+        itemId: parent.id,
+        done: 0,
+        total: 2,
+        ready: ["prepare"],
+        missing: [],
+        blocked: false,
+        unreadable: false,
+      }),
+    ]);
+    expect(Value.Check(AutopilotBriefSchema, bob)).toBe(true);
+    expect(renderBriefText(bob).body).toContain("steps ready to open: prepare");
+    // Alice can read nothing of Bob's; Carol (operator) can read it but does not own it.
+    expect(buildBrief(project, person(ALICE)).waiting.linked).toEqual([]);
+    expect(buildBrief(project, person(CAROL)).waiting.linked).toEqual([]);
+
+    fs.writeFileSync(path.join(workItemDir(project.id, parent.id), "linked-case.json"), "{");
+    const broken = buildBrief(project, person(BOB));
+    expect(broken.waiting.linked).toEqual([
+      expect.objectContaining({ itemId: parent.id, unreadable: true, ready: [] }),
+    ]);
+    expect(renderBriefText(broken).body).toContain("連携記録を読み取れません");
+  });
+});
+
+describe("morning brief notifications", () => {
+  it("counts the person's unread notifications on items they can read; unreadable says so", () => {
+    const item = createWorkItem(
+      project,
+      { queue: "secretariat-work", title: "Bob's notice", source: { documents: [], fields: {} } },
+      person(BOB),
+    );
+    const unread = (id: string) => buildBrief(project, person(id)).waiting.notifications;
+    const bobBefore = unread(BOB)!.unread;
+    const aliceBefore = unread(ALICE)!.unread;
+    const added = recordNotifications(
+      { projectId: project.id, id: item.id, revision: item.revision + 100 },
+      [
+        { principal: BOB, reason: "decided" },
+        // Alice cannot read Bob's item: the record exists but the brief must not count it.
+        { principal: ALICE, reason: "awaiting_you" },
+      ],
+      new Date(),
+    );
+    const bob = buildBrief(project, person(BOB));
+    expect(bob.waiting.notifications).toEqual({ unread: bobBefore + 1, unreadable: false });
+    expect(unread(ALICE)).toEqual({ unread: aliceBefore, unreadable: false });
+    expect(Value.Check(AutopilotBriefSchema, bob)).toBe(true);
+    expect(renderBriefText(bob).body).toContain(`${bobBefore + 1} unread`);
+    const mine = added.find((n) => n.principal === BOB)!;
+    markNotificationRead(project.id, BOB, mine.id, new Date());
+    expect(unread(BOB)).toEqual({ unread: bobBefore, unreadable: false });
+
+    const dir = path.join(projectDataDir(project.id), "notifications");
+    const files = fs.readdirSync(dir).map((f) => path.join(dir, f));
+    const saved = files.map((f) => fs.readFileSync(f));
+    try {
+      for (const f of files) {
+        fs.writeFileSync(f, "{");
+      }
+      const broken = buildBrief(project, person(BOB));
+      expect(broken.waiting.notifications).toEqual({ unread: 0, unreadable: true });
+      expect(Value.Check(AutopilotBriefSchema, broken)).toBe(true);
+      expect(renderBriefText(broken).body).toContain("通知記録を読み取れません");
+    } finally {
+      files.forEach((f, i) => fs.writeFileSync(f, saved[i]));
+    }
   });
 });

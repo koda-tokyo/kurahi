@@ -17,7 +17,7 @@ LangfuseとArizeとの連携で提供しており、watsonx Orchestrate は外�
 - ガバナンス連携が読むLangfuse（またはArize、その他のOTLP）のエンドポイントへ
 - 任意で Orchestrate のトレース受付へ（Orchestrate自身のトレースと並べて見られます）
 
-**状態：プレビュー。** 属性名はLangfuseのOpenTelemetryの資料とOrchestrateのトレース受付の資料に沿っています。
+**状態：提供中。** 属性名はLangfuseのOpenTelemetryの資料とOrchestrateのトレース受付の資料に沿っています。
 
 ## 送る内容
 

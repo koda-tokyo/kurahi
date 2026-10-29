@@ -1,5 +1,5 @@
 ---
-summary: "IBM watsonx 連携パック：watsonx Orchestrate、watsonx.ai、watsonx.governance、watsonx.data、Db2 を置き換えずに Kurahi と並べて使う。現在使えるもの、設定のメモ、今後の予定"
+summary: "IBM watsonx 連携パック：watsonx Orchestrate、watsonx.ai、watsonx.governance、watsonx.data、Db2 を置き換えずに Kurahi と並べて使う。現在使えるもの、設定のメモ、含まれないもの"
 read_when:
   - 社内で IBM watsonx の製品を運用しており、Kurahi を並べて使うことを検討している
   - IBMとの連携点と、その状態の一覧が必要
@@ -14,20 +14,20 @@ Kurahi は、企業がすでに使っているIBMの環境を置き換えるの�
 IBMが対応するオープンなプロトコル（A2A、MCP、OpenAPI、OpenTelemetry、Presto/Trinoのクライアントプロトコル）を使い、
 それ以外は資料のあるIBMのREST APIを使います。すべて既定では無効で、管理者が有効にする必要があります。
 
-連携パックは **プレビュー** として提供しています。IBMの公開資料とSDKに沿って実装し、すべての連携を Kurahi の適合テストで確認しています。
+連携パックは提供中です。IBMの公開資料とSDKに沿って実装し、すべての連携を Kurahi の適合テストで確認しています。
 
 ## 現在使えるもの
 
-| IBMの製品             | 方向                  | Kurahi側                                                                | ページ                                                          | 状態       |
-| --------------------- | --------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------- | ---------- |
-| watsonx Orchestrate   | Orchestrate → Kurahi  | A2A 0.3.0サーバーとAgent Card（`a2a` プラグイン）                       | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | プレビュー |
-| watsonx Orchestrate   | Orchestrate → Kurahi  | リモートMCPツールキット（レガシー解析のMCPサーバー）                    | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | プレビュー |
-| watsonx Orchestrate   | Orchestrate → Kurahi  | OpenAPI 3.0のaskエンドポイント（`server.rest`）                         | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | プレビュー |
-| watsonx Orchestrate   | Kurahi → Orchestrate  | `orchestrate_agent_chat`（`watsonx-orchestrate` プラグイン）            | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | プレビュー |
-| watsonx.ai            | Kurahi がモデルを使う | `watsonx` プロバイダー（IAM更新、リージョン、バージョン、プロジェクト） | [watsonx.ai](/ja/providers/watsonx)                             | プレビュー |
-| watsonx.governance    | Kurahi が実行を報告   | Langfuse互換属性のOTLPスパン、Orchestrateへの送信                       | [watsonx.governance](/ja/integrations/ibm-watsonx-governance)   | プレビュー |
-| watsonx.data          | Kurahi が読む         | `watsonx_data_query`（`ibm-data` プラグイン）                           | [watsonx.data と Db2](/ja/integrations/ibm-watsonx-data-db2)    | プレビュー |
-| Db2 for z/OS、Db2 LUW | Kurahi が読む         | `db2_service_call`（`ibm-data` プラグイン）                             | [watsonx.data と Db2](/ja/integrations/ibm-watsonx-data-db2)    | プレビュー |
+| IBMの製品             | 方向                  | Kurahi側                                                                | ページ                                                          | 状態   |
+| --------------------- | --------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------- | ------ |
+| watsonx Orchestrate   | Orchestrate → Kurahi  | A2A 0.3.0サーバーとAgent Card（`a2a` プラグイン）                       | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | 提供中 |
+| watsonx Orchestrate   | Orchestrate → Kurahi  | リモートMCPツールキット（レガシー解析のMCPサーバー）                    | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | 提供中 |
+| watsonx Orchestrate   | Orchestrate → Kurahi  | OpenAPI 3.0のaskエンドポイント（`server.rest`）                         | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | 提供中 |
+| watsonx Orchestrate   | Kurahi → Orchestrate  | `orchestrate_agent_chat`（`watsonx-orchestrate` プラグイン）            | [watsonx Orchestrate](/ja/integrations/ibm-watsonx-orchestrate) | 提供中 |
+| watsonx.ai            | Kurahi がモデルを使う | `watsonx` プロバイダー（IAM更新、リージョン、バージョン、プロジェクト） | [watsonx.ai](/ja/providers/watsonx)                             | 提供中 |
+| watsonx.governance    | Kurahi が実行を報告   | Langfuse互換属性のOTLPスパン、Orchestrateへの送信                       | [watsonx.governance](/ja/integrations/ibm-watsonx-governance)   | 提供中 |
+| watsonx.data          | Kurahi が読む         | `watsonx_data_query`（`ibm-data` プラグイン）                           | [watsonx.data と Db2](/ja/integrations/ibm-watsonx-data-db2)    | 提供中 |
+| Db2 for z/OS、Db2 LUW | Kurahi が読む         | `db2_service_call`（`ibm-data` プラグイン）                             | [watsonx.data と Db2](/ja/integrations/ibm-watsonx-data-db2)    | 提供中 |
 
 ## すべてに共通する決まり
 
@@ -48,8 +48,8 @@ IBMが対応するオープンなプロトコル（A2A、MCP、OpenAPI、OpenTel
 - **トレース受付：** お使いのリージョンの Orchestrate のトレース受付URLを設定します。
 - **watsonx.data と Db2：** エンジンの認証と Db2 LUW のRESTサービスについては[設定のメモ](/ja/integrations/ibm-watsonx-data-db2)を参照してください。
 
-## 今後の予定
+## 含まれないもの
 
-- **OpenShift：** Red Hat OpenShift 上で watsonx と並べて動かすためのHelmチャート、Red Hatの認定（chart-verifier）、その後にOperator
-- ツールを使わないモデルAPI（watsonx.ai など）を使うオートパイロットの推論バックエンド（実行の証跡つき）
-- watsonx.governance の外部プロンプトテンプレートによる Kurahi エージェントの評価登録
+- **OpenShift：** Red Hat OpenShift 上で watsonx と並べて動かすためのHelmチャート、Red Hatの認定（chart-verifier）、Operatorはありません。
+- オートパイロットの推論は watsonx.ai 独自のチャットAPIを呼び出しません。推論バックエンド `api` は、Sakura AI Engine、Qwen のエンドポイント、ローカルの Ollama など OpenAI 互換のプロバイダーに対応します。
+- watsonx.governance の外部プロンプトテンプレートによる Kurahi エージェントの評価登録は行いません。

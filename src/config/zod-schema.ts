@@ -3,6 +3,7 @@ import { MemorySchema, ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
 import { HexColorSchema, ModelsConfigSchema } from "./zod-schema.core.js";
+import { GovernanceSchema } from "./zod-schema.governance.js";
 import { HookMappingSchema, HooksGmailSchema, InternalHooksSchema } from "./zod-schema.hooks.js";
 import { GatewayIdentitySchema } from "./zod-schema.identity.js";
 import { McpSchema } from "./zod-schema.mcp.js";
@@ -491,6 +492,7 @@ export const KoLoSchema = z
       })
       .strict()
       .optional(),
+    governance: GovernanceSchema,
     factory: z
       .object({
         enabled: z.boolean().optional(),

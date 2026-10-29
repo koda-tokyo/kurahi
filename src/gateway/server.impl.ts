@@ -222,6 +222,10 @@ export async function startGatewayServer(
   {
     const { setAuditErrorReporter } = await import("../audit/audit-log.js");
     setAuditErrorReporter((msg) => log.warn(msg));
+    if (configSnapshot.config.governance?.personalData?.redactLogs) {
+      const { setAuditPersonalDataRedaction } = await import("../audit/redact.js");
+      setAuditPersonalDataRedaction("all");
+    }
     const { runBootIntegrityGate } = await import("../integrity/gate.js");
     await runBootIntegrityGate({ log });
     // M13: then the policy gate. An unattested policy.yaml refuses the boot in enforce mode

@@ -127,7 +127,7 @@ A work item belongs to exactly one Project and is stored in that Project's data 
 | Field               | Meaning                                                                                         |
 | ------------------- | ----------------------------------------------------------------------------------------------- |
 | `queue`             | Queue id from the Project's policy (e.g. `fin-expense`)                                         |
-| `type`              | `request` `case` `document` `invoice` `leave` `expense` `purchase` `custom`                     |
+| `type`              | `request` `case` `document` `invoice` `leave` `expense` `purchase` `quote` `custom`             |
 | `source`            | `documents` (attachment, project file or artifact refs, inside the Project) and form `fields`   |
 | `status`            | `new` `drafting` `awaiting_review` `approved` `sent_back` `done` `cancelled`                    |
 | `assignee`          | `{kind: "agent" \| "person", id}` or null                                                       |
@@ -161,22 +161,31 @@ earlier approvals and re-runs the checks.
 All methods take `projectId`; an item id from another Project answers `work item not found`.
 Reads and changes are also limited by ownership (see [Ownership and access](#ownership-and-access)).
 
-| Method                  | Scope (pairing / operator)    | Does                                                                                                                                                                                       |
-| ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `workitems.list`        | observe / `operator.read`     | Filters (queue, status, type, priority, assignee, overdue, `q`, `mine`, `awaitingMe`, `stage`, `department`, `flagged`), cursor paging, at most 200 per page, totals and per-status counts |
-| `workitems.get`         | observe / `operator.read`     | The full item with history                                                                                                                                                                 |
-| `workitems.config`      | observe / `operator.read`     | Queues (with `department`), the `departments` catalogue, rules, routes, access summary, the caller (`viewer`), policy source and digest                                                    |
-| `workitems.evidence`    | observe / `operator.read`     | Verifies every evidence bundle of the item and the chain between them                                                                                                                      |
-| `workitems.document`    | observe / `operator.read`     | Safe preview of a source document or the pinned draft                                                                                                                                      |
-| `workitems.draftDiff`   | observe / `operator.read`     | Line diff between two versions of the pinned draft, with provenance                                                                                                                        |
-| `workitems.stats`       | observe / `operator.read`     | Counts by status, queue and stage, overdue counts, median / 90th percentile time to approve; optional `department`                                                                         |
-| `workitems.create`      | attach / `operator.write`     | New item; field-only checks run at once                                                                                                                                                    |
-| `workitems.update`      | attach / `operator.write`     | Non-decision fields; `status` only `awaiting_review` (submit) or `done` (after approval)                                                                                                   |
-| `workitems.assignAgent` | attach / `operator.write`     | Starts an agent run that drafts; answers at once with `runId`                                                                                                                              |
-| `workitems.decide`      | attach / `operator.approvals` | `approve` / `send_back` / `cancel` on the current stage — person only                                                                                                                      |
-| `workitems.delegate`    | attach / `operator.approvals` | Hand the caller's decision on the current stage to another principal — person only                                                                                                         |
-| `workitems.intakeEmail` | attach / `operator.write`     | New item from an email, by reference; idempotent per message (see [Email intake](#email-intake))                                                                                           |
-| `workitems.clearFlag`   | attach / `operator.approvals` | Clear one risk flag with a written reason — person only (see [Risk flags](#risk-flags))                                                                                                    |
+| Method                             | Scope (pairing / operator)    | Does                                                                                                                                                                                       |
+| ---------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workitems.list`                   | observe / `operator.read`     | Filters (queue, status, type, priority, assignee, overdue, `q`, `mine`, `awaitingMe`, `stage`, `department`, `flagged`), cursor paging, at most 200 per page, totals and per-status counts |
+| `workitems.get`                    | observe / `operator.read`     | The full item with history                                                                                                                                                                 |
+| `workitems.config`                 | observe / `operator.read`     | Queues (with `department`), the `departments` catalogue, rules, routes, access summary, the caller (`viewer`), policy source and digest                                                    |
+| `workitems.evidence`               | observe / `operator.read`     | Verifies every evidence bundle of the item and the chain between them                                                                                                                      |
+| `workitems.document`               | observe / `operator.read`     | Safe preview of a source document or the pinned draft                                                                                                                                      |
+| `workitems.draftDiff`              | observe / `operator.read`     | Line diff between two versions of the pinned draft, with provenance                                                                                                                        |
+| `workitems.handoffs`               | observe / `operator.read`     | Read-only: the case's hand-offs, oldest first. A record edited on disk refuses the list (`handoff_tampered`)                                                                               |
+| `workitems.linked.get`             | observe / `operator.read`     | The case's linked plan across departments with live step states, or `null`. Same visibility as `workitems.get`                                                                             |
+| `workitems.linked.create`          | attach / `operator.write`     | Attach a plan (steps, department, dependencies) to an open case; requester or privileged only. One plan per case (`linked_case_exists`)                                                    |
+| `workitems.linked.attach`          | attach / `operator.write`     | Fill a ready step with a child item the caller can read, in a queue of the step's department per the current policy                                                                        |
+| `workitems.stats`                  | observe / `operator.read`     | Counts by status, queue and stage, overdue counts, median / 90th percentile time to approve; optional `department`                                                                         |
+| `workitems.notifications.list`     | observe / `operator.read`     | The caller's own in-app notification records, newest first; `unreadOnly` optional (see [Notifications](#notifications))                                                                    |
+| `workitems.create`                 | attach / `operator.write`     | New item; field-only checks run at once                                                                                                                                                    |
+| `workitems.update`                 | attach / `operator.write`     | Non-decision fields; `status` only `awaiting_review` (submit) or `done` (after approval)                                                                                                   |
+| `workitems.assignAgent`            | attach / `operator.write`     | Starts an agent run that drafts; answers at once with `runId`                                                                                                                              |
+| `workitems.decide`                 | attach / `operator.approvals` | `approve` / `send_back` / `cancel` on the current stage — person only                                                                                                                      |
+| `workitems.delegate`               | attach / `operator.approvals` | Hand the caller's decision on the current stage to another principal — person only                                                                                                         |
+| `workitems.withdrawDelegation`     | attach / `operator.approvals` | Take back the caller's own delegation on the current stage before the delegate uses it — person only                                                                                       |
+| `workitems.handoff.open`           | attach / `operator.approvals` | Person only: hand an approved case to one exact product and object. An approver of the case or a privileged operator, never its requester                                                  |
+| `workitems.handoff.event`          | attach / `operator.write`     | One hand-off event. Retry, resolve, reapprove and confirming an outside entry are person only (`handoff_person_required`)                                                                  |
+| `workitems.intakeEmail`            | attach / `operator.write`     | New item from an email, by reference; idempotent per message (see [Email intake](#email-intake))                                                                                           |
+| `workitems.clearFlag`              | attach / `operator.approvals` | Clear one risk flag with a written reason — person only (see [Risk flags](#risk-flags))                                                                                                    |
+| `workitems.notifications.markRead` | attach / `operator.write`     | Mark one of the caller's own notification records read                                                                                                                                     |
 
 Event: `workitems.changed` `{projectId, id, queue, action, status, revision, updatedAt}`. It
 carries no titles or field values; refetch with `workitems.get`. Sent to clients that can read.
@@ -189,9 +198,12 @@ The typed client exports the method types and named shapes: `WorkItem`, `WorkIte
 `WorkItemDraftDiff`, `WorkItemDiffHunk`, `WorkItemDiffLine`, `WorkItemDraftProvenance`,
 `WorkQueueStats`, `WorkQueueStageStats`, `WorkItemOrigin`, `WorkItemFlag`,
 `WorkItemFlagClearance`, `WorkItemIntakeEmailInput`, `WorkItemIntakeEmailResult`,
-`WorkItemClearFlagInput`, and the refusal code lists `WORK_ITEM_DECISION_REFUSALS`,
-`WORK_ITEM_DELEGATION_REFUSALS`, `WORK_ITEM_ACCESS_REFUSALS`, `WORK_ITEM_FLAG_REFUSALS` and
-`WORK_ITEM_INTAKE_REFUSALS` (`@kodasoken/kurahi-client`).
+`WorkItemClearFlagInput`, `WorkItemLinkedCase`, `WorkItemLinkedPlan`, `WorkItemLinkedStep`,
+`WorkItemLinkedStepState`, and the refusal code lists `WORK_ITEM_DECISION_REFUSALS`,
+`WORK_ITEM_DELEGATION_REFUSALS`, `WORK_ITEM_ACCESS_REFUSALS`, `WORK_ITEM_FLAG_REFUSALS`,
+`WORK_ITEM_HANDOFF_REFUSALS`, `WORK_ITEM_INTAKE_REFUSALS` and `WORK_ITEM_LINKED_REFUSALS`
+(`@kodasoken/kurahi-client`). A `linked_plan_invalid` refusal carries `details.problems`, each
+coded from `WORK_ITEM_LINKED_PLAN_PROBLEMS`.
 
 ### Agent drafting
 
@@ -354,6 +366,40 @@ delegation is a transition with its own evidence bundle and audit entry (`workit
 Refusals: `not_a_person`, `not_awaiting_review`, `delegation_not_allowed`, `not_an_approver`,
 `already_approved`, `invalid_delegate`, `reason_required`, `invalid_expiry`.
 
+`workitems.withdrawDelegation {projectId, id, reason?}` lets the approver who delegated the
+current stage take the decision back before the delegate has used it; from then on the delegate
+can no longer decide or see the item in `awaitingMe`. An expired delegation may be withdrawn as a
+cleanup. The withdrawal is a transition (`delegate.withdraw`) with its own evidence bundle and
+audit entry (`workitem.delegate.withdraw`); its detail records the delegate, the expiry and
+whether it had already expired. Refusals: `not_a_person`, `not_awaiting_review`, `no_delegation`
+(no delegation from the caller on the current stage), `already_approved` (the stage already has
+the caller's approval, directly or through the delegate, and that approval stands).
+
+### Notifications
+
+Every transition stores in-app notification records for the people it newly concerns: approvers
+the item now awaits (`awaiting_you`), a delegate (`delegated_to_you`) and, when that delegation is
+withdrawn, the former delegate (`delegation_withdrawn`), escalation targets (`escalated_to_you`)
+and the requester when someone else approves, sends back, cancels or completes the item
+(`decided`). When a step of a linked case reaches done or cancelled, the parent case's requester
+is told on the parent if that opened the next step (`linked_step_ready`), completed every step
+(`linked_case_complete`) or blocked the case (`linked_case_blocked`); the record also names the
+child item (`childId`), and a ready record names the step that opened (`stepKey`). A case is
+reported complete or blocked once, and each step ready once, even when two steps finish at the same
+moment. Nobody is told about their own action, and a person awaited in two consecutive
+stages is told once. Records hold ids, the reason and the item revision only, never titles or
+field values. `workitems.notifications.list {projectId, unreadOnly?}` returns the caller's own
+records, newest first, and only those whose item the caller may still read.
+`workitems.notifications.markRead {projectId, id}` marks one read; opening the item does not.
+Refusal: `notification_not_found` (no such record for the caller). The 500 newest records are
+kept per person, the oldest read ones go first.
+
+Limits: approvers known only through group membership are not notified, because groups resolve a
+person to their groups and cannot be listed the other way; an empty list does not mean nothing
+awaits the caller (use `awaitingMe`). Storing a record never fails the transition that caused it;
+a failure is audited as `workitem.notify` with outcome `error`. Mail, Teams and LINE WORKS
+delivery is not part of this and is not sent.
+
 Stage timers are checked deterministically when items are read, listed or counted, and every
 5 minutes by the gateway's maintenance tick. Past `dueHours` the stage gets `overdueAt` (action
 `stage.overdue`); after `escalation.afterHours` it gets `escalatedAt` (action `stage.escalate`)
@@ -373,7 +419,9 @@ access:
   members:
     - { principal: device:abc123def456, name: 営業部長, roles: [approver], departments: [sales] }
     - { principal: device:0123456789ab, name: 経理課長, roles: [finance] }
-  groups: {} # reserved for directory groups (e.g. Entra ID) via a resolver hook
+  groups: # identity groups → roles and departments (see below)
+    "role:approver": { roles: [approver], departments: [sales] }
+    "unit:finance": { roles: [finance] }
 ```
 
 A member may also carry `email` (a plain work address): the autopilot drafts that member's
@@ -395,8 +443,12 @@ scope or the `operator` / `admin` role in the Project.
   the UI, and the access member list only to privileged callers.
 - Privilege never lets anyone decide a stage they are not an approver of.
 
-`setPrincipalGroupResolver()` (src/workitems/access.ts) is the hook for a future directory
-integration: it returns a principal's group ids, which `access.groups` maps to roles.
+With [enterprise identity](/security/identity) on, a person who signs in with SSO (or is
+provisioned by SCIM) resolves to the groups the identity layer exports: `role:<role>` and
+`role:<role>@<unit>` for their organisation roles, `unit:<unit>` for their departments and teams,
+and `group:<provider id>:<group>` for the groups their identity provider asserts. `access.groups` maps those ids to
+Project roles and departments. The stage rules still decide: an organisation role only makes a
+person eligible where the Project maps it.
 
 ## Documents, draft diffs and overview
 
@@ -428,8 +480,10 @@ counts to the readable items whose queue maps to that department (see [Departmen
 
 The first file found is used: `<project folder>/context/workqueue.(yaml|yml|json)` (the client's
 own), then `<KOLO_HOME>/projects/<id>/workqueue.(yaml|yml|json)` (administrator), then the
-template's `templates/projects/packs/<templateId>/workqueue.yaml`. An unreadable or invalid file
-fails closed: one blocking `policy.invalid` check. Every check records the policy's SHA-256.
+template's `templates/projects/packs/<templateId>/workqueue.yaml`. Only a missing file moves on to
+the next one. A file that exists but cannot be read (for example, permission denied) or is invalid
+fails closed: one blocking `policy.invalid` check, and the lookup does not fall back to a later
+file. Every check records the policy's SHA-256.
 
 ```yaml
 version: 1
@@ -465,7 +519,10 @@ rules:
 ```
 
 Every rule may set `severity: warn` (default `fail`), `blocking: false`, `types: […]`,
-`queues: […]` and a `label: {ja, en}`. Results carry their evidence: the missing fields, the value
+`queues: […]` and a `label: {ja, en}`. A rule with `overrideOutcome: provisional` can be overridden
+only into a **provisional release**: the approval is stored with `override.outcome: "provisional"`
+and the console says it is not a final approval (the quotation pack uses it for unpriced items and
+unsupported tax classifications). Results carry their evidence: the missing fields, the value
 and the threshold crossed, the lead days and the timezone, the matched phrase with an excerpt, the
 attachment count.
 
@@ -512,6 +569,48 @@ The HR template uses the figures and status labels of the overtime-coordinator w
 hours, month-end forecast, applicable limit; 実績で超過 / 月末見込みに基づくリスク) and its
 rule that nothing is sent to an employee before a manager's approval.
 
+## Hand-offs and settlement
+
+A hand-off records one intended downstream action of an approved case, for example entering an
+approved invoice as a deal in one exact product and object. It is a hand-off lifecycle, not a
+payment lifecycle: a record existing in the destination never shows that an invoice was paid.
+
+A hand-off closes with one of two objectives:
+
+| Objective           | Closure text                                                                    |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `handoff_completed` | Hand-off completed — payment not verified                                       |
+| `payment_settled`   | Payment settled — attested by a person, bank evidence not checked by the system |
+
+`payment_settled` is a named person's attestation with a `settlementRef`; an agent cannot close
+with it, and nothing checks the bank evidence, so the record never says "verified". Close is
+refused while any difference is neither resolved nor accepted (`handoff_open_exceptions`).
+
+### Separation of duties for settlement
+
+The policy's top-level `settlementSod` sets how independent the settlement attester must be:
+
+```yaml
+settlementSod: strict # default; "warn" is the only other value
+```
+
+- **`strict`** (default) refuses a `payment_settled` close by anyone who requested the case,
+  approved or re-approved the hand-off, or resolved a difference on it at any point, including
+  before a later re-approval (`handoff_sod_conflict`, with the overlapping `roles`). A hand-off
+  whose requester is not known is refused too (`handoff_requester_unknown`): unknown never counts
+  as independent.
+- **`warn`** is an explicit choice for small offices where one person handles everything. The close
+  is allowed, but the closure says "self-attested by a person who also handled this case" and
+  records the overlapping roles.
+
+Only the exact value `warn` relaxes the rule. A missing, unreadable, invalid or unrecognised policy
+means `strict`. Only the administrator's policy (`<KOLO_HOME>/projects/<id>/workqueue.yaml`) can
+set `warn`: in the client's project folder (`context/workqueue.yaml`) or a template it is read as
+`strict`, because people and agents with a writable scope can edit that folder. The gateway reads
+the mode from the Project's policy file on every close; a client cannot choose it in the event. Each settled closure records `attestedBy`, `settlementSod`,
+`sodOverlap`, `selfAttested` and, under `warn` without a known requester, `requesterUnknown`.
+Refused closes are audited as `denied` with the refusal code.
+
 ## Evidence and audit
 
 Every transition (create, update, submit, assign_agent, draft, draft_failed, decide.approve,
@@ -533,7 +632,7 @@ evidence bundle; refused decisions are audited as `denied`.
   Project, not millions).
 - Principals are connection identities. Several people sharing one credential, or the gateway
   token without a device identity (`owner`), cannot be told apart; give each person their own
-  paired device. Directory groups (Entra ID) are a hook only; no directory is queried yet.
+  paired device, or use enterprise identity so each person signs in as themselves.
 - Delegations cannot be withdrawn before they expire (a new delegation from the same approver
   replaces the earlier one). Escalation adds deciders; it does not notify anyone by itself beyond
   the `workitems.changed` event.

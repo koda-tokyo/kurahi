@@ -165,8 +165,16 @@ describe("personhood comes from the credential, not from client fields", () => {
       "autopilot.approvals.revoke",
       "autopilot.autonomy.accept",
       "autopilot.startAll",
+      "governance.dsr.execute",
+      "governance.dsr.find",
+      "governance.export.create",
+      "governance.holds.create",
+      "governance.holds.release",
+      "governance.policy.set",
+      "governance.retention.run",
       "workitems.clearFlag",
       "workitems.decide",
+      "workitems.selectSupplier",
     ]);
   });
 

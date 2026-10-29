@@ -27,6 +27,7 @@ export const WorkItemTypeSchema = lit([
   "leave",
   "expense",
   "purchase",
+  "quote",
   "custom",
 ] as const);
 export const WorkItemStatusSchema = lit([
@@ -125,6 +126,7 @@ export const WorkItemCheckSchema = Type.Object({
   label: Text,
   result: lit(["pass", "fail", "warn"] as const),
   blocking: Type.Boolean(),
+  overrideOutcome: Type.Optional(lit(["provisional"] as const)),
   evidence: Type.Record(Type.String(), Type.Unknown()),
   checkedAt: Type.String(),
   draftVersion: Type.Union([Type.Integer(), Type.Null()]),
@@ -138,6 +140,8 @@ const Override = Type.Union([
     at: Type.String(),
     reason: Type.String(),
     policyIds: Type.Array(Type.String()),
+    // "provisional": the override approved a provisional release, not a final approval.
+    outcome: Type.Optional(lit(["provisional"] as const)),
   }),
   Type.Null(),
 ]);
@@ -154,6 +158,80 @@ export const WorkItemHistoryEntrySchema = Type.Object({
   evidence: Type.Optional(
     Type.Union([Type.Object({ bundle: Type.String(), root: Type.String() }), Type.Null()]),
   ),
+});
+
+const DecimalInput = Type.Union([Type.String(), Type.Number()]);
+const Digest = Type.String({ pattern: "^[0-9a-f]{64}$" });
+
+/** A person's supplier choice on a procurement case (src/quotes/supplier-selection.ts). */
+export const WorkItemSupplierSelectionSchema = Type.Object({
+  supplier: Type.String(),
+  /** Actor id of the person who chose it (the session, never a request field). */
+  selectedBy: Type.String(),
+  reason: Type.Union([Type.String(), Type.Null()]),
+  comparisonDigest: Digest,
+  lowest: Type.Array(Type.String()),
+  deviatesFromLowest: Type.Boolean(),
+  at: Type.String(),
+  revision: Revision,
+});
+
+/** The latest purchase order a routine drafted from the case's selection (po.prepare). */
+export const WorkItemPurchaseOrderDraftSchema = Type.Object({
+  /** Project-relative draft file, when the tool reported one. */
+  document: Type.Union([Type.String(), Type.Null()]),
+  /** The selection's comparison digest the draft was bound to. */
+  comparisonDigest: Digest,
+  supplier: Type.String(),
+  /** Revision of the selection the draft was made from. */
+  selectionRevision: Revision,
+  /**
+   * The chosen supplier's quote sheet when the draft was made; null when its quotes were entered
+   * by an agent. Absent on drafts recorded before the source was kept.
+   */
+  source: Type.Optional(
+    Type.Union([Type.Object({ file: Type.String(), sha256: Digest }), Type.Null()]),
+  ),
+  /** Autopilot actor id of the routine that drafted it. */
+  draftedBy: Type.String(),
+  runId: Type.String(),
+  at: Type.String(),
+});
+
+/** Request lines and supplier quotes stored on a case (src/workitems/procurement.ts). */
+export const WorkItemProcurementSchema = Type.Object({
+  request: Type.Array(
+    Type.Object({
+      code: Type.String(),
+      description: Type.Optional(Type.String()),
+      quantity: DecimalInput,
+    }),
+  ),
+  quotes: Type.Array(
+    Type.Object({
+      supplier: Type.String(),
+      lines: Type.Array(
+        Type.Object({
+          code: Type.Optional(Type.String()),
+          description: Type.String(),
+          quantity: DecimalInput,
+          unit: Type.Optional(Type.String()),
+          unitPrice: DecimalInput,
+          taxRate: Type.Number(),
+          discountPercent: Type.Optional(DecimalInput),
+          discountAmount: Type.Optional(Type.Number()),
+        }),
+      ),
+      options: Type.Optional(Type.Object({})),
+    }),
+  ),
+  comparisonDigest: Digest,
+  /** Quotes read server-side from a supplier sheet under quotes/, with the sheet's sha256. */
+  files: Type.Optional(
+    Type.Array(Type.Object({ supplier: Type.String(), file: Type.String(), sha256: Digest })),
+  ),
+  recordedBy: Type.String(),
+  at: Type.String(),
 });
 
 const common = {
@@ -185,6 +263,9 @@ const common = {
   flagReason: Type.Optional(Type.String()),
   /** Flags a person cleared (who, when, why), oldest first. */
   flagClearances: Type.Optional(Type.Array(WorkItemFlagClearanceSchema)),
+  /** The supplier a person chose from the case's quotes; absent until someone chooses. */
+  supplierSelection: Type.Optional(WorkItemSupplierSelectionSchema),
+  purchaseOrderDraft: Type.Optional(WorkItemPurchaseOrderDraftSchema),
   updatedAt: Type.String(),
   revision: Revision,
 };
@@ -198,6 +279,8 @@ export const WorkItemSchema = Type.Object({
     origin: Type.Optional(WorkItemOriginSchema),
   }),
   history: Type.Array(WorkItemHistoryEntrySchema),
+  /** Request lines and supplier quotes of a procurement case; full items only. */
+  procurement: Type.Optional(WorkItemProcurementSchema),
 });
 
 export const WorkItemSummarySchema = Type.Object({
@@ -336,6 +419,7 @@ export const WorkitemsConfigResultSchema = Type.Object({
       label: Text,
       severity: lit(["fail", "warn"] as const),
       blocking: Type.Boolean(),
+      overrideOutcome: Type.Optional(lit(["provisional"] as const)),
       types: Type.Array(WorkItemTypeSchema),
       queues: Type.Array(Type.String()),
     }),
@@ -377,6 +461,8 @@ export const WorkitemsEvidenceResultSchema = Type.Object({
       status: Type.Union([Type.String(), Type.Null()]),
       root: Type.Union([Type.String(), Type.Null()]),
       signer: Type.Union([Type.String(), Type.Null()]),
+      /** Retention deleted this bundle's events; its signed tombstone keeps the chain. */
+      tombstone: Type.Optional(Type.Boolean()),
       problems: Type.Array(Type.String()),
     }),
   ),

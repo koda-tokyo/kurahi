@@ -1,0 +1,46 @@
+{
+  "id": "business-sales-quotation",
+  "name": {
+    "ja": "販売見積（プレビュー）",
+    "en": "Sales quotations (Preview)"
+  },
+  "description": {
+    "ja": "見積依頼メールから案件と見積書（Word・Excel）を準備。単価は価格表、税と合計は Kurahi が計算し、送付は人が行います。",
+    "en": "Quotation requests by mail become cases with a 見積書 in Word and Excel. Prices come from the price list, tax and totals are computed by Kurahi, and a person sends the quotation."
+  },
+  "folders": ["quotes", "output"],
+  "rules": {
+    "readOnly": ["quotes"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "価格表（quotes/price-list.csv）と発行者情報（quotes/company.json）は人が管理します。エージェントは変更しません。",
+        "en": "People maintain the price list (quotes/price-list.csv) and issuer details (quotes/company.json); agents never change them."
+      },
+      {
+        "ja": "単価・値引き・合計を推測しないでください。価格表にない品目は要確認として担当者に回します。",
+        "en": "Never guess a price, discount or total. Items not in the price list are marked to confirm for a person."
+      },
+      {
+        "ja": "見積書の送付、価格の確約、受注の受付は人が行います。",
+        "en": "Sending a quotation, committing to a price and accepting an order are done by people."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "この見積依頼から品目と数量を抜き出し、見積書を作成してください。",
+      "en": "Extract the items and quantities from this request and prepare a quotation."
+    },
+    {
+      "ja": "価格表にない品目と、確認が必要な条件を一覧にしてください。",
+      "en": "List the items that are not in the price list and the terms that need confirmation."
+    }
+  ],
+  "terminalProfile": "data",
+  "plugins": ["office"],
+  "starterFiles": ["quotes/price-list.csv", "quotes/company.json", "quotes/README.md"]
+}

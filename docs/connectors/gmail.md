@@ -22,7 +22,7 @@ with an OAuth client the customer owns. It is separate from the Gmail Pub/Sub ho
 | Opt-in access  | Sending mail: `gmail.send`, every send approved by a person          |
 | Sign-in        | Authorization code with PKCE on a loopback redirect (`127.0.0.1`)    |
 | Token storage  | Kurahi secret store (`connector.gmail.token`), never the config file |
-| Status         | Preview                                                              |
+| Status         | Available                                                            |
 
 ## What the administrator sets up in Google Cloud
 

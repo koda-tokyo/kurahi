@@ -1,6 +1,6 @@
 {
   "name": "@kodasoken/kurahi-client",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Typed client for the KoLo gateway HTTP and WebSocket API, generated from its OpenAPI 3.1 document.",
   "license": "MIT",
   "author": "Carlos Mundim (KODA)",

@@ -114,6 +114,23 @@ function state() {
   };
 }
 describe("Autopilot panel", () => {
+  it.each(["en", "ja"])("announces an uncertain write while a new scope loads in %s", (locale) => {
+    const s = state();
+    s.locale = locale;
+    setLocale(locale);
+    s.autopilot = { ...s.autopilot, projectId: "p2", loading: true, mutationDelayed: true };
+    render(renderAutopilot(s, { id: "p2" }), box);
+    const notice =
+      locale === "ja" ? "結果はまだ確認できていません" : "Its outcome is not yet confirmed";
+    expect(
+      [...box.querySelectorAll('[role="status"]')].some((node) =>
+        node.textContent?.includes(notice),
+      ),
+    ).toBe(true);
+    s.autopilot.mutationDelayed = false;
+    render(renderAutopilot(s, { id: "p2" }), box);
+    expect(box.textContent).not.toContain(notice);
+  });
   it.each(["en", "ja"])(
     "shows the effective level, ceiling and historical demotion in %s",
     (locale) => {
@@ -601,6 +618,96 @@ describe("Autopilot panel", () => {
       .find((button) => button.textContent === "詳細を閉じる")!
       .click();
     expect(s.closeAutopilotRun).toHaveBeenCalledOnce();
+  });
+  it.each(["en", "ja"])("distinguishes retention receipts from live evidence in %s", (locale) => {
+    const s = state();
+    s.locale = locale;
+    setLocale(locale);
+    s.autopilot.selectedRunId = "r1";
+    const retained =
+      locale === "en"
+        ? "Evidence removed; signed record kept."
+        : "証跡が削除され、署名付き記録が保持されています。";
+    const passed =
+      locale === "en"
+        ? "Server evidence verification passed."
+        : "サーバーによる証跡の検証に合格しました。";
+    const failed =
+      locale === "en" ? "Evidence has not passed verification." : "証跡は検証に合格していません。";
+    const recorded =
+      locale === "en" ? "Evidence bundle recorded." : "証跡バンドルが記録されています。";
+    const absent =
+      locale === "en" ? "No evidence bundle recorded." : "証跡バンドルの記録はありません。";
+    const draw = () => render(renderAutopilot(s, { id: "p1" }), box);
+    draw();
+    expect(box.textContent).not.toContain(retained);
+    expect(box.textContent).not.toContain(passed);
+    s.autopilot.runDetail = {
+      run: {
+        id: "r1",
+        projectId: "p1",
+        routineId: "receipt",
+        edition: "business",
+        area: "finance",
+        level: "L1",
+        trigger: "manual",
+        triggeredBy: "owner",
+        startedAt: "2026-10-25T00:00:00Z",
+        endedAt: "2026-10-25T00:01:00Z",
+        status: "ok",
+        reason: null,
+        routineDigest: "d",
+        reasoning: { backend: null, model: null, ms: 10, outputSha256: null },
+        counts: {
+          items: 0,
+          prepared: 0,
+          acted: 0,
+          escalated: 0,
+          refused: 0,
+          failed: 0,
+          handled: 0,
+          deferred: 0,
+        },
+        workItems: [],
+        gather: [],
+        actions: [],
+        evidence: { bundle: "/private/removed/bundle.json", root: "signed-root" },
+      },
+      evidence: { ok: true, problems: [], tombstone: true },
+    };
+    draw();
+    expect(box.textContent).toContain(retained);
+    expect(box.textContent).not.toContain(passed);
+    expect(box.textContent).not.toContain(recorded);
+    expect(box.textContent).not.toContain(absent);
+    for (const evidence of [
+      { ok: false, problems: [], tombstone: true },
+      { ok: false, problems: ["Invalid signature /private/removed"], tombstone: true },
+      { ok: true, problems: ["Wrong run /private/removed"], tombstone: true },
+    ]) {
+      s.autopilot.runDetail.evidence = evidence;
+      draw();
+      expect(box.textContent).toContain(failed);
+      expect(box.textContent).not.toContain(retained);
+      expect(box.textContent).not.toContain(passed);
+      expect(box.textContent).not.toContain(recorded);
+      expect(box.textContent).not.toContain("/private/removed");
+    }
+    for (const tombstone of [undefined, false]) {
+      s.autopilot.runDetail.evidence = { ok: true, problems: [], tombstone };
+      draw();
+      expect(box.textContent).toContain(passed);
+      expect(box.textContent).toContain(recorded);
+      expect(box.textContent).not.toContain(retained);
+    }
+    s.autopilot.runDetail.evidence = { ok: true, problems: [], tombstone: true };
+    s.autopilot.runLoading = true;
+    draw();
+    expect(box.textContent).not.toContain(retained);
+    s.autopilot.runLoading = false;
+    s.autopilot.runError = true;
+    draw();
+    expect(box.textContent).not.toContain(retained);
   });
   it("renders detail loading and errors with close and retry controls", () => {
     const s = state();

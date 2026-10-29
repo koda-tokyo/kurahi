@@ -26,6 +26,7 @@ import {
   cleanTitle,
   resolveQueue,
 } from "./inputs.js";
+import { recordWriteNotifications } from "./notifications-store.js";
 import { evaluatePolicy, loadWorkQueuePolicy } from "./policy.js";
 import { startRoute, syncRouteApprovals } from "./routes.js";
 import { insertWorkItem, mutateWorkItem, newWorkItemId } from "./store.js";
@@ -50,7 +51,7 @@ export type TransitionSpec = {
 
 /** Apply one change under the lock with evidence, history and audit. */
 export function applyTransition(
-  project: Pick<Project, "id">,
+  project: Pick<Project, "id" | "folder" | "templateId">,
   id: string,
   expectedRevision: number | undefined,
   build: (cur: WorkItem, now: Date) => { next: WorkItem; spec: TransitionSpec },
@@ -58,11 +59,13 @@ export function applyTransition(
 ): WorkItem {
   const now = opts.now ?? new Date();
   let audit: { spec: TransitionSpec; from: WorkItemStatus; evidence: unknown } | null = null;
+  let before: WorkItem | null = null;
   const item = mutateWorkItem(
     project.id,
     id,
     expectedRevision,
     (cur) => {
+      before = structuredClone(cur);
       const { next, spec } = build(cur, now);
       const from = cur.status;
       next.status = spec.to ?? cur.status;
@@ -105,6 +108,7 @@ export function applyTransition(
       detail: { id, from: a.from, to: item.status, evidence: a.evidence, ...a.spec.detail },
     });
   }
+  recordWriteNotifications(project, before, item, now, opts.home);
   return item;
 }
 

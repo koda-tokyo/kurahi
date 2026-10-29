@@ -3,16 +3,21 @@
 // Only references the item itself holds are served: one of its source documents (re-checked to
 // still be inside the Project: its attachments area, its folder, or a Project artifact) or its
 // pinned draft artifact. Text is extracted from text-like content only (binary files answer
-// `binary: true` and no text), capped, stripped of control characters and HTML-escaped. Every
+// `binary: true` and no text), capped, stripped of control characters and HTML-escaped. PDF and
+// Office sources get their text from the document extractors in the bounded child process
+// (previewDocumentText), and only while their bytes still match the recorded SHA-256. Every
 // preview is flagged `untrusted`: documents come from outside and may contain instructions.
 
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { Project } from "../projects/types.js";
 import type { WorkItem } from "./types.js";
 import { getArtifact, type Artifact } from "../projects/artifacts.js";
+import { kindFromName, type DocumentKind } from "../projects/documents.js";
 import { cleanRelPath, excludedPathRegexes, projectDataDir } from "../projects/store.js";
+import { extractTextIsolated, type IsolatedExtractOptions } from "../security/isolated-extract.js";
 import { diffLines, toHunks, type DiffHunk } from "./diff.js";
 import { WorkItemRefused } from "./errors.js";
 
@@ -75,6 +80,10 @@ export type DocumentPreview = {
   version: number | null;
   binary: boolean;
   text: string | null;
+  /** Where the text came from: the bytes themselves, the document extractor, or none. */
+  textSource: "raw" | "extracted" | null;
+  /** Why an extractable document has no text (changed bytes, extractor failure), else null. */
+  extractError: string | null;
   truncated: boolean;
   escaped: "html";
   untrusted: true;
@@ -107,6 +116,70 @@ function hashFile(file: string, size: number): string | null {
     fs.closeSync(fd);
   }
   return h.digest("hex");
+}
+
+/**
+ * The source documents whose bytes no longer match the SHA-256 recorded when they were attached:
+ * changed, gone, or too large to hash. Approval rests on the bytes that were reviewed.
+ */
+export function changedDocuments(
+  project: Pick<Project, "id" | "folder">,
+  item: Pick<WorkItem, "source">,
+  home: string,
+): string[] {
+  const changed: string[] = [];
+  for (const doc of item.source.documents) {
+    if (!doc.sha256 || doc.kind === "artifact") {
+      continue;
+    }
+    let sha: string | null = null;
+    try {
+      const real = resolveFile(project, doc.kind, doc.ref, home);
+      sha = hashFile(real, fs.statSync(real).size);
+    } catch {
+      sha = null;
+    }
+    if (sha !== doc.sha256) {
+      changed.push(doc.name);
+    }
+  }
+  return changed;
+}
+
+/** SHA-256 of a file, or null when it is not a readable file or is too large to hash. */
+export function fileSha256(file: string): string | null {
+  try {
+    const st = fs.statSync(file);
+    return st.isFile() ? hashFile(file, st.size) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The whole file, or null if it is gone or longer than `max` bytes. */
+function readCapped(file: string, max: number): Buffer | null {
+  let fd: number;
+  try {
+    fd = fs.openSync(file, "r");
+  } catch {
+    return null;
+  }
+  try {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    const buf = Buffer.alloc(1024 * 1024);
+    let n: number;
+    while ((n = fs.readSync(fd, buf, 0, buf.length, null)) > 0) {
+      total += n;
+      if (total > max) {
+        return null;
+      }
+      chunks.push(Buffer.from(buf.subarray(0, n)));
+    }
+    return Buffer.concat(chunks, total);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function readHead(file: string, size: number): Buffer {
@@ -181,6 +254,8 @@ function artifactPreview(
     version: a.version,
     binary: false,
     ...shown,
+    textSource: "raw",
+    extractError: null,
     escaped: "html",
     untrusted: true,
     provenance: {
@@ -254,11 +329,78 @@ export function previewDocument(
     version: null,
     binary,
     text: shown.text,
+    textSource: binary ? null : "raw",
+    extractError: null,
     truncated: shown.truncated || (!binary && st.size > READ_MAX_BYTES),
     escaped: "html",
     untrusted: true,
     provenance: { modifiedAt: st.mtime.toISOString(), source: true },
   };
+}
+
+export const PREVIEW_EXTRACT_TIMEOUT_MS = 15_000;
+const EXTRACTED_KINDS = new Set<DocumentKind>(["pdf", "docx", "xlsx", "pptx"]);
+
+/**
+ * previewDocument, plus the text of a PDF or Office source document, extracted in the bounded
+ * child process. The format is chosen by name, not by the NUL heuristic, so an all-ASCII PDF is
+ * extracted too. Text is shown only for the bytes that were attached: the child reads a private
+ * snapshot whose own bytes were hashed, and a document whose SHA-256 no longer matches the
+ * recorded one (before the snapshot or after the read) answers no text and an `extractError`,
+ * as does an extractor failure. The gateway process never parses the document.
+ */
+export async function previewDocumentText(
+  project: Pick<Project, "id" | "folder">,
+  item: WorkItem,
+  ref: string,
+  opts: { home: string; maxChars?: number; extract?: IsolatedExtractOptions },
+): Promise<DocumentPreview> {
+  const p = previewDocument(project, item, ref, opts);
+  const kind = kindFromName(p.name);
+  if ((p.kind !== "attachment" && p.kind !== "file") || !kind || !EXTRACTED_KINDS.has(kind)) {
+    return p;
+  }
+  // A recognized document's raw syntax (an ASCII PDF's objects and xref) is not its text.
+  const noText = (extractError: string): DocumentPreview => ({
+    ...p,
+    text: null,
+    textSource: null,
+    truncated: false,
+    extractError,
+  });
+  if (!p.sha256 || (p.recordedSha256 && p.sha256Matches !== true)) {
+    return noText(p.sha256 ? "changed" : "too_large");
+  }
+  const doc = item.source.documents.find((d) => d.ref === ref)!;
+  const real = resolveFile(project, doc.kind as "attachment" | "file", doc.ref, opts.home);
+  // The child parses a private copy whose own bytes carry the hash shown, so an edit-and-restore
+  // of the project file while the child reads cannot put other bytes' text under that hash.
+  const bytes = readCapped(real, HASH_MAX_BYTES);
+  if (!bytes || createHash("sha256").update(bytes).digest("hex") !== p.sha256) {
+    return noText("changed");
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kolo-preview-"));
+  let r: Awaited<ReturnType<typeof extractTextIsolated>>;
+  try {
+    const snapshot = path.join(dir, `document.${kind}`);
+    fs.writeFileSync(snapshot, bytes, { mode: 0o600, flag: "wx" });
+    r = await extractTextIsolated(kind, snapshot, {
+      timeoutMs: PREVIEW_EXTRACT_TIMEOUT_MS,
+      ...opts.extract,
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  if (!r.ok) {
+    return noText(r.code);
+  }
+  // The source changed while it was read: the text is of bytes the project no longer holds.
+  if (fileSha256(real) !== p.sha256) {
+    return noText("changed");
+  }
+  const maxChars = Math.min(PREVIEW_MAX_CHARS, Math.max(1, opts.maxChars ?? PREVIEW_MAX_CHARS));
+  const shown = render(r.text, maxChars);
+  return { ...p, ...shown, textSource: "extracted", extractError: null };
 }
 
 function loadProjectArtifact(

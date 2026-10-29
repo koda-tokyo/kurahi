@@ -1,15 +1,20 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project } from "../projects/types.js";
 import type { Actor, WorkItem } from "./types.js";
 import { flushAudit } from "../audit/audit-log.js";
 import { saveArtifact } from "../projects/artifacts.js";
-import { createProject } from "../projects/store.js";
+import { createProject, projectDataDir } from "../projects/store.js";
 import { canRead, viewerFilter } from "./access.js";
 import { decideWorkItem } from "./decide.js";
-import { delegateStage, escalateIfDue, sweepEscalations } from "./escalation.js";
+import {
+  delegateStage,
+  escalateIfDue,
+  sweepEscalations,
+  withdrawDelegation,
+} from "./escalation.js";
 import { createWorkItem, updateWorkItem } from "./lifecycle.js";
 import { loadWorkQueuePolicy, parsePolicy } from "./policy.js";
 import { listWorkItems, readWorkItem, workItemDir } from "./store.js";
@@ -135,6 +140,65 @@ describe("policy routes", () => {
         "routes: [{ id: r, stages: [{ id: s, approvers: { roles: [x] }, when: [{ field: amount, gte: 1, lt: 5 }] }] }]",
       ),
     ).toThrow(/exactly one/);
+  });
+
+  it("settlement SoD is strict unless the policy says exactly warn", () => {
+    expect(parsePolicy(RINGI_POLICY).settlementSod).toBe("strict");
+    expect(parsePolicy("settlementSod: warn").settlementSod).toBe("warn");
+    expect(parsePolicy("settlementSod: Warn").settlementSod).toBe("strict");
+    expect(parsePolicy("settlementSod: off").settlementSod).toBe("strict");
+  });
+
+  it("only the administrator's policy can relax settlement SoD to warn", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kurahi-sod-src-"));
+    const p = { id: "psodsrc0001", folder: path.join(dir, "folder"), templateId: null };
+    const home = path.join(dir, "home");
+    const projectFile = path.join(p.folder, "context", "workqueue.yaml");
+    const adminFile = path.join(projectDataDir(p.id, home), "workqueue.yaml");
+    fs.mkdirSync(path.dirname(projectFile), { recursive: true });
+    fs.mkdirSync(path.dirname(adminFile), { recursive: true });
+    try {
+      fs.writeFileSync(projectFile, "settlementSod: warn\n");
+      fs.writeFileSync(adminFile, "settlementSod: warn\n");
+      expect(loadWorkQueuePolicy(p, home).source?.kind).toBe("project");
+      expect(loadWorkQueuePolicy(p, home).settlementSod).toBe("strict");
+      fs.rmSync(projectFile);
+      expect(loadWorkQueuePolicy(p, home).source?.kind).toBe("admin");
+      expect(loadWorkQueuePolicy(p, home).settlementSod).toBe("warn");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("an unreadable higher-priority policy fails closed instead of falling through", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kurahi-sod-eacces-"));
+    const p = { id: "psodacc0001", folder: path.join(dir, "folder"), templateId: null };
+    const home = path.join(dir, "home");
+    const projectFile = path.join(p.folder, "context", "workqueue.yaml");
+    const adminFile = path.join(projectDataDir(p.id, home), "workqueue.yaml");
+    fs.mkdirSync(path.dirname(projectFile), { recursive: true });
+    fs.mkdirSync(path.dirname(adminFile), { recursive: true });
+    const read = fs.readFileSync;
+    const spy = vi.spyOn(fs, "readFileSync").mockImplementation(((
+      file: fs.PathOrFileDescriptor,
+      ...rest: unknown[]
+    ) => {
+      if (String(file) === projectFile) {
+        throw Object.assign(new Error("simulated unreadable policy"), { code: "EACCES" });
+      }
+      return (read as (...a: unknown[]) => unknown)(file, ...rest);
+    }) as typeof fs.readFileSync);
+    try {
+      fs.writeFileSync(projectFile, "settlementSod: strict\n");
+      fs.writeFileSync(adminFile, "settlementSod: warn\n");
+      const policy = loadWorkQueuePolicy(p, home);
+      expect(policy.source?.kind).toBe("project");
+      expect(policy.settlementSod).toBe("strict");
+      expect(policy.error).toContain("EACCES");
+    } finally {
+      spy.mockRestore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -292,6 +356,111 @@ describe("delegation", () => {
         ),
       ),
     ).toBe("delegation_not_allowed");
+  });
+
+  it("the delegator withdraws before the delegate acts; the delegate can no longer decide", () => {
+    const item = submitted(21_000);
+    const w = (who: Actor, hours = 2) =>
+      refusal(() =>
+        withdrawDelegation(project, item.id, { reason: "back early" }, who, undefined, {
+          now: at(hours),
+        }),
+      );
+    expect(w(mgrSales)).toBe("no_delegation");
+    delegateStage(
+      project,
+      item.id,
+      { to: deputy.id, reason: "on business trip", expiresAt: at(10).toISOString() },
+      mgrSales,
+      undefined,
+      { now: at(1) },
+    );
+    expect(w(deputy)).toBe("no_delegation");
+    expect(w({ id: mgrSales.id, kind: "agent" })).toBe("not_a_person");
+    const back = withdrawDelegation(
+      project,
+      item.id,
+      { reason: "back early" },
+      mgrSales,
+      undefined,
+      { now: at(2) },
+    );
+    expect(back.route?.stages[0].delegations).toEqual([]);
+    expect(back.history.at(-1)).toMatchObject({
+      action: "delegate.withdraw",
+      comment: "back early",
+    });
+    expect(back.history.at(-1)?.evidence?.bundle).toMatch(/-delegate\.withdraw$/);
+    expect(refusal(() => approve(item, deputy, 3))).toBe("not_an_approver");
+    expect(w(mgrSales, 3)).toBe("no_delegation");
+    expect(approve(item, mgrSales, 4).approvals[0]).toMatchObject({
+      by: mgrSales.id,
+      via: "approver",
+    });
+  });
+
+  it("refuses withdrawal after the delegate approves a stage that still needs another approval", () => {
+    const folder = path.join(root, "ringi-two-approvals");
+    fs.mkdirSync(path.join(folder, "context"), { recursive: true });
+    fs.writeFileSync(
+      path.join(folder, "context", "workqueue.yaml"),
+      RINGI_POLICY.replace(
+        "      - id: manager\n",
+        "      - id: manager\n        minApprovals: 2\n",
+      ),
+    );
+    const twoApprovalProject = createProject(
+      { name: "Ringi two approvals", folder },
+      { createdBy: requester.id, template: null },
+    );
+    const item = createWorkItem(
+      twoApprovalProject,
+      {
+        queue: "ringi",
+        title: "Two approvals",
+        source: { fields: { amount: 20_000, department: "sales" } },
+      },
+      requester,
+      { now: T0 },
+    );
+    const art = saveArtifact(
+      { title: "ringi", content: "# Two approvals", projectId: twoApprovalProject.id },
+      requester.id,
+    );
+    updateWorkItem(
+      twoApprovalProject,
+      item.id,
+      { draft: { artifactId: art.id } },
+      requester,
+      undefined,
+      { now: T0 },
+    );
+    delegateStage(
+      twoApprovalProject,
+      item.id,
+      { to: deputy.id, reason: "on business trip", expiresAt: at(10).toISOString() },
+      mgrSales,
+      undefined,
+      { now: at(1) },
+    );
+    const afterApproval = decideWorkItem(
+      twoApprovalProject,
+      item.id,
+      { decision: "approve" },
+      deputy,
+      undefined,
+      { now: at(2) },
+    );
+    expect(afterApproval.status).toBe("awaiting_review");
+    expect(afterApproval.route?.stages[0].approvals).toHaveLength(1);
+    expect(
+      refusal(() =>
+        withdrawDelegation(twoApprovalProject, item.id, {}, mgrSales, undefined, { now: at(3) }),
+      ),
+    ).toBe("already_approved");
+    expect(readWorkItem(twoApprovalProject.id, item.id)?.route?.stages[0].delegations).toHaveLength(
+      1,
+    );
   });
 });
 

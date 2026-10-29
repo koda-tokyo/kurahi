@@ -1,5 +1,5 @@
 ---
-summary: "The Work Console: a governed terminal inside one Project (line gating, approvals, file diffs, audit) and push-to-talk voice in Japanese and English (local-first, audio not kept, voice never approves); what is built and what is in development"
+summary: "The Work Console: a governed terminal inside one Project (line gating, approvals, file diffs, audit) and push-to-talk voice in Japanese and English (local-first, audio not kept, voice never approves); what is built and what is not"
 read_when:
   - Evaluating the Work Console for operators and engineers
   - Explaining how the console terminal and voice are governed
@@ -22,7 +22,7 @@ Status as of 25 October 2026, release 2.2.0:
 | Terminal broker in the gateway (`terminal.*` methods)    | Built                                                                                                                                                                           |
 | Voice in the gateway (`voice.*` methods, local adapters) | Built                                                                                                                                                                           |
 | Approval guard that refuses voice-originated approvals   | Built                                                                                                                                                                           |
-| Desktop console screens (terminal, run timeline, voice)  | Terminal: connected to the broker (once-only approvals, replay on reconnect, lost-session recovery). Voice capture and transcript review: preview. Run timeline: in development |
+| Desktop console screens (terminal, run timeline, voice)  | Terminal: connected to the broker (once-only approvals, replay on reconnect, lost-session recovery). Voice capture and transcript review: available. Run timeline: not complete |
 
 ## Governed terminal
 

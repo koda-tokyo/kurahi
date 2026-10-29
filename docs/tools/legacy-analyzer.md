@@ -33,12 +33,13 @@ Every fact carries `file` and `line`. Business meaning is never inferred.
 The same analyser runs in engineers' own editors and IDEs as an MCP server, one project per
 server: see [Legacy analyser in your editor (MCP)](/tools/legacy-mcp).
 
-## Modernisation assistant (COBOL, Java, SQL DDL, FORTRAN, PL/I)
+## Modernisation assistant (COBOL, Java, SQL DDL, FORTRAN, PL/I, PLC)
 
 `modernise_plan` detects the languages of a folder (extension, then content of the first bytes),
-runs every active engine and says which assistants are only planned. Active: COBOL/JCL, Java, SQL
-DDL, FORTRAN, PL/I. Planned (files are counted, nothing is analysed): PLC IEC 61131-3 (Structured
-Text, ladder exports), batch schedulers, maintenance records, cybersecurity review.
+runs every active engine and lists the assistants that have no engine. Active: COBOL/JCL, Java,
+SQL DDL, FORTRAN, PL/I, PLC IEC 61131-3 (Structured Text sources and PLCopen XML exports; vendor
+ladder exports are counted, not read). No engine (files are counted, nothing is analysed): batch
+schedulers, maintenance records, cybersecurity review.
 
 Tables are one node in the knowledge graph across languages, matched by unqualified name,
 case-insensitive: a COBOL or PL/I `EXEC SQL` table, a JPA `@Table` and a `CREATE TABLE` of the

@@ -14,7 +14,7 @@ English: [watsonx.data and Db2](/integrations/ibm-watsonx-data-db2)（設定例�
 監査ログにはID、SQLのハッシュ、行数、パラメーター名、結果だけを残します（SQL本文、パラメーターの値、行は残しません）。
 どちらもオートパイロットの読み取りツールには含めていません。
 
-**状態：プレビュー。** Presto/TrinoのクライアントプロトコルとIBMのDb2 RESTの資料に基づいて実装しています。
+**状態：提供中。** Presto/TrinoのクライアントプロトコルとIBMのDb2 RESTの資料に基づいて実装しています。
 
 ## watsonx_data_query
 

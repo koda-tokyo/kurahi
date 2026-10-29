@@ -47,7 +47,7 @@ Through Kurahi Projects, without the dedicated workspace screens:
 - the hash-chained audit log, [policy as code](/policy) and human approvals;
 - the signed [AI inventory](/inventory) of what ran;
 - [memory provenance](/security/memory-provenance) and the [context guard](/context-guard);
-- the [Workflow Evaluator](/eval) (preview): acceptance specs, offline replay, signed scorecards;
+- the [Workflow Evaluator](/eval): acceptance specs, offline replay, signed scorecards;
 - the [legacy analyser](/tools/legacy-analyzer) for COBOL/JCL, Java and SQL DDL, for software
   engineering research.
 

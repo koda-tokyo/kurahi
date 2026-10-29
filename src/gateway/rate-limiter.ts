@@ -254,6 +254,8 @@ export function decideWsConnectionRateLimit(
     return { allowed: true };
   }
   const retrySec = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+  // ui/src/ui/gateway.ts parses "retry in Ns" from this reason to time its reconnect, and
+  // ui/src/ui/app-gateway.ts matches the "rate limited:" prefix; keep the wording.
   return {
     allowed: false,
     retryAfterMs: result.retryAfterMs,

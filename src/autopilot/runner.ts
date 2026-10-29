@@ -35,7 +35,7 @@ import { auditDemotion, demoteLocked, routineLevel } from "./autonomy-level.js";
 import { briefPlan, isBriefRoutine } from "./brief.js";
 import { globalStopRefusal } from "./control.js";
 import { MAIL_READ_TOOLS, parseListHeaders, safeEmailOrigin } from "./email-origin.js";
-import { isEngineTool, runEngineTool } from "./engine-tools.js";
+import { engineToolNoInput, isEngineTool, runEngineTool } from "./engine-tools.js";
 import { writeRunEvidence } from "./evidence.js";
 import { KnowledgeRefused, loadKnowledge } from "./knowledge.js";
 import { type Reasoner, ReasonerToolUse } from "./reasoner.js";
@@ -285,7 +285,9 @@ async function execute(
       if (!isEngineTool(tool)) {
         throw new Error(`${tool} is not an engine check`);
       }
-      return { text: runEngineTool(tool, args) };
+      const text = runEngineTool(tool, args, { projectId: project.id, home: deps.home });
+      const noInput = engineToolNoInput(tool, text);
+      return { text, ...(noInput ? { details: { noInput: true, noInputReason: noInput } } : {}) };
     }
     const res = await deps.tools({
       sessionKey,
@@ -689,6 +691,7 @@ async function execute(
         draftId: null,
         documentPath: null,
         documents: [],
+        fields: {},
       };
       let intake: Record<string, unknown> | null = null;
       let intakeOutcome: ActionOutcome | null = null;
@@ -847,6 +850,8 @@ async function execute(
               // the document its office.create wrote.
               ...evidenceFields(it, sourcesById),
               ...(ctx.documentPath ? { autopilotDocument: ctx.documentPath } : {}),
+              // Figures a tool computed for this item (e.g. the quotation's totals).
+              ...ctx.fields,
             },
           });
           workItems.push(created.id);

@@ -15,6 +15,7 @@ import type {
   GatewayConfig,
   TalkConfig,
 } from "./types.gateway.js";
+import type { GovernanceConfig } from "./types.governance.js";
 import type { HooksConfig } from "./types.hooks.js";
 import type { LspConfig } from "./types.lsp.js";
 import type { McpConfig } from "./types.mcp.js";
@@ -111,6 +112,8 @@ export type KoLoConfig = {
   console?: ConsoleConfig;
   /** Evidence bundles: a signed, hash-chained event log per job (KoLo 2.0, M12). */
   evidence?: EvidenceConfig;
+  /** Data governance: retention, legal holds, eDiscovery export, personal data guard. */
+  governance?: GovernanceConfig;
   /** The factory: boards, cards, engine runs and pull requests (KoLo 2.0, M15). */
   factory?: FactoryConfig;
   plugins?: PluginsConfig;

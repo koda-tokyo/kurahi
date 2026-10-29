@@ -244,10 +244,19 @@ export function nonPersonReason(
 export const SSO_PERSON_DECISIONS: ReadonlySet<string> = new Set([
   "workitems.decide",
   "workitems.clearFlag",
+  "workitems.selectSupplier",
   "autopilot.approvals.create",
   "autopilot.approvals.revoke",
   "autopilot.autonomy.accept",
   "autopilot.startAll",
+  // Data governance: legal holds, eDiscovery exports, data subject requests, policy, deletion.
+  "governance.policy.set",
+  "governance.retention.run",
+  "governance.holds.create",
+  "governance.holds.release",
+  "governance.export.create",
+  "governance.dsr.find",
+  "governance.dsr.execute",
 ]);
 
 /** `nonPersonReason` for an `SSO_PERSON_DECISIONS` method: why the caller may not decide, or null. */

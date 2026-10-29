@@ -1,5 +1,6 @@
 import { autopilotEn } from "./autopilot";
 import { businessEn } from "./business";
+import { businessNotificationsEn } from "./business-notifications";
 // English catalogue: the reference set of message IDs. Every other locale is Partial<> of this.
 import { industrialEn } from "./industrial";
 import { terminalEn } from "./terminal";
@@ -8,6 +9,7 @@ import { voiceEn } from "./voice";
 export const en = {
   ...autopilotEn,
   ...businessEn,
+  ...businessNotificationsEn,
   ...terminalEn,
   ...voiceEn,
   "brand.maker": "KODA SōKEN",
@@ -77,7 +79,7 @@ export const en = {
   "projects.view.agents": "Agents",
   "projects.view.rules": "Rules",
   "projects.view.history": "History",
-  "projects.readOnlyNote": "Files, agents and rules are read-only in v0.3.",
+  "projects.readOnlyNote": "Files, agents and rules are read-only here.",
   "projects.chat.new": "New chat in this project",
   "projects.chat.starters": "Starter prompts",
   "projects.chat.list": "Chats in this project",
@@ -144,7 +146,7 @@ export const en = {
   "artifacts.panel.exportMd": "Export Markdown + SHA-256",
   "artifacts.panel.exporting": "Verifying export…",
   "artifacts.panel.exportError": "The export could not be hashed. No files were downloaded.",
-  "artifacts.panel.pdfNote": "PDF export is not available in v0.3; export Markdown instead.",
+  "artifacts.panel.pdfNote": "Export as Markdown. PDF export is not available.",
   "artifacts.panel.meta": "v{version} · {user}{agent} · {date}",
   "artifacts.panel.agent": " with agent {agent}",
   "artifacts.panel.sha": "SHA-256",
@@ -278,8 +280,8 @@ export const en = {
   "common.loading": "Loading…",
   "common.none": "None",
   "common.notConnected": "Not connected to the service.",
-  "common.comingSoon": "Coming in v0.3",
-  "common.comingSoonBody": "This page is planned for v0.3. Nothing here is active yet.",
+  "common.comingSoon": "Not yet available",
+  "common.comingSoonBody": "This page is not yet available.",
   "common.readOnly": "Read-only. Edit these values in Settings.",
   "common.exportCsv": "Export CSV",
   "common.search": "Search",

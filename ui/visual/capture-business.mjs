@@ -115,6 +115,20 @@ try {
         .screenshot({ path: `${screenshots}/business-decision-${locale}-${size}.png` });
       console.log(`Business decision ${locale}/${size}/light: no horizontal overflow`);
     }
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto(
+      `http://127.0.0.1:${port}/visual/business-workspace.html?locale=${locale}&theme=light&linked=omitted`,
+    );
+    await page.waitForSelector("[data-business-linked-omitted] li");
+    await page.evaluate(() => document.fonts.ready);
+    if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)) {
+      throw new Error(`Business not-offered plans ${locale}/360: horizontal overflow`);
+    }
+    await page.screenshot({
+      path: `${screenshots}/business-linked-omitted-${locale}-360.png`,
+      fullPage: true,
+    });
+    console.log(`Business not-offered plans ${locale}/360/light: no horizontal overflow`);
   }
   if (errors.length) {
     throw new Error(errors.join("\n"));

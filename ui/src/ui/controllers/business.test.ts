@@ -6,6 +6,10 @@ import type {
 } from "../../../../packages/client/src/generated/types";
 import type { GatewayBrowserClient } from "../gateway";
 import {
+  beginBusinessReport,
+  editBusinessReport,
+  cancelBusinessReport,
+  submitBusinessReport,
   businessEvent,
   beginBusinessDecision,
   editBusinessDecision,
@@ -17,6 +21,7 @@ import {
   submitBusinessDecision,
   type BusinessHost,
 } from "./business";
+import { beginSupplier, editSupplier, submitSupplier } from "./business-supplier";
 import { DEFAULT_PROJECTS_STATE } from "./projects";
 
 const config: WorkitemsConfigResult = {
@@ -93,6 +98,7 @@ describe("Business read-only queue", () => {
     const { h, request } = host();
     await loadBusiness(h);
     expect(request.mock.calls).toEqual([
+      ["workitems.notifications.list", { projectId: "p1" }],
       ["workitems.config", { projectId: "p1" }],
       ["workitems.list", { projectId: "p1", limit: 50 }],
     ]);
@@ -266,9 +272,9 @@ describe("Business read-only queue", () => {
     businessEvent(h, { projectId: "p1", id: "other" });
     expect(h.business.list).toEqual(list);
     expect(h.business.item?.id).toBe("a");
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenCalledTimes(3);
     wait.resolve(list);
-    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(4));
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(6));
     expect(request.mock.calls.some(([method]) => method === "workitems.get")).toBe(false);
   });
   it("does not read when disconnected or outside the work queue", async () => {
@@ -526,5 +532,370 @@ describe("Business person decisions", () => {
     beginBusinessDecision(h, "approve");
     expect(h.business.decisionForm).toBeNull();
     expect(request.mock.calls.some(([method]) => method === "workitems.decide")).toBe(false);
+  });
+});
+
+describe("Business serious-error reports", () => {
+  async function reportHost() {
+    const { h, request } = await reviewHost();
+    h.hello = {
+      auth: { role: "operator", scopes: ["operator.approvals"] },
+    } as BusinessHost["hello"];
+    h.business.item!.createdBy = "autopilot:receipts";
+    request.mockImplementation(async (method, params) => {
+      if (method === "workitems.config") {
+        return config;
+      }
+      if (method === "workitems.get") {
+        return { item: { ...item(params.id).item, createdBy: "autopilot:receipts" } };
+      }
+      return list;
+    });
+    beginBusinessReport(h);
+    editBusinessReport(h, "  Incorrect amount  ");
+    request.mockClear();
+    return { h, request };
+  }
+  it("reports only after explicit submit, pins the item and refreshes queue and detail", async () => {
+    const { h, request } = await reportHost();
+    expect(request).not.toHaveBeenCalled();
+    await submitBusinessReport(h);
+    expect(request).toHaveBeenCalledWith("autopilot.reportError", {
+      projectId: "p1",
+      itemId: "a",
+      reason: "Incorrect amount",
+    });
+    expect(
+      request.mock.calls.filter(([method]) => method === "autopilot.reportError"),
+    ).toHaveLength(1);
+    expect(request).toHaveBeenCalledWith("workitems.get", { projectId: "p1", id: "a" });
+    expect(request).toHaveBeenCalledWith("workitems.list", { projectId: "p1", limit: 50 });
+    expect(h.business.reportForm).toBeNull();
+    expect(h.business.reportNotice).toContain("Error reported");
+    expect(h.business.decisionPending).toBe(false);
+  });
+  it.each(["", "abc", "x".repeat(1001)])("rejects invalid reason length %s", async (reason) => {
+    const { h, request } = await reportHost();
+    editBusinessReport(h, reason);
+    await submitBusinessReport(h);
+    expect(request).not.toHaveBeenCalled();
+    expect(h.business.reportNotice).toContain("4–1000");
+  });
+  it.each([
+    "identity",
+    "node",
+    "scope",
+    "origin",
+    "selection",
+    "project",
+    "disconnected",
+    "view",
+    "loading",
+    "detail-error",
+    "expense",
+    "work",
+    "decision",
+  ])("refuses %s at submission", async (gate) => {
+    const { h, request } = await reportHost();
+    if (gate === "identity") {
+      h.hello = null;
+    }
+    if (gate === "node") {
+      h.hello = { auth: { role: "node", scopes: ["operator.approvals"] } } as BusinessHost["hello"];
+    }
+    if (gate === "scope") {
+      h.hello = { auth: { role: "operator", scopes: ["operator.read"] } } as BusinessHost["hello"];
+    }
+    if (gate === "origin") {
+      h.business.item!.createdBy = "person:owner";
+    }
+    if (gate === "selection") {
+      h.business.selectedId = "other";
+    }
+    if (gate === "project") {
+      h.business.item!.projectId = "p2";
+    }
+    if (gate === "disconnected") {
+      h.connected = false;
+    }
+    if (gate === "view") {
+      h.projects.view = "autopilot";
+    }
+    if (gate === "loading") {
+      h.business.detailLoading = true;
+    }
+    if (gate === "detail-error") {
+      h.business.detailError = "failed";
+    }
+    if (gate === "expense") {
+      h.business.expensePending = true;
+    }
+    if (gate === "work") {
+      h.business.workPending = true;
+    }
+    if (gate === "decision") {
+      h.business.decisionPending = true;
+    }
+    await submitBusinessReport(h);
+    expect(request).not.toHaveBeenCalled();
+  });
+  it("rejects a changed revision", async () => {
+    const { h, request } = await reportHost();
+    h.business.item!.revision++;
+    await submitBusinessReport(h);
+    expect(request).not.toHaveBeenCalled();
+    expect(h.business.reportForm).toBeNull();
+  });
+  it("shares the decision lock across refresh, duplicate submit and reset", async () => {
+    const { h, request } = await reportHost();
+    const wait = deferred<unknown>();
+    request.mockImplementation(async (method, params) => {
+      if (method === "autopilot.reportError") {
+        return wait.promise;
+      }
+      if (method === "workitems.get") {
+        return { item: { ...item(params.id).item, createdBy: "autopilot:receipts" } };
+      }
+      return method === "workitems.config" ? config : list;
+    });
+    const pending = submitBusinessReport(h);
+    await submitBusinessReport(h);
+    editBusinessReport(h, "Must not replace submitted reason");
+    cancelBusinessReport(h);
+    beginBusinessDecision(h, "approve");
+    expect(h.business.decisionForm).toBeNull();
+    expect(h.business.reportForm?.reason).toBe("  Incorrect amount  ");
+    businessEvent(h, { projectId: "p1", id: "a" });
+    await vi.waitFor(() => expect(h.business.loading).toBe(false));
+    expect(h.business.decisionPending).toBe(true);
+    resetBusiness(h);
+    expect(h.business.decisionPending).toBe(true);
+    wait.resolve({});
+    await pending;
+    expect(h.business.decisionPending).toBe(false);
+    expect(h.business.reportNotice).toBeNull();
+    expect(
+      request.mock.calls.filter(([method]) => method === "autopilot.reportError"),
+    ).toHaveLength(1);
+  });
+  it.each(["project", "client", "selection"])(
+    "ignores late report response after %s changes",
+    async (change) => {
+      const { h, request } = await reportHost();
+      const wait = deferred<unknown>();
+      request.mockReturnValue(wait.promise);
+      const pending = submitBusinessReport(h);
+      if (change === "project") {
+        h.projects.selectedId = "p2";
+      }
+      if (change === "client") {
+        h.client = { request: vi.fn() } as unknown as GatewayBrowserClient;
+      }
+      if (change === "selection") {
+        h.business.selectedId = "b";
+      }
+      wait.resolve({});
+      await pending;
+      expect(h.business.reportNotice).toBeNull();
+      expect(request).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each([
+    "already_reported",
+    "routines_invalid",
+    "item_not_found",
+    "not_autopilot_item",
+    "routine_not_found",
+    "archived",
+    "transport",
+  ])("refreshes safely after %s without replay or raw diagnostics", async (code) => {
+    const { h, request } = await reportHost();
+    request.mockImplementation(async (method, params) => {
+      if (method === "autopilot.reportError") {
+        throw { details: { code }, message: "secret diagnostic" };
+      }
+      if (method === "workitems.get") {
+        return { item: { ...item(params.id).item, createdBy: "autopilot:receipts" } };
+      }
+      return method === "workitems.config" ? config : list;
+    });
+    await submitBusinessReport(h);
+    expect(h.business.reportNotice).not.toContain("secret diagnostic");
+    expect(h.business.reportNotice).toContain(
+      code === "transport"
+        ? "could not be confirmed"
+        : code === "already_reported"
+          ? "already been reported"
+          : "can no longer be reported",
+    );
+    expect(h.business.reportForm?.reason).toBe("  Incorrect amount  ");
+    expect(
+      request.mock.calls.filter(([method]) => method === "autopilot.reportError"),
+    ).toHaveLength(1);
+    expect(request).toHaveBeenCalledWith("workitems.get", { projectId: "p1", id: "a" });
+  });
+});
+
+it.each(["project", "client", "selection"])(
+  "does not restore report state after %s changes during post-write refresh",
+  async (change) => {
+    const { h, request } = await reviewHost();
+    h.hello = {
+      auth: { role: "operator", scopes: ["operator.approvals"] },
+    } as BusinessHost["hello"];
+    h.business.item!.createdBy = "autopilot:receipts";
+    beginBusinessReport(h);
+    editBusinessReport(h, "Incorrect amount");
+    const read = deferred<WorkitemsGetResult>();
+    request.mockImplementation(async (method, params) => {
+      if (method === "workitems.get") {
+        return params.id === "a" ? read.promise : item(params.id);
+      }
+      return method === "workitems.config" ? config : list;
+    });
+    const pending = submitBusinessReport(h);
+    await vi.waitFor(() =>
+      expect(request).toHaveBeenCalledWith("workitems.get", { projectId: "p1", id: "a" }),
+    );
+    if (change === "selection") {
+      await loadBusinessItem(h, "b");
+    } else {
+      if (change === "project") {
+        h.projects.selectedId = "p2";
+      } else {
+        h.client = { request: vi.fn() } as unknown as GatewayBrowserClient;
+      }
+      resetBusiness(h);
+    }
+    read.resolve(item("a"));
+    await pending;
+    expect(h.business.reportNotice).toBeNull();
+    expect(h.business.reportForm).toBeNull();
+    expect(h.business.item?.id ?? null).toBe(change === "selection" ? "b" : null);
+    expect(h.business.decisionPending).toBe(false);
+    expect(
+      request.mock.calls.filter(([method]) => method === "autopilot.reportError"),
+    ).toHaveLength(1);
+  },
+);
+
+describe("Supplier selection", () => {
+  async function supplierHost() {
+    const context = await reviewHost();
+    const { h, request } = context;
+    h.hello = {
+      auth: { role: "operator", scopes: ["operator.approvals"] },
+    } as BusinessHost["hello"];
+    Object.assign(h.business.item!, {
+      procurement: {
+        request: [{ code: "A", quantity: 1 }],
+        quotes: [10, 20].map((price, i) => ({
+          supplier: `Supplier ${i}`,
+          lines: [{ code: "A", description: "A", quantity: 1, unitPrice: price, taxRate: 10 }],
+        })),
+        comparisonDigest: "digest",
+        recordedBy: "agent",
+        at: "2026-10-26",
+      },
+    });
+    request.mockImplementation(async (method) =>
+      method === "workitems.config"
+        ? config
+        : method === "workitems.get" || method === "workitems.selectSupplier"
+          ? { item: h.business.item }
+          : list,
+    );
+    request.mockClear();
+    return context;
+  }
+  it("requires explicit confirmation, revision and substantive deviation reason", async () => {
+    const { h, request } = await supplierHost();
+    beginSupplier(h, "Supplier 1");
+    expect(request).not.toHaveBeenCalled();
+    editSupplier(h, "short");
+    await submitSupplier(h);
+    expect(request).not.toHaveBeenCalled();
+    editSupplier(h, "Reliable delivery date");
+    await submitSupplier(h);
+    expect(request).toHaveBeenCalledWith("workitems.selectSupplier", {
+      projectId: "p1",
+      id: "a",
+      expectedRevision: 1,
+      supplier: "Supplier 1",
+      reason: "Reliable delivery date",
+    });
+    expect(h.business.supplierForm).toBeNull();
+    expect(h.business.decisionPending).toBe(false);
+  });
+  it("refuses stale revision and readonly sessions without a write", async () => {
+    const { h, request } = await supplierHost();
+    beginSupplier(h, "Supplier 0");
+    h.business.item = { ...h.business.item!, revision: 2 };
+    await submitSupplier(h);
+    expect(h.business.supplierNotice).toContain("changed");
+    expect(request).not.toHaveBeenCalled();
+    h.hello = null;
+    beginSupplier(h, "Supplier 0");
+    expect(h.business.supplierForm).toBeNull();
+  });
+  it("holds the write lock across project reset and drops a late outcome", async () => {
+    const { h, request } = await supplierHost();
+    const pending = deferred<WorkitemsGetResult>();
+    request.mockReturnValue(pending.promise);
+    beginSupplier(h, "Supplier 0");
+    const action = submitSupplier(h);
+    await submitSupplier(h);
+    expect(request).toHaveBeenCalledTimes(1);
+    h.projects = { ...h.projects, selectedId: "p2" };
+    resetBusiness(h);
+    expect(h.business.decisionPending).toBe(true);
+    pending.resolve(item("a"));
+    await action;
+    expect(h.business.supplierNotice).toBeNull();
+    expect(h.business.item).toBeNull();
+    expect(h.business.decisionPending).toBe(false);
+  });
+  it("refreshes after refusal without automatically replaying the choice", async () => {
+    const { h, request } = await supplierHost();
+    const implementation = request.getMockImplementation()!;
+    request.mockImplementation((method, params) =>
+      method === "workitems.selectSupplier"
+        ? Promise.reject(new Error("stale"))
+        : implementation(method, params),
+    );
+    beginSupplier(h, "Supplier 0");
+    await submitSupplier(h);
+    expect(
+      request.mock.calls.filter(([method]) => method === "workitems.selectSupplier"),
+    ).toHaveLength(1);
+    expect(request).toHaveBeenCalledWith("workitems.get", { projectId: "p1", id: "a" });
+    expect(h.business.supplierForm).toBeNull();
+    expect(h.business.supplierNotice).toContain("Could not confirm");
+  });
+  it("never retries an uncertain write when readback also fails", async () => {
+    const { h, request } = await supplierHost();
+    request.mockRejectedValue(new Error("connection lost"));
+    beginSupplier(h, "Supplier 0");
+    await submitSupplier(h);
+    expect(h.business.error).toBeTruthy();
+    expect(h.business.supplierForm).toBeNull();
+    beginSupplier(h, "Supplier 0");
+    await submitSupplier(h);
+    expect(
+      request.mock.calls.filter(([method]) => method === "workitems.selectSupplier"),
+    ).toHaveLength(1);
+  });
+  it("blocks other editing forms and refuses a changed project before submission", async () => {
+    const { h, request } = await supplierHost();
+    h.business.reportForm = { id: "a", revision: 1, reason: "issue" };
+    beginSupplier(h, "Supplier 0");
+    expect(h.business.supplierForm).toBeNull();
+    h.business.reportForm = null;
+    beginSupplier(h, "Supplier 0");
+    beginBusinessDecision(h, "approve");
+    expect(h.business.decisionForm).toBeNull();
+    h.projects = { ...h.projects, selectedId: "p2" };
+    await submitSupplier(h);
+    expect(request).not.toHaveBeenCalled();
   });
 });

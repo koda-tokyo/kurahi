@@ -1,6 +1,29 @@
 import type { WorkitemsEvidenceResult } from "../../../../packages/client/src/generated/types";
 import type { BusinessEvidence, BusinessHost } from "./business";
 
+/** Match both identifiers; never carry a successful badge across an aggregate failure. */
+export function businessHistoryEvidenceStatus(
+  evidence: BusinessEvidence | null,
+  reference: { bundle: string; root: string },
+): "unchecked" | "loading" | "verified" | "retained" | "failed" | "unavailable" {
+  if (!evidence) {
+    return "unchecked";
+  }
+  if (evidence.status === "loading") {
+    return "loading";
+  }
+  const checks = evidence.historyChecks?.filter(
+    (check) => check.bundle === reference.bundle && check.root === reference.root,
+  );
+  if (!checks?.length || checks.some((check) => check.status !== checks[0].status)) {
+    return "unavailable";
+  }
+  const status = checks[0].status;
+  return (status === "verified" || status === "retained") && evidence.status !== "verified"
+    ? "unavailable"
+    : status;
+}
+
 /** Explicit read-only gateway verification. The endpoint does not attest an item revision. */
 export async function verifyBusinessEvidence(host: BusinessHost) {
   const client = host.client;
@@ -57,6 +80,7 @@ export async function verifyBusinessEvidence(host: BusinessHost) {
           !bundle ||
           typeof bundle.bundle !== "string" ||
           typeof bundle.ok !== "boolean" ||
+          (bundle.tombstone !== undefined && typeof bundle.tombstone !== "boolean") ||
           !Array.isArray(bundle.problems),
       )
     ) {
@@ -101,6 +125,30 @@ export async function verifyBusinessEvidence(host: BusinessHost) {
         status,
         checkedAt: new Date().toISOString(),
         bundles: result.bundles.length,
+        historyChecks: item.history.flatMap((event) => {
+          if (!event.evidence) {
+            return [];
+          }
+          const matches = result.bundles.filter(
+            (bundle) =>
+              bundle.bundle === event.evidence!.bundle && bundle.root === event.evidence!.root,
+          );
+          const bundle = matches.length === 1 ? matches[0] : undefined;
+          const checkStatus = !bundle
+            ? "unavailable"
+            : !bundle.ok || bundle.problems.length > 0
+              ? "failed"
+              : status !== "verified"
+                ? "unavailable"
+                : bundle.tombstone === true
+                  ? "retained"
+                  : "verified";
+          return [{ ...event.evidence, status: checkStatus }];
+        }),
+        retainedTombstones:
+          status === "verified"
+            ? result.bundles.filter((bundle) => bundle.tombstone === true).length
+            : 0,
       },
     };
   } catch {

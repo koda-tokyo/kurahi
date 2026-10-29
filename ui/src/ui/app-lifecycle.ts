@@ -18,6 +18,7 @@ import {
   syncTabWithLocation,
   syncThemeWithSettings,
 } from "./app-settings";
+import { takeInviteFragment } from "./demo-invite-link";
 import { handlePairLink } from "./pair-link";
 import { fetchSsoConfig, takeSsoFragment, type SsoConfig } from "./sso";
 
@@ -39,6 +40,13 @@ type LifecycleHost = {
 export function handleConnected(host: LifecycleHost) {
   host.basePath = inferBasePath();
   applySettingsFromUrl(host as unknown as Parameters<typeof applySettingsFromUrl>[0]);
+  // Private demo: a `#invite=kdi_…` link is the visitor's sign-in. It replaces any stored token
+  // and wins over a stored phone credential below.
+  const inviteCode = takeInviteFragment();
+  if (inviteCode) {
+    const settingsHost = host as unknown as Parameters<typeof applySettings>[0];
+    applySettings(settingsHost, { ...settingsHost.settings, token: inviteCode });
+  }
   syncTabWithLocation(host as unknown as Parameters<typeof syncTabWithLocation>[0], true);
   syncThemeWithSettings(host as unknown as Parameters<typeof syncThemeWithSettings>[0]);
   attachThemeListener(host as unknown as Parameters<typeof attachThemeListener>[0]);
@@ -55,6 +63,10 @@ export function handleConnected(host: LifecycleHost) {
   let pairNotice: string | null = null;
   void ssoReady.then((sso) => {
     pairNotice = sso.notice;
+    if (inviteCode) {
+      connectGateway(gatewayHost);
+      return;
+    }
     return handlePairLink({
       useToken: (token) => {
         const settingsHost = host as unknown as Parameters<typeof applySettings>[0];

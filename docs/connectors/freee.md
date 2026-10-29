@@ -20,7 +20,7 @@ administrator lists, through the freee API with a freee app the customer owns.
 | Access        | **Read-only, always.** No write tool exists                                            |
 | Sign-in       | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store |
 | Token storage | Kurahi secret store (`connector.freee.token`)                                          |
-| Status        | Preview                                                                                |
+| Status        | Available                                                                              |
 
 ## Why there is no write tool
 

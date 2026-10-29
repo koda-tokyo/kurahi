@@ -18,7 +18,7 @@ English: [マネーフォワード クラウド connector](/connectors/money-for
 | アクセス         | **常に読み取り専用**。要求するのは `mfc/invoice/data.read` だけ                                     |
 | サインイン       | ループバック リダイレクトによる OAuth 2.0 認可コード。クライアントシークレットはシークレット ストア |
 | トークンの保存先 | Kurahi のシークレット ストア（`connector.money-forward.token`）                                     |
-| 状態             | プレビュー                                                                                          |
+| 状態             | 提供中                                                                                              |
 
 ## 公開 API がある製品
 

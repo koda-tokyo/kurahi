@@ -1,0 +1,52 @@
+{
+  "id": "business-people-operations",
+  "name": {
+    "ja": "人事業務（プレビュー）",
+    "en": "People operations (Preview)"
+  },
+  "description": {
+    "ja": "勤怠原本に基づく休暇・残業の確認と、入退社の手動チェックリスト。給与・権限変更は実行しません。",
+    "en": "Leave/overtime review from supplied attendance sources and manual onboarding/offboarding checklists. No payroll or access changes."
+  },
+  "folders": ["requests", "attendance", "output"],
+  "rules": {
+    "readOnly": ["requests", "attendance"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "勤怠原本の参照先・集計日を残し、実績と見込みを区別。未確認の数値を推測しない。",
+        "en": "Record attendance source and snapshot date; distinguish actuals from forecasts and never invent figures."
+      },
+      {
+        "ja": "判断・送信・給与反映・権限付与や削除は人が行う。原本は読取専用。",
+        "en": "People decide, send, update payroll and grant or revoke access. Source records are read-only."
+      },
+      {
+        "ja": "チェックリストは手動。親子案件や依存順序をエンジンは制御しない。",
+        "en": "Checklists are manual; the engine does not enforce linked cases or dependency order."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "勤怠原本と申請の差異を、実績と見込みを分けて確認してください。",
+      "en": "Compare the request with attendance sources, separating actuals and forecasts."
+    },
+    {
+      "ja": "入退社チェックリストの未確認事項と担当者を整理してください。",
+      "en": "List unconfirmed onboarding/offboarding tasks and their owners."
+    }
+  ],
+  "terminalProfile": "data",
+  "plugins": ["office"],
+  "starterFiles": [
+    "requests/leave.md",
+    "requests/overtime.md",
+    "requests/onboarding.md",
+    "requests/offboarding.md",
+    "requests/lifecycle-evidence.md"
+  ]
+}

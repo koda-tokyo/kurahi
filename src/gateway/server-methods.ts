@@ -7,6 +7,11 @@ import {
   POLICY_SCOPE,
 } from "../identity/rbac.js";
 import { getIdentityService } from "../identity/service.js";
+import {
+  getDemoInviteStore,
+  demoInviteRefusalMessage,
+  demoVisitorRequestError,
+} from "../packaging/demo-invites.js";
 import { getPolicyEngine } from "../policy/engine.js";
 import { resolveAgentIdFromSessionKey } from "../routing/session-key.js";
 import { voiceApprovalRefusal } from "../voice/approval-guard.js";
@@ -32,6 +37,11 @@ import { cronHandlers } from "./server-methods/cron.js";
 import { debugHandlers } from "./server-methods/debug.js";
 import { deviceHandlers } from "./server-methods/devices.js";
 import { execApprovalsHandlers } from "./server-methods/exec-approvals.js";
+import {
+  GOVERNANCE_APPROVAL_METHODS,
+  GOVERNANCE_READ_METHODS,
+  governanceHandlers,
+} from "./server-methods/governance.js";
 import { healthHandlers } from "./server-methods/health.js";
 import { IDENTITY_READ_METHODS, identityHandlers } from "./server-methods/identity.js";
 import { integrityHandlers } from "./server-methods/integrity.js";
@@ -78,8 +88,12 @@ const APPROVAL_METHODS = new Set([
   "exec.approval.resolve",
   "workitems.decide",
   "workitems.delegate",
+  "workitems.withdrawDelegation",
+  "workitems.handoff.open",
   "workitems.clearFlag",
+  "workitems.selectSupplier",
   ...AUTOPILOT_APPROVAL_METHODS,
+  ...GOVERNANCE_APPROVAL_METHODS,
 ]);
 const NODE_ROLE_METHODS = new Set(["node.invoke.result", "node.event", "skills.bins"]);
 const PAIRING_METHODS = new Set([
@@ -138,6 +152,7 @@ const READ_METHODS = new Set([
   ...WORKITEMS_READ_METHODS,
   ...IDENTITY_READ_METHODS,
   ...AUTOPILOT_READ_METHODS,
+  ...GOVERNANCE_READ_METHODS,
 ]);
 const WRITE_METHODS = new Set([
   "send",
@@ -163,7 +178,13 @@ const WRITE_METHODS = new Set([
   ...VOICE_METHODS,
   ...PROJECT_WRITE_METHODS,
   ...WORKITEMS_WRITE_METHODS.filter(
-    (m) => m !== "workitems.decide" && m !== "workitems.delegate" && m !== "workitems.clearFlag",
+    (m) =>
+      m !== "workitems.decide" &&
+      m !== "workitems.delegate" &&
+      m !== "workitems.withdrawDelegation" &&
+      m !== "workitems.handoff.open" &&
+      m !== "workitems.clearFlag" &&
+      m !== "workitems.selectSupplier",
   ),
   ...AUTOPILOT_WRITE_METHODS,
 ]);
@@ -301,6 +322,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...projectsHandlers,
   ...workitemsHandlers,
   ...autopilotHandlers,
+  ...governanceHandlers,
   ...jobsHandlers,
   ...channelsHandlers,
   ...chatHandlers,
@@ -337,6 +359,32 @@ export async function handleGatewayRequest(
   opts: GatewayRequestOptions & { extraHandlers?: GatewayRequestHandlers },
 ): Promise<void> {
   const { req, respond, client, isWebchatConnect, context } = opts;
+  // Private demo: a visitor signed in with an invite is re-checked on every request (a revoke
+  // or the expiry bites mid-session) and may only drive its own Project's chats. Fail-closed,
+  // ahead of every other gate. An ended invite also closes the socket with the handshake's
+  // refusal, so the dashboard shows its invite notice instead of request errors.
+  if (client?.demoVisitor) {
+    const live = getDemoInviteStore().check(client.demoVisitor.inviteId);
+    if (!live.ok || live.invite.projectId !== client.demoVisitor.projectId) {
+      const why = live.ok ? "unknown_invite" : live.reason;
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.NOT_PAIRED, `demo invite ${why}; ask for a new invite`),
+      );
+      opts.closeConnection?.(1008, demoInviteRefusalMessage(why));
+      return;
+    }
+    const demoError = demoVisitorRequestError(
+      live.invite,
+      req.method,
+      (req.params ?? {}) as Record<string, unknown>,
+    );
+    if (demoError) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, demoError));
+      return;
+    }
+  }
   // M3a: a paired connection is re-checked on every request (family revocation, device
   // status, re-consent) and gated by the WS scope matrix before the legacy operator gate.
   if (client?.pairing) {

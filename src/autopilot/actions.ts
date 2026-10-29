@@ -54,6 +54,16 @@ export type ActionDef = {
    * has the item.
    */
   afterIntake?: boolean;
+  /**
+   * `tool` executor with producesFile: the file is the item's document, so a later mail.attach
+   * attaches it to the item's reply draft (as office.create's file is).
+   */
+  attachable?: boolean;
+  /**
+   * `tool` executor: work item fields taken from the tool's details (numbers and short strings
+   * the engine copies, never model text), so the Project's checks can see them.
+   */
+  fieldsOf?: (details: Record<string, unknown>) => Record<string, string | number>;
 };
 
 const ID_RE = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
@@ -157,6 +167,112 @@ const CORE: ActionDef[] = [
     },
     validate: officeArgsError,
     source: "core",
+  },
+  {
+    id: "quote.prepare",
+    class: "prepare",
+    editions: ["business"],
+    label: { en: "Prepare a quotation", ja: "見積書を作成" },
+    // The office plugin's quotation tool: the model gives the customer, subject and requested
+    // lines (code or name, quantity); prices, tax and totals come from the Project's price list
+    // and src/quotes, never from the model. Lines the list cannot price are marked 要確認.
+    executor: "tool",
+    tools: ["office_quote_create"],
+    args: { quote: { kind: "object", required: true, max: 60_000 } },
+    validate: (args) => {
+      const q = args.quote as Record<string, unknown>;
+      const lines = Array.isArray(q.lines) ? q.lines : [];
+      if (lines.length === 0) {
+        return "quote.lines needs at least one line";
+      }
+      // Scope and revisions are a person's decisions, never a routine's.
+      if ("excluded" in q || "revision" in q) {
+        return "a routine cannot take items out of scope or revise a quotation; a person does that";
+      }
+      return lines.some(
+        (l) =>
+          l &&
+          typeof l === "object" &&
+          ["unit_price", "unitPrice", "price", "amount"].some((k) => k in l),
+      )
+        ? "quote lines carry no prices: prices come from the price list"
+        : null;
+    },
+    producesFile: true,
+    attachable: true,
+    // The quotation's computed figures, for checks such as "no unpriced lines" and amount routing.
+    fieldsOf: (d) => {
+      const out: Record<string, string | number> = {};
+      for (const [from, to] of [
+        ["number", "quoteNumber"],
+        ["subtotal", "quoteSubtotal"],
+        ["tax", "quoteTax"],
+        ["total", "quoteTotal"],
+        ["unpriced", "quoteUnpriced"],
+        ["lines", "quoteLines"],
+        ["validUntil", "quoteValidUntil"],
+        ["priceListSha256", "quotePriceList"],
+        ["priceListAgeDays", "quotePriceListAgeDays"],
+        ["priceListMaxAgeDays", "quotePriceListMaxAgeDays"],
+        ["priceListOverdueDays", "quotePriceListOverdueDays"],
+        ["documentSha256", "quoteDocument"],
+        ["workbookSha256", "quoteWorkbook"],
+        ["zeroRateLines", "quoteZeroRate"],
+        ["revision", "quoteRevision"],
+        ["supersedes", "quoteSupersedes"],
+        ["excluded", "quoteExcluded"],
+      ] as const) {
+        const v = d[from];
+        if (typeof v === "number" && Number.isSafeInteger(v)) {
+          out[to] = v;
+        } else if (typeof v === "string" && v.length <= 80) {
+          out[to] = v;
+        }
+      }
+      return out;
+    },
+    source: "office",
+  },
+  {
+    id: "po.prepare",
+    class: "prepare",
+    editions: ["business"],
+    label: { en: "Draft a purchase order", ja: "発注書（下書き）を作成" },
+    // The office plugin's purchase order tool, for a procurement case a person already chose a
+    // supplier on (workitems.selectSupplier). The model names the case; the engine binds the
+    // comparison, supplier, chooser and reason from the case (purchase-order.ts), so they are
+    // not arguments here and are refused if given. The draft is never issued or sent.
+    executor: "tool",
+    tools: ["office_po_create"],
+    args: {
+      case: { kind: "string", required: true, max: 64 },
+      number: { kind: "string", max: 40 },
+      delivery: { kind: "string", max: 200 },
+      notes: { kind: "string", max: 2000 },
+      language: { kind: "string", max: 2 },
+    },
+    producesFile: true,
+    fieldsOf: (d) => {
+      const out: Record<string, string | number> = {};
+      for (const [from, to] of [
+        ["number", "poNumber"],
+        ["supplier", "poSupplier"],
+        ["net", "poNet"],
+        ["tax", "poTax"],
+        ["total", "poTotal"],
+        ["documentSha256", "poDocument"],
+        ["workbookSha256", "poWorkbook"],
+      ] as const) {
+        const v = d[from];
+        if (typeof v === "number" && Number.isSafeInteger(v)) {
+          out[to] = v;
+        } else if (typeof v === "string" && v.length <= 80) {
+          out[to] = v;
+        }
+      }
+      return out;
+    },
+    source: "office",
   },
   {
     id: "files.upload",

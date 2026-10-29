@@ -19,7 +19,7 @@ import { WorkItemRefused } from "./errors.js";
 import { applyTransition, type LifecycleOpts } from "./lifecycle.js";
 import { PRINCIPAL_RE } from "./parse-util.js";
 import { loadWorkQueuePolicy } from "./policy.js";
-import { readAllWorkItems } from "./store.js";
+import { readWorkItemsDueForMarks } from "./store.js";
 
 export const MAX_DELEGATION_DAYS = 30;
 export const MIN_DELEGATION_REASON = 5;
@@ -109,6 +109,71 @@ export function delegateStage(
   );
 }
 
+export type WithdrawDelegationInput = { reason?: unknown };
+
+/**
+ * The approver who delegated the current stage takes the decision back before the delegate has
+ * used it. Expired delegations may be withdrawn too (a cleanup with the same evidence trail).
+ */
+export function withdrawDelegation(
+  project: Project,
+  id: string,
+  input: WithdrawDelegationInput,
+  actor: Actor,
+  expectedRevision: number | undefined,
+  opts: LifecycleOpts = {},
+): WorkItem {
+  if (actor.kind !== "person") {
+    throw new WorkItemRefused("not_a_person", "only a person may withdraw a delegation");
+  }
+  if (project.archived) {
+    throw new Error("project is archived");
+  }
+  const reason = typeof input.reason === "string" ? input.reason.trim().slice(0, 1000) : "";
+  return applyTransition(
+    project,
+    id,
+    expectedRevision,
+    (cur, now) => {
+      const stage = currentStage(cur);
+      if (cur.status !== "awaiting_review" || !stage) {
+        throw new WorkItemRefused("not_awaiting_review", `the item is ${cur.status}`);
+      }
+      const mine = stage.delegations.find((d) => d.from === actor.id);
+      if (!mine) {
+        throw new WorkItemRefused(
+          "no_delegation",
+          `you have no delegation on stage ${stage.id} to withdraw`,
+          { stage: stage.id },
+        );
+      }
+      if (actedInStage(stage, actor.id)) {
+        throw new WorkItemRefused(
+          "already_approved",
+          "this stage already has your approval (directly or through your delegate); it stands",
+        );
+      }
+      stage.delegations = stage.delegations.filter((d) => d.from !== actor.id);
+      return {
+        next: cur,
+        spec: {
+          action: "delegate.withdraw",
+          actor,
+          comment: reason || undefined,
+          detail: {
+            stage: stage.id,
+            from: actor.id,
+            to: mine.to,
+            expiresAt: mine.expiresAt,
+            expired: Date.parse(mine.expiresAt) <= now.getTime(),
+          },
+        },
+      };
+    },
+    opts,
+  );
+}
+
 /** What the stage's timers call for at `now` (nothing already recorded is repeated). */
 export function dueMarks(stage: WorkItemStage, now: Date): { overdue: boolean; escalate: boolean } {
   const t = now.getTime();
@@ -134,7 +199,7 @@ class NothingToMark extends Error {}
 
 /** Record overdue / escalation on the current stage when due. Returns the item (updated or not). */
 export function escalateIfDue(
-  project: Pick<Project, "id">,
+  project: Pick<Project, "id" | "folder" | "templateId">,
   item: WorkItem,
   opts: LifecycleOpts & { onChange?: (item: WorkItem) => void } = {},
 ): WorkItem {
@@ -187,14 +252,14 @@ export function escalateIfDue(
   }
 }
 
-/** Check every item of one Project. Returns the items that changed. */
+/** Check the items of one Project whose marks may be due (through the list index). Returns the items that changed. */
 export function sweepEscalations(
-  project: Pick<Project, "id">,
+  project: Pick<Project, "id" | "folder" | "templateId">,
   opts: LifecycleOpts & { onChange?: (item: WorkItem) => void } = {},
 ): WorkItem[] {
   const now = opts.now ?? new Date();
   const changed: WorkItem[] = [];
-  for (const item of readAllWorkItems(project.id, { home: opts.home })) {
+  for (const item of readWorkItemsDueForMarks(project.id, now, { home: opts.home })) {
     const next = escalateIfDue(project, item, { ...opts, now });
     if (next !== item) {
       changed.push(next);

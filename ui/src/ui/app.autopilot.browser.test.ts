@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppViewState } from "./app-view-state";
 import type { Project, ProjectsState } from "./controllers/projects";
 import { KoLoApp } from "./app";
-import { emptyAutopilot } from "./controllers/autopilot";
+import { autopilotEvent, emptyAutopilot } from "./controllers/autopilot";
 import { emptyBusiness } from "./controllers/business";
 import { DEFAULT_PROJECTS_STATE } from "./controllers/projects";
 import { setLocale, t } from "./i18n";
@@ -99,7 +99,7 @@ describe("shared Autopilot Project route", () => {
         this.projects = { ...this.projects, ...update };
       },
     } as unknown as KoLoApp;
-    KoLoApp.prototype.setProjectView.call(host, "autopilot");
+    void KoLoApp.prototype.setProjectView.call(host, "autopilot");
     await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(5));
     expect(request.mock.calls.map(([method]) => method).toSorted()).toEqual([
       "autopilot.autonomy.proposals",
@@ -118,4 +118,121 @@ describe("shared Autopilot Project route", () => {
     expect(host.autopilot).toEqual(emptyAutopilot());
     expect(request).toHaveBeenCalledTimes(5);
   });
+});
+
+describe("Business originating-run navigation", () => {
+  function linkedHost() {
+    const request = vi.fn(async (method: string) => {
+      if (method === "autopilot.runs.get") {
+        return {
+          run: { id: "origin", projectId: "p1", workItems: ["item1"] },
+          evidence: { ok: false, problems: [] },
+        };
+      }
+      if (method === "autopilot.runs.list") {
+        return { runs: [], total: 0, nextCursor: null };
+      }
+      return {};
+    });
+    const host = {
+      connected: true,
+      client: { request },
+      tab: "projects",
+      autopilot: emptyAutopilot(),
+      business: {
+        ...emptyBusiness(),
+        projectId: "p1",
+        selectedId: "item1",
+        item: {
+          id: "item1",
+          projectId: "p1",
+          createdBy: "autopilot:receipts",
+          source: { fields: { autopilotRun: "origin" } },
+        },
+      },
+      projects: { ...DEFAULT_PROJECTS_STATE, selectedId: "p1", view: "business" },
+      updateComplete: Promise.resolve(),
+      querySelector: vi.fn(() => null),
+      patchProjects(this: KoLoApp, update: Partial<ProjectsState>) {
+        this.projects = { ...this.projects, ...update };
+      },
+      // oxlint-disable-next-line typescript/unbound-method -- the stub host calls it with itself as `this`
+      setProjectView: KoLoApp.prototype.setProjectView,
+    } as unknown as KoLoApp;
+    return { host, request };
+  }
+  it("loads the Project and then opens an originating run outside the current page", async () => {
+    const { host, request } = linkedHost();
+    await KoLoApp.prototype.openBusinessRun.call(host);
+    expect(host.projects.view).toBe("autopilot");
+    expect(request).toHaveBeenCalledWith("autopilot.runs.get", { projectId: "p1", id: "origin" });
+    expect(host.autopilot.runDetail?.run.id).toBe("origin");
+    expect(host.autopilot.runDetail?.evidence.ok).toBe(false);
+  });
+  it.each(["project", "stale", "loading", "ordinary"])(
+    "rejects %s Business links before navigation",
+    async (kind) => {
+      const { host, request } = linkedHost();
+      if (kind === "project") {
+        host.projects.selectedId = "p2";
+      }
+      if (kind === "stale") {
+        host.business.selectedId = "item2";
+      }
+      if (kind === "loading") {
+        host.business.detailLoading = true;
+      }
+      if (kind === "ordinary") {
+        host.business.item!.createdBy = "person:alice";
+      }
+      await KoLoApp.prototype.openBusinessRun.call(host);
+      expect(request).not.toHaveBeenCalled();
+      expect(host.projects.view).toBe("business");
+    },
+  );
+  it("keeps the originating-run intent through a deferred queued refresh", async () => {
+    const { host, request } = linkedHost();
+    const original = request.getMockImplementation()!;
+    let reads = 0;
+    let finish!: (value: { runs: never[]; total: number; nextCursor: null }) => void;
+    request.mockImplementation(async (method) => {
+      if (method === "autopilot.runs.list" && ++reads === 2) {
+        return new Promise<{ runs: never[]; total: number; nextCursor: null }>((resolve) => {
+          finish = resolve;
+        });
+      }
+      return original(method);
+    });
+    const pending = KoLoApp.prototype.openBusinessRun.call(host);
+    autopilotEvent(host, { projectId: "p1" });
+    await vi.waitFor(() => expect(reads).toBe(2));
+    expect(host.autopilot.loading).toBe(true);
+    expect(host.autopilot.linkedRun).toEqual({ id: "origin", itemId: "item1" });
+    expect(request.mock.calls.some(([method]) => method === "autopilot.runs.get")).toBe(false);
+    finish({ runs: [], total: 0, nextCursor: null });
+    await pending;
+    expect(host.autopilot.runDetail?.run.id).toBe("origin");
+    expect(request.mock.calls.filter(([method]) => method === "autopilot.runs.get")).toHaveLength(
+      1,
+    );
+  });
+  it.each(["project", "tab", "awayBack"])(
+    "does not open a linked run after %s navigation during the list read",
+    async (change) => {
+      const { host, request } = linkedHost();
+      const pending = KoLoApp.prototype.openBusinessRun.call(host);
+      if (change === "project") {
+        host.projects = { ...host.projects, selectedId: "p2" };
+      }
+      if (change === "tab") {
+        host.tab = "chat";
+      }
+      if (change === "awayBack") {
+        void host.setProjectView("chat");
+        void host.setProjectView("autopilot");
+      }
+      await pending;
+      expect(request.mock.calls.some(([method]) => method === "autopilot.runs.get")).toBe(false);
+    },
+  );
 });

@@ -256,6 +256,8 @@ describe("lifecycle", () => {
     );
     expect(approved.status).toBe("approved");
     expect(approved.override).toMatchObject({ by: manager.id, policyIds: ["fin.receipt"] });
+    // An ordinary override approves a final decision (no provisional outcome on this rule).
+    expect(approved.override?.outcome).toBeUndefined();
     expect(getArtifact(drafted.draft!.artifactId, null).artifact.status).toBe("approved");
     const fin = updateWorkItem(finance, item.id, { status: "done" }, clerk, approved.revision);
     expect(fin.status).toBe("done");

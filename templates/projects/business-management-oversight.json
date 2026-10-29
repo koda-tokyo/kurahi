@@ -1,0 +1,46 @@
+{
+  "id": "business-management-oversight",
+  "name": {
+    "ja": "経営管理（プレビュー）",
+    "en": "Management oversight (Preview)"
+  },
+  "description": {
+    "ja": "権限内の集計と証跡から業務量・例外・実測結果の報告を手動準備。自動集計・配布・外部処理は行いません。",
+    "en": "Prepare manual workload, exception and measured-outcome reports from authorized statistics and evidence. No automatic aggregation, distribution or downstream actions."
+  },
+  "folders": ["sources", "reports", "output"],
+  "rules": {
+    "readOnly": ["sources", "reports"],
+    "writable": ["output"],
+    "artifactApprovalRequired": true,
+    "instructions": [
+      {
+        "ja": "元プロジェクト・権限範囲・取得時刻を記録。不明はゼロにしない。",
+        "en": "Record source Project, authorized scope and capture time. Unknown is not zero."
+      },
+      {
+        "ja": "承認・推定削減時間を実施完了・実測効果と混同しない。共有前に人が確認。",
+        "en": "Keep approval and estimated savings distinct from downstream completion and measured outcomes. A person reviews before sharing."
+      }
+    ]
+  },
+  "suggestedAgents": ["main"],
+  "suggestedSkills": [],
+  "starterPrompts": [
+    {
+      "ja": "許可済みの原本から、対象範囲と不足を明記した業務量報告を準備してください。",
+      "en": "Prepare a workload report from authorized exports, stating scope and missing data."
+    },
+    {
+      "ja": "未解決の例外と結果証拠を整理し、実測と推定を分けてください。",
+      "en": "Summarize unresolved exceptions and outcome evidence, separating measurements from estimates."
+    }
+  ],
+  "terminalProfile": "data",
+  "starterFiles": [
+    "reports/snapshot.md",
+    "reports/exceptions.md",
+    "reports/outcomes.md",
+    "reports/review-decisions.md"
+  ]
+}

@@ -845,6 +845,9 @@
               "industrial-modernisation",
               "work-console",
               "business/work-queue",
+              "business/functional-packs",
+              "business/quotations",
+              "business/procurement-evidence",
               "autopilot",
               "scholars",
               "start/phone",
@@ -1039,6 +1042,7 @@
               "security/privacy",
               "security/attachment-intake",
               "security/identity",
+              "security/data-governance",
               "security/enterprise-profile",
               "security/formal-verification",
               "gateway/sandbox-vs-tool-policy-vs-elevated",
@@ -1265,6 +1269,9 @@
               "ja/industrial-modernisation",
               "ja/work-console",
               "ja/business/work-queue",
+              "ja/business/functional-packs",
+              "ja/business/quotations",
+              "ja/business/procurement-evidence",
               "ja/autopilot",
               "ja/scholars"
             ]
@@ -1309,6 +1316,7 @@
               "ja/security/privacy",
               "ja/security/attachment-intake",
               "ja/security/identity",
+              "ja/security/data-governance",
               "ja/security/enterprise-profile",
               "ja/security/owasp-agentic"
             ]

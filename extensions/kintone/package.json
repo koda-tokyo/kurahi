@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/kintone",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "kintone business connector: configured apps, bounded record queries with a field allow-list (read-only by default)",
   "type": "module",
   "devDependencies": {

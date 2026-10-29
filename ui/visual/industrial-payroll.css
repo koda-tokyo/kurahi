@@ -1,0 +1,118 @@
+.payroll-fixture {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+.payroll-fixture #fixture {
+  max-width: 1800px;
+  margin: auto;
+}
+.payroll-heading {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.payroll-heading h1 {
+  margin: 8px 0;
+  font-size: clamp(22px, 3vw, 32px);
+}
+.payroll-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 10px 0;
+}
+.payroll-eyebrow {
+  font: 11px/1.5 monospace;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.payroll-heading nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 13px;
+}
+.payroll-heading a {
+  color: var(--text);
+  text-underline-offset: 4px;
+}
+.payroll-outputs,
+.payroll-composition {
+  padding: 20px 28px;
+}
+.payroll-outputs h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.payroll-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 20px;
+  padding: 24px;
+}
+.payroll-pair > div {
+  min-width: 0;
+}
+.payroll-fixture .ent-panel {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-sizing: border-box;
+}
+.payroll-fixture .ent-panel__body {
+  max-height: 510px;
+  min-height: 350px;
+}
+.payroll-fixture .ent-panel__body pre {
+  font-size: 11px;
+}
+.payroll-fixture .ent-panel__body .ent-diff {
+  font-size: 13px;
+}
+.payroll-fixture .ent-diff {
+  overflow-wrap: anywhere;
+}
+.payroll-composition {
+  max-width: 1200px;
+  margin: auto;
+}
+.payroll-composition > p {
+  color: var(--muted);
+  font-size: 13px;
+}
+@media (max-width: 750px) {
+  .payroll-pair {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px;
+  }
+  .payroll-heading,
+  .payroll-outputs,
+  .payroll-composition {
+    padding: 16px;
+  }
+  .payroll-fixture .ent-panel__body {
+    min-height: 260px;
+  }
+}
+/* Keep source identifiers intact; narrow screens scroll within the real panel. */
+.payroll-pair .chat-text table {
+  min-width: 680px;
+  table-layout: fixed;
+}
+.payroll-pair .chat-text table th:nth-child(1) {
+  width: 15%;
+}
+.payroll-pair .chat-text table th:nth-child(2) {
+  width: 16%;
+}
+.payroll-pair .chat-text table th:nth-child(3) {
+  width: 12%;
+}
+.payroll-pair .chat-text table th:nth-child(4) {
+  width: 12%;
+}
+.payroll-pair .chat-text table th:nth-child(5) {
+  width: 45%;
+}

@@ -12,6 +12,7 @@ import type { SandboxContext } from "./sandbox.js";
 import { createCodeModeTool, finalizeCodeModeTool } from "../code-mode/tool.js";
 import { createFactoryTools } from "../factory/tools.js";
 import { wrapToolWithFormatter } from "../format/wrapper.js";
+import { wrapToolWithPersonalDataGuard } from "../governance/outbound-guard.js";
 import { maxAsk, minSecurity } from "../infra/exec-approvals.js";
 import { logWarn } from "../logger.js";
 import { wrapToolWithLspDiagnostics } from "../lsp/diagnostics-wrapper.js";
@@ -587,7 +588,16 @@ export function createKoLoCodingTools(options?: {
   });
   const normalized = subagentFiltered
     .map(normalizeToolParameters)
-    .map((tool) => (memoryGuard ? wrapToolWithMemoryProvenance(tool, memoryGuard) : tool));
+    .map((tool) => (memoryGuard ? wrapToolWithMemoryProvenance(tool, memoryGuard) : tool))
+    // APPI / マイナンバー guard on tools that send or write outside (src/governance/outbound-guard.ts).
+    // Innermost, with the final arguments, after every policy and approval guard allowed the call.
+    .map((tool) =>
+      wrapToolWithPersonalDataGuard(tool, {
+        agentId: memoryAgentId,
+        sessionKey: options?.sessionKey,
+        config: options?.config,
+      }),
+    );
   const withHooks = normalized.map((tool) =>
     wrapToolWithBeforeToolCallHook(tool, {
       agentId,

@@ -22,7 +22,7 @@ Gmail Pub/Sub フック（`kurahi webhooks gmail`）とは別のものです。
 | 追加で有効にできるもの | メール送信：`gmail.send`。送信のたびに人が承認                                        |
 | サインイン             | ループバック リダイレクト（`127.0.0.1`）による PKCE 付き認可コード                    |
 | トークンの保存先       | Kurahi のシークレット ストア（`connector.gmail.token`）。設定ファイルには保存しません |
-| 状態                   | プレビュー                                                                            |
+| 状態                   | 提供中                                                                                |
 
 ## 管理者が Google Cloud で行う設定
 

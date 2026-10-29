@@ -24,7 +24,7 @@ Entra コネクターの役割は次の 2 つで、この順に提供します�
 | サインインのスコープ   | `openid`、`profile`、`email`、`offline_access`、`User.Read`                          |
 | ディレクトリのスコープ | `User.ReadBasic.All`（basic）または `Directory.Read.All`（full、管理者の同意が必要） |
 | 書き込み               | なし。ディレクトリを変更することはありません                                         |
-| 状態                   | プレビュー                                                                           |
+| 状態                   | 提供中                                                                               |
 
 ## 管理者が Microsoft Entra で行う設定
 

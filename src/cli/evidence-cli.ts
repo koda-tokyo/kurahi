@@ -27,6 +27,7 @@ import {
 } from "../evidence/store.js";
 import { summarizeEvents } from "../evidence/summary.js";
 import { type BundleVerification, verifyEvidenceBundle } from "../evidence/verify.js";
+import { governanceConfigOf, minimumDays as governanceMinimumDays } from "../governance/policy.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { formatDocsLink } from "../terminal/links.js";
 import { renderTable } from "../terminal/table.js";
@@ -253,6 +254,11 @@ export function runEvidencePrune(
 ): number {
   const runtime = deps.runtime ?? defaultRuntime;
   let days: number;
+  const cfg = loadConfig();
+  // With data governance configured, its evidence minimum is a floor (audit integrity).
+  const minimumDays = cfg.governance
+    ? governanceMinimumDays(governanceConfigOf(cfg)).evidence
+    : undefined;
   if (opts.days !== undefined) {
     days = Number.parseInt(opts.days, 10);
     if (!Number.isInteger(days) || days < 0) {
@@ -262,16 +268,16 @@ export function runEvidencePrune(
       return EVIDENCE_EXIT.usage;
     }
   } else {
-    days = resolveEvidenceLimits(loadConfig().evidence).retentionDays;
+    days = resolveEvidenceLimits(cfg.evidence).retentionDays;
   }
-  const result = pruneEvidence({ days, dryRun: opts.dryRun, env: deps.env });
+  const result = pruneEvidence({ days, minimumDays, dryRun: opts.dryRun, env: deps.env });
   if (opts.json) {
     runtime.log(JSON.stringify({ days, dryRun: Boolean(opts.dryRun), ...result }, null, 2));
     return EVIDENCE_EXIT.ok;
   }
   const bytes = result.removed.reduce((n, r) => n + r.bytes, 0);
   runtime.log(
-    `${opts.dryRun ? "would remove" : "removed"} ${result.removed.length} job${result.removed.length === 1 ? "" : "s"} older than ${days} day${days === 1 ? "" : "s"} (${fmtBytes(bytes)}); kept ${result.kept}`,
+    `${opts.dryRun ? "would remove" : "removed"} ${result.removed.length} job${result.removed.length === 1 ? "" : "s"} older than ${days} day${days === 1 ? "" : "s"} (${fmtBytes(bytes)}); kept ${result.kept}${result.held ? ` (${result.held} under legal hold)` : ""}`,
   );
   for (const r of result.removed) {
     runtime.log(`  ${r.jobId}  ended ${r.endedAt}  ${fmtBytes(r.bytes)}`);

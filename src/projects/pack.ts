@@ -23,6 +23,8 @@ export const PACK_BUDGET_CHARS = 6000;
 const MAX_FILES_PER_SECTION = 50;
 const MAX_FILE_BYTES = 256 * 1024;
 const TEXT_EXT = /\.(md|markdown|txt)$/i;
+// Starter files may also be CSV / JSON data (a sample price list); pack sections stay text.
+const STARTER_EXT = /\.(md|markdown|txt|csv|json)$/i;
 
 export type PackFile = {
   section: PackSection;
@@ -167,8 +169,8 @@ const MAX_STARTER_BYTES = 64 * 1024;
 
 /**
  * Copy a template's starter files (`starterFiles`, from `<pack>/starter/<path>`) into the new
- * project's folder: fill-in forms a person keeps, such as knowledge/research-profile.md. Only a
- * text file (.md, .txt), only under one of the template's read-only folders (only people write
+ * project's folder: fill-in forms a person keeps, such as knowledge/research-profile.md, and
+ * starter data such as quotes/price-list.csv. Only a text file (.md, .txt, .csv, .json), only under one of the template's read-only folders (only people write
  * there), only when nothing exists at that path yet (never replaced), never through a symbolic
  * link. Returns the project-relative paths written.
  */
@@ -185,7 +187,7 @@ export function seedStarterFiles(
     return written;
   }
   for (const rel of files.slice(0, MAX_STARTER_FILES)) {
-    if (!TEXT_EXT.test(rel) || rel.split("/").some((s) => !s || s === "." || s === "..")) {
+    if (!STARTER_EXT.test(rel) || rel.split("/").some((s) => !s || s === "." || s === "..")) {
       continue;
     }
     if (!project.rules.readOnly.some((r) => r !== "." && rel.startsWith(`${r}/`))) {

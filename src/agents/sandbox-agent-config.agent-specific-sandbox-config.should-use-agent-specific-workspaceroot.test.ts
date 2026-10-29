@@ -115,7 +115,7 @@ describe("Agent-specific sandbox config", () => {
           },
           {
             id: "family",
-            workspace: "~/kolo-team",
+            workspace: "~/kolo-family",
             sandbox: {
               mode: "all", // family: always sandbox
               scope: "agent",

@@ -14,10 +14,12 @@ import path from "node:path";
 import type { Project } from "../projects/types.js";
 import type { WorkItem, WorkItemFlag } from "../workitems/types.js";
 import type { PlanItem, Routine } from "./types.js";
+import { fileSha256 } from "../workitems/documents.js";
 import { findByEmailOrigin, intakeEmail, SUMMARY_MAX } from "../workitems/intake.js";
 import { createWorkItem } from "../workitems/lifecycle.js";
 import { loadWorkQueuePolicy } from "../workitems/policy.js";
-import { readAllWorkItems } from "../workitems/store.js";
+import { recordPurchaseOrderDraft, type DraftQuoteSource } from "../workitems/procurement.js";
+import { readAllWorkItems, readWorkItem } from "../workitems/store.js";
 import {
   DEPARTMENT_IDS,
   WORK_ITEM_FLAGS,
@@ -87,6 +89,22 @@ export type WorkItemSink = {
    * engine then does not act on the message again). Optional for test sinks.
    */
   handled?(project: Project, routine: Routine, origin: EmailOriginRef): { id: string } | null;
+  /** A case of this Project by id (po.prepare reads its recorded selection). */
+  get?(project: Project, id: string): WorkItem | null;
+  /** Mark the purchase order po.prepare drafted on the case, so later runs skip it. */
+  recordPurchaseOrder?(
+    project: Project,
+    routine: Routine,
+    id: string,
+    draft: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source: DraftQuoteSource | null;
+      runId: string;
+    },
+  ): void;
 };
 
 export function autopilotActorId(routineId: string): string {
@@ -188,6 +206,15 @@ export function defaultWorkItemSink(opts: { home?: string } = {}): WorkItemSink 
         ...req.fields,
       };
       const summary = itemSummary(req);
+      // Files under the Project folder (cleanDocuments checks each exists there). A reference
+      // that is not there (any more) is left out rather than failing the intake.
+      // Each is pinned by its SHA-256 now, so approval can refuse bytes changed after intake.
+      const documents = (req.documents ?? [])
+        .filter((ref) => fs.existsSync(path.join(req.project.folder, ref)))
+        .map((ref) => {
+          const sha = fileSha256(path.join(req.project.folder, ref));
+          return { kind: "file" as const, ref, ...(sha ? { sha256: sha } : {}) };
+        });
       if (req.origin) {
         const { item: filed, created } = intakeEmail(
           req.project,
@@ -202,7 +229,7 @@ export function defaultWorkItemSink(opts: { home?: string } = {}): WorkItemSink 
           },
           actor,
           { home: opts.home },
-          { fields },
+          { fields, ...(documents.length ? { documents } : {}) },
         );
         return { id: filed.id, created };
       }
@@ -214,11 +241,7 @@ export function defaultWorkItemSink(opts: { home?: string } = {}): WorkItemSink 
           title,
           priority,
           source: {
-            // Files under the Project folder (cleanDocuments checks each exists there).
-            // A reference that is not there (any more) is left out rather than failing the intake.
-            documents: (req.documents ?? [])
-              .filter((ref) => fs.existsSync(path.join(req.project.folder, ref)))
-              .map((ref) => ({ kind: "file", ref })),
+            documents,
             fields: { summary, ...fields },
           },
         },
@@ -239,6 +262,13 @@ export function defaultWorkItemSink(opts: { home?: string } = {}): WorkItemSink 
     handled(project, _routine, origin) {
       const existing: WorkItem | null = findByEmailOrigin(project.id, origin, opts.home);
       return existing ? { id: existing.id } : null;
+    },
+    get(project, id) {
+      return readWorkItem(project.id, id, opts.home);
+    },
+    recordPurchaseOrder(project, routine, id, draft) {
+      const actor = { id: autopilotActorId(routine.id), kind: "agent" as const };
+      recordPurchaseOrderDraft(project, id, draft, actor, { home: opts.home });
     },
   };
 }

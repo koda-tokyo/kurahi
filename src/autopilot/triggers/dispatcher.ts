@@ -16,7 +16,13 @@
 
 import type { Project } from "../../projects/types.js";
 import type { RunTriggerInput } from "../runner.js";
-import type { EventSpec, EventTrigger, Routine, RunRecord } from "../types.js";
+import type {
+  EventSpec,
+  EventTrigger,
+  Routine,
+  RunRecord,
+  WorkItemTriggerAction,
+} from "../types.js";
 import type { MailWatchProvider } from "./mail-source.js";
 import { auditSafe } from "../../audit/audit-log.js";
 import { loadProjects } from "../../projects/store.js";
@@ -67,14 +73,15 @@ export function sourceKey(spec: EventSpec): string {
 }
 
 /** Map a work item history action to the trigger's action vocabulary. */
-export function workItemTriggerAction(
-  action: string,
-): "created" | "changed" | "decided" | "flag.clear" {
+export function workItemTriggerAction(action: string): WorkItemTriggerAction {
   if (action === "create") {
     return "created";
   }
   if (action.startsWith("decide.")) {
     return "decided";
+  }
+  if (action === "supplier.select") {
+    return "supplier.selected";
   }
   return action === "flag.clear" ? "flag.clear" : "changed";
 }

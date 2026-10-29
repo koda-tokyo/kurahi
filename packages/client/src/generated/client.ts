@@ -199,6 +199,14 @@ export class KoloClient extends KoloClientBase {
   }
 
   /**
+   * GET /api/governance/exports/{id}/download — Download a finished eDiscovery export (signed zip)
+   * Auth: gatewayToken | pairToken | adminSession | ssoSession.
+   */
+  downloadGovernanceExport(params: T.DownloadGovernanceExportParams, options?: RequestOptions): Promise<T.DownloadGovernanceExportResponse> {
+    return this.request("downloadGovernanceExport", { params, ...options });
+  }
+
+  /**
    * GET /api/health — Lightweight build probe
    * Auth: none.
    */

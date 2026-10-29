@@ -1,6 +1,9 @@
 import type { HealthSummary } from "../commands/health.js";
 import type { ChatRunEntry } from "./server-chat.js";
 import type { DedupeEntry } from "./server-shared.js";
+import { loadConfig } from "../config/config.js";
+import { resolveKoloHome } from "../config/kolo-home.js";
+import { maybeRunScheduledSweep } from "../governance/sweeper.js";
 import { changedEventPayload, sweepAllEscalations } from "../workitems/escalation.js";
 import { abortChatRunById, type ChatAbortControllerEntry } from "./chat-abort.js";
 import {
@@ -84,6 +87,16 @@ export function startGatewayMaintenanceTimers(params: {
         onChange: (item) =>
           params.broadcast("workitems.changed", changedEventPayload(item), { dropIfSlow: true }),
       });
+      // Data governance retention sweep: once per UTC day after governance.sweep.hourUtc.
+      try {
+        void maybeRunScheduledSweep({
+          home: resolveKoloHome(),
+          config: loadConfig(),
+          onError: (err) => params.logHealth.error(`retention sweep failed: ${formatError(err)}`),
+        });
+      } catch (err) {
+        params.logHealth.error(`retention sweep failed: ${formatError(err)}`);
+      }
     }
     for (const [k, v] of params.dedupe) {
       if (now - v.ts > DEDUPE_TTL_MS) {

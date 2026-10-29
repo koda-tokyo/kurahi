@@ -3,13 +3,10 @@
 // the voice guard refuses any voice-origin marker before it gets here. On top of that, decide
 // refuses every non-person origin: agent tool connections (backend mode / gateway-client),
 // non-operator roles and calls without a connection. Every change emits `workitems.changed`.
-import path from "node:path";
 import type { WorkItem } from "../../workitems/types.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { auditSafe } from "../../audit/audit-log.js";
 import { agentCommand } from "../../commands/agent.js";
-import { EVENTS_FILE, readEventsFile } from "../../evidence/store.js";
-import { verifyEvidenceBundle } from "../../evidence/verify.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
 import {
   accessConfigured,
@@ -22,7 +19,7 @@ import {
 import { DecisionRefused, decideWorkItem } from "../../workitems/decide.js";
 import { assignAgent, type DraftRunner } from "../../workitems/drafting.js";
 import { escalateIfDue } from "../../workitems/escalation.js";
-import { evidenceBundleDir, listEvidenceBundles } from "../../workitems/evidence.js";
+import { verifyWorkItemEvidenceChain } from "../../workitems/evidence.js";
 import { createWorkItem, type CreateInput, updateWorkItem } from "../../workitems/lifecycle.js";
 import { departmentQueueMatcher, loadWorkQueuePolicy } from "../../workitems/policy.js";
 import { listWorkItems, readWorkItem } from "../../workitems/store.js";
@@ -30,6 +27,9 @@ import { DEPARTMENT_IDS, type DepartmentFilter } from "../../workitems/types.js"
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
 import { workitemsIntakeHandlers } from "./workitems-intake.js";
+import { workitemsLinksHandlers } from "./workitems-links.js";
+import { workitemsNotificationsHandlers } from "./workitems-notifications.js";
+import { workitemsProcurementHandlers } from "./workitems-procurement.js";
 import { workitemsReviewHandlers } from "./workitems-review.js";
 import {
   actorFor,
@@ -50,7 +50,11 @@ export const WORKITEMS_READ_METHODS = [
   "workitems.evidence",
   "workitems.document",
   "workitems.draftDiff",
+  "workitems.handoffs",
   "workitems.stats",
+  "workitems.linked.get",
+  "workitems.linked.plans",
+  "workitems.notifications.list",
 ] as const;
 export const WORKITEMS_WRITE_METHODS = [
   "workitems.create",
@@ -58,8 +62,16 @@ export const WORKITEMS_WRITE_METHODS = [
   "workitems.assignAgent",
   "workitems.decide",
   "workitems.delegate",
+  "workitems.withdrawDelegation",
+  "workitems.handoff.open",
+  "workitems.handoff.event",
   "workitems.intakeEmail",
   "workitems.clearFlag",
+  "workitems.recordQuotes",
+  "workitems.selectSupplier",
+  "workitems.linked.create",
+  "workitems.linked.attach",
+  "workitems.notifications.markRead",
 ] as const;
 
 let runnerOverride: DraftRunner | null = null;
@@ -142,11 +154,18 @@ export const workitemsHandlers: GatewayRequestHandlers = {
       const project = projectOf(p.projectId);
       const policy = loadWorkQueuePolicy(project);
       const now = new Date();
-      const where = viewerFilter(actorFor(client), policy, project.id, {
-        mine: p.mine === true,
-        awaitingMe: p.awaitingMe === true,
-        now,
-      });
+      const actor = actorFor(client);
+      const privileged = isPrivileged(actor, policy, project.id);
+      // A privileged viewer reads everything and `mine` is `requestedBy`, so without awaitingMe the
+      // viewer filter adds nothing and the list index can page unread.
+      const where =
+        privileged && p.awaitingMe !== true
+          ? undefined
+          : viewerFilter(actor, policy, project.id, {
+              mine: p.mine === true,
+              awaitingMe: p.awaitingMe === true,
+              now,
+            });
       respond(
         true,
         listWorkItems(
@@ -162,6 +181,14 @@ export const workitemsHandlers: GatewayRequestHandlers = {
             q: p.q,
             stage: p.stage,
             flagged: p.flagged,
+            // Same check as the viewer filter's `mine`, but the list index can apply it unread.
+            requestedBy: p.mine === true ? actor.id : undefined,
+            // awaitingMe needs a current review, so the index can drop every other status unread.
+            awaitingReview: p.awaitingMe === true,
+            // Stages that name only other principals cannot await this viewer.
+            decider: p.awaitingMe === true ? actor.id : undefined,
+            // Items that name only other principals cannot be visible to a non-privileged viewer.
+            reader: privileged ? undefined : actor.id,
             where,
             // View filter only: narrows what the viewer may already read, never widens it.
             inDepartment: p.department
@@ -256,23 +283,7 @@ export const workitemsHandlers: GatewayRequestHandlers = {
     try {
       const project = projectOf(p.projectId);
       const item = readVisibleItem(project, p.id, client, context);
-      const bundles = [];
-      let prevRoot: string | null = null;
-      let chainOk = true;
-      for (const bundle of listEvidenceBundles(item)) {
-        const v = await verifyEvidenceBundle(evidenceBundleDir(item, bundle));
-        const linked = linkOk(item, bundle, prevRoot);
-        chainOk = chainOk && v.ok && linked;
-        prevRoot = v.manifest?.events.root ?? null;
-        bundles.push({
-          bundle,
-          ok: v.ok && linked,
-          status: v.manifest?.status ?? null,
-          root: v.manifest?.events.root ?? null,
-          signer: v.manifest?.signer?.keyId ?? null,
-          problems: linked ? v.problems : [...v.problems, "does not link to the previous bundle"],
-        });
-      }
+      const { bundles, chainOk } = await verifyWorkItemEvidenceChain(item);
       respond(true, { bundles, chainOk });
     } catch (err) {
       fail(respond, err);
@@ -393,14 +404,7 @@ export const workitemsHandlers: GatewayRequestHandlers = {
 
   ...workitemsReviewHandlers,
   ...workitemsIntakeHandlers,
+  ...workitemsLinksHandlers,
+  ...workitemsNotificationsHandlers,
+  ...workitemsProcurementHandlers,
 };
-
-/** Each bundle's job.start must name the previous bundle's root (the item's bundle chain). */
-function linkOk(item: WorkItem, bundle: string, prevRoot: string | null): boolean {
-  try {
-    const events = readEventsFile(path.join(evidenceBundleDir(item, bundle), EVENTS_FILE));
-    return (events[0]?.data?.prevRoot ?? null) === prevRoot;
-  } catch {
-    return false;
-  }
-}

@@ -1,0 +1,255 @@
+# Submission validation only; no scheduled renewal alerts. Configure real members before use.
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+access:
+  fallback: none
+queues:
+  - id: co-register
+    department: legal
+    name:
+      ja: 契約台帳
+      en: Contract register
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+  - id: co-review
+    department: legal
+    name:
+      ja: 契約レビュー依頼
+      en: Contract review request
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+  - id: co-renewals
+    department: legal
+    name:
+      ja: 更新・通知期限
+      en: Renewal and notice dates
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+  - id: co-obligations
+    department: legal
+    name:
+      ja: 履行義務
+      en: Obligations
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+  - id: co-signature
+    department: legal
+    name:
+      ja: 署名引継ぎ
+      en: Human signature handoff
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+rules:
+  - id: co.common
+    kind: required
+    fields:
+      - contractId
+      - owner
+      - description
+    label:
+      ja: 契約ID・担当者・内容は必須
+      en: Contract ID, owner and description required
+  - id: co-register.required
+    kind: required
+    queues:
+      - co-register
+    fields:
+      - counterparty
+      - documentReference
+      - documentVersion
+      - startsOn
+      - endsOn
+    label:
+      ja: 契約台帳の必須項目
+      en: Contract register required fields
+  - id: co-review.required
+    kind: required
+    queues:
+      - co-review
+    fields:
+      - documentReference
+      - documentVersion
+      - reviewQuestion
+      - neededBy
+    label:
+      ja: 契約レビュー依頼の必須項目
+      en: Contract review request required fields
+  - id: co-renewals.required
+    kind: required
+    queues:
+      - co-renewals
+    fields:
+      - renewalOn
+      - noticeBy
+      - noticeMethod
+    label:
+      ja: 更新・通知期限の必須項目
+      en: Renewal and notice dates required fields
+  - id: co-obligations.required
+    kind: required
+    queues:
+      - co-obligations
+    fields:
+      - obligation
+      - dueOn
+      - evidenceRequired
+    label:
+      ja: 履行義務の必須項目
+      en: Obligations required fields
+  - id: co-signature.required
+    kind: required
+    queues:
+      - co-signature
+    fields:
+      - approvedVersion
+      - authorizedSigner
+      - handoffInstructions
+    label:
+      ja: 署名引継ぎの必須項目
+      en: Human signature handoff required fields
+  - id: co.startson
+    kind: date
+    queues:
+      - co-register
+    field: startsOn
+    before: endsOn
+    label:
+      ja: 開始日は終了日以前
+      en: Start on or before end date
+  - id: co.endson
+    kind: date
+    queues:
+      - co-register
+    field: endsOn
+    label:
+      ja: 終了日の形式を確認
+      en: Validate end date
+  - id: co.neededby
+    kind: date
+    queues:
+      - co-review
+    field: neededBy
+    notInPast: true
+    label:
+      ja: 確認希望日は本日以降
+      en: Review needed-by date today or later
+  - id: co.noticeby
+    kind: date
+    queues:
+      - co-renewals
+    field: noticeBy
+    notInPast: true
+    before: renewalOn
+    label:
+      ja: 通知期限は本日以降、更新日以前
+      en: Notice deadline today or later and on or before renewal
+  - id: co.renewalon
+    kind: date
+    queues:
+      - co-renewals
+    field: renewalOn
+    notInPast: true
+    label:
+      ja: 更新日は本日以降
+      en: Renewal date today or later
+  - id: co.dueon
+    kind: date
+    queues:
+      - co-obligations
+    field: dueOn
+    notInPast: true
+    label:
+      ja: 履行期限は本日以降
+      en: Obligation due date today or later
+routes:
+  - id: co-register.review
+    name:
+      ja: 契約台帳の確認
+      en: Contract register review
+    queues:
+      - co-register
+    stages:
+      - id: review
+        name:
+          ja: 担当者確認
+          en: Assigned reviewer
+        approvers:
+          roles:
+            - contract-coordinator
+        dueHours: 48
+        onReturn: requester
+  - id: co-review.review
+    name:
+      ja: 契約レビュー依頼の確認
+      en: Contract review request review
+    queues:
+      - co-review
+    stages:
+      - id: review
+        name:
+          ja: 担当者確認
+          en: Assigned reviewer
+        approvers:
+          roles:
+            - legal-reviewer
+        dueHours: 48
+        onReturn: requester
+  - id: co-renewals.review
+    name:
+      ja: 更新・通知期限の確認
+      en: Renewal and notice dates review
+    queues:
+      - co-renewals
+    stages:
+      - id: review
+        name:
+          ja: 担当者確認
+          en: Assigned reviewer
+        approvers:
+          roles:
+            - contract-reviewer
+        dueHours: 48
+        onReturn: requester
+  - id: co-obligations.review
+    name:
+      ja: 履行義務の確認
+      en: Obligations review
+    queues:
+      - co-obligations
+    stages:
+      - id: review
+        name:
+          ja: 担当者確認
+          en: Assigned reviewer
+        approvers:
+          roles:
+            - obligation-reviewer
+        dueHours: 48
+        onReturn: requester
+  - id: co-signature.review
+    name:
+      ja: 署名引継ぎの確認
+      en: Human signature handoff review
+    queues:
+      - co-signature
+    stages:
+      - id: review
+        name:
+          ja: 担当者確認
+          en: Assigned reviewer
+        approvers:
+          roles:
+            - signature-coordinator
+        dueHours: 48
+        onReturn: requester

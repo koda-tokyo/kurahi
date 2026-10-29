@@ -29,6 +29,12 @@ import { recordRemoteNodeInfo, refreshRemoteNodeBins } from "../../../infra/skil
 import { upsertPresence } from "../../../infra/system-presence.js";
 import { loadVoiceWakeConfig } from "../../../infra/voicewake.js";
 import { rawDataToString } from "../../../infra/ws.js";
+import {
+  authorizeDemoInviteConnect,
+  demoInviteRefusalMessage,
+  isDemoInviteCode,
+  type DemoVisitor,
+} from "../../../packaging/demo-invites.js";
 import { recordAuditEvent } from "../../../security/audit-log.js";
 import { isGatewayCliClient, isWebchatClient } from "../../../utils/message-channel.js";
 import { authorizeGatewayConnect, isLocalDirectRequest } from "../../auth.js";
@@ -134,6 +140,10 @@ function formatGatewayAuthFailureMessage(params: {
       return "unauthorized: tailscale identity mismatch (use Tailscale Serve auth or gateway token/password)";
     default:
       break;
+  }
+  // A demo visitor holds only the invite link: say why it stopped working, and what to do.
+  if (reason?.startsWith("demo_")) {
+    return demoInviteRefusalMessage(reason.slice(5));
   }
 
   if (authMode === "token" && authProvided === "none") {
@@ -690,7 +700,48 @@ export function attachGatewayWsMessageHandler(params: {
             },
           });
         }
-        if (!authOk && connectParams.auth?.token && device && !pairPrincipal && !ssoToken) {
+        // Private demo (KURAHI_DEMO): a `kdi_` invite code signs in one visitor to one Project.
+        // No device pairing and no device token: the invite is the credential, re-checked on
+        // every request (handleGatewayRequest), so a revoke or the expiry bites mid-session.
+        let demoVisitor: DemoVisitor | null = null;
+        // Presenting a code always means "visitor": a local or proxy-trusted connection that
+        // carries one never becomes the owner.
+        const demoCode = isDemoInviteCode(connectParams.auth?.token);
+        if (demoCode) {
+          authOk = false;
+          const demo = authorizeDemoInviteConnect({
+            code: connectParams.auth?.token ?? "",
+            role,
+          });
+          if (demo.ok) {
+            demoVisitor = demo.visitor;
+            connectParams.scopes = demo.scopes;
+            authOk = true;
+            authMethod = "demo-invite";
+            authReason = undefined;
+          } else {
+            authReason = demo.reason;
+          }
+          recordAuditEvent({
+            action: "demo.invite.connect",
+            outcome: demoVisitor ? "allowed" : "denied",
+            source: "gateway.ws",
+            detail: {
+              invite: demoVisitor?.inviteId ?? null,
+              client: connectParams.client.id,
+              reason: demoVisitor ? null : authReason,
+              ip: reportedClientIp ?? null,
+            },
+          });
+        }
+        if (
+          !authOk &&
+          connectParams.auth?.token &&
+          device &&
+          !pairPrincipal &&
+          !ssoToken &&
+          !demoCode
+        ) {
           const tokenCheck = await verifyDeviceToken({
             deviceId: device.id,
             token: connectParams.auth.token,
@@ -703,7 +754,9 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
         if (!authOk) {
-          if (!isLocalClient) {
+          // A busy invites file is transient: not a failed guess, and the client should retry.
+          const demoBusy = authReason === "demo_busy";
+          if (!isLocalClient && !demoBusy) {
             authAttemptLimiter.record(attemptKey);
           }
           setHandshakeState("failed");
@@ -739,25 +792,31 @@ export function attachGatewayWsMessageHandler(params: {
             type: "res",
             id: frame.id,
             ok: false,
-            error: errorShape(ErrorCodes.INVALID_REQUEST, authMessage),
+            error: demoBusy
+              ? errorShape(ErrorCodes.UNAVAILABLE, authMessage, { retryable: true })
+              : errorShape(ErrorCodes.INVALID_REQUEST, authMessage),
           });
-          close(1008, truncateCloseReason(authMessage));
+          close(demoBusy ? 1013 : 1008, truncateCloseReason(authMessage));
           return;
         }
 
         // SSO required: people sign in through the IdP; only nodes, local agents and an audited
         // break-glass owner login get past without a session.
-        const ssoGate = ssoRequiredGate({
-          settings: getIdentityService(configSnapshot).settings,
-          authMethod,
-          person,
-          role,
-          client: connectParams.client,
-          localDirect: isLocalClient,
-          breakGlass: connectParams.auth?.breakGlass ?? null,
-          ip: reportedClientIp ?? null,
-          hasDevice: Boolean(device && devicePublicKey),
-        });
+        // A demo visitor is not a person and holds no owner secret: its invite already bounds it
+        // to one Project's chats, so the SSO gate (people and break-glass owners) does not apply.
+        const ssoGate = demoVisitor
+          ? ({ ok: true, breakGlass: false } as const)
+          : ssoRequiredGate({
+              settings: getIdentityService(configSnapshot).settings,
+              authMethod,
+              person,
+              role,
+              client: connectParams.client,
+              localDirect: isLocalClient,
+              breakGlass: connectParams.auth?.breakGlass ?? null,
+              ip: reportedClientIp ?? null,
+              hasDevice: Boolean(device && devicePublicKey),
+            });
         if (!ssoGate.ok) {
           setHandshakeState("failed");
           setCloseCause("sso-required", { client: connectParams.client.id, authMethod });
@@ -784,7 +843,10 @@ export function attachGatewayWsMessageHandler(params: {
           connectParams.scopes = legacyScopesForPerson(person);
         }
         const skipPairing =
-          (allowControlUiBypass && hasSharedAuth) || Boolean(pairPrincipal) || Boolean(person);
+          (allowControlUiBypass && hasSharedAuth) ||
+          Boolean(pairPrincipal) ||
+          Boolean(person) ||
+          Boolean(demoVisitor);
         if (device && devicePublicKey && !skipPairing) {
           const requirePairing = async (reason: string, _paired?: { deviceId: string }) => {
             if (!isLocalClient) {
@@ -899,7 +961,7 @@ export function attachGatewayWsMessageHandler(params: {
         }
 
         const deviceToken =
-          device && !pairPrincipal && !person
+          device && !pairPrincipal && !person && !demoVisitor
             ? await ensureDeviceToken({ deviceId: device.id, role, scopes })
             : null;
 
@@ -997,6 +1059,7 @@ export function attachGatewayWsMessageHandler(params: {
           presenceKey,
           ...(pairPrincipal ? { pairing: pairPrincipal } : {}),
           ...(person ? { person } : {}),
+          ...(demoVisitor ? { demoVisitor } : {}),
           ...(ssoGate.breakGlass ? { breakGlass: true } : {}),
           authMethod,
         };
@@ -1121,6 +1184,7 @@ export function attachGatewayWsMessageHandler(params: {
           isWebchatConnect,
           extraHandlers,
           context: buildRequestContext(),
+          closeConnection: (code, reason) => close(code, truncateCloseReason(reason)),
         });
       })().catch((err) => {
         logGateway.error(`request handler failed: ${formatForLog(err)}`);

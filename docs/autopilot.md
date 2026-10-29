@@ -33,13 +33,22 @@ Every routine run is the same six steps:
    readable only when its connector or plugin declares it read-only (for example
    `m365_mail_list`, `m365_mail_read`, `m365_mail_attachment_fetch`, `legacy_index`,
    the [scholar sources](/connectors/scholar-sources) `scholar_*` tools, `web_search`, the
-   engine's `health_*` checks). Attachments are quarantined and scanned before
+   engine's `health_*` checks, and `workitems_linked`, which reports the open linked cases in the
+   routine's own Project that are stuck: a step cancelled or stopped, a child item missing, or a
+   record that cannot be read, including cases nobody is assigned, which no morning brief shows;
+   a work items store it cannot list, or a work item it cannot read, escalates as unknown rather
+   than reporting zero; it lists work item ids only), and `workitems_po_ready`, which lists the
+   procurement cases waiting for a purchase order draft: open, no fraud flag, a person's supplier
+   choice that still matches the recorded quotes, and no draft from that choice yet (ids only; as a
+   `gate: true` step, none due ends the run with no model call, while unreadable items do not). Attachments are quarantined and scanned before
    anything is stored ([Attachment intake](/security/attachment-intake)).
    The [behaviour watchdog](#behaviour-watchdog) then measures the run before anything executes. A routines file that names a write tool in `gather` is invalid. At run time the engine
    also checks that the tool that answered comes from the plugin that declared it.
 3. **Reason** (model with no tools): a CLI backend (codex-cli in its read-only sandbox, or
    claude-cli with no tools at all) runs in an empty temporary folder with no session and no
-   workspace files. Gathered content is passed as data in `SOURCE` blocks, never as
+   workspace files; or the `api` backend calls an OpenAI-compatible model API (Sakura AI Engine,
+   a Qwen endpoint, a local Ollama: `reasoner: { backend: api, model: sakura/gpt-oss-120b }`) with
+   no tools in the request, so the model is never offered one. Gathered content is passed as data in `SOURCE` blocks, never as
    instructions. Approved company knowledge, when the routine declares it, is a separate
    `KNOWLEDGE` block of trusted facts (see [Approved company knowledge](#approved-company-knowledge)).
    If the backend still reports a tool call, its output is discarded.
@@ -92,16 +101,17 @@ queue has no flag for (`unverified_citation`, the informational flags) stay in t
 
 ### Core action catalogue
 
-| Action             | Class    | Executed as                                                                                    |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------- |
-| `workitem.intake`  | prepare  | a work item created by `autopilot:<routineId>` (email intake for a message the routine read)   |
-| `mail.draft`       | prepare  | `m365_mail_create_draft` (a draft; a person sends it from Outlook)                             |
-| `office.create`    | prepare  | a Word, PowerPoint or Excel file from a typed spec, rendered by the office plugin into output/ |
-| `mail.attach`      | prepare  | `m365_mail_attach_to_draft`: this item's document to this item's draft                         |
-| `files.upload`     | prepare  | `m365_files_upload` (the signed-in user's OneDrive app folder only)                            |
-| `calendar.propose` | prepare  | a work item with the proposed times; nothing is written to a calendar                          |
-| `brief.deliver`    | prepare  | the member's morning brief: an Outlook draft to their own address, or `output/briefs/`         |
-| `mail.send`        | external | `m365_mail_send` or `gmail_send`, only under a standing approval                               |
+| Action             | Class    | Executed as                                                                                                    |
+| ------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `workitem.intake`  | prepare  | a work item created by `autopilot:<routineId>` (email intake for a message the routine read)                   |
+| `mail.draft`       | prepare  | `m365_mail_create_draft` (a draft; a person sends it from Outlook)                                             |
+| `office.create`    | prepare  | a Word, PowerPoint or Excel file from a typed spec, rendered by the office plugin into output/                 |
+| `mail.attach`      | prepare  | `m365_mail_attach_to_draft`: this item's document to this item's draft                                         |
+| `quote.prepare`    | prepare  | a 見積書 (Word and Excel) priced from the price list by the office plugin ([Quotations](/business/quotations)) |
+| `files.upload`     | prepare  | `m365_files_upload` (the signed-in user's OneDrive app folder only)                                            |
+| `calendar.propose` | prepare  | a work item with the proposed times; nothing is written to a calendar                                          |
+| `brief.deliver`    | prepare  | the member's morning brief: an Outlook draft to their own address, or `output/briefs/`                         |
+| `mail.send`        | external | `m365_mail_send` or `gmail_send`, only under a standing approval                                               |
 
 `workitem.intake` accepts `title`, `type`, `priority`, `note` and, in Business, `department`:
 the item goes to the `<department>-work` queue when the Project has it (the company operations
@@ -341,14 +351,22 @@ Scholars `literature`, `data`, `writing`, `grants`, `lab`; Core `platform-ops`, 
 `backup`, `integrity`.
 
 Built-in prompts: `mail-triage`, `mail-secretariat`, `invoice-intake`, `legacy-changes`,
-`literature-watch`, `citation-check`, `grant-deadlines`, `platform-health`, and `morning-brief`
+`literature-watch`, `citation-check`, `grant-deadlines`, `platform-health`, `linked-cases`, and
+`morning-brief`
 (an engine-built plan, no model).
 
 Starter routines: `secretariat-inbox` (Business General Affairs pack), `secretariat-inbox-full`
-and `morning-brief` (Business Company Operations pack, below and [Morning brief](#morning-brief)), `finance-invoice-intake` (Business Finance pack),
+and `morning-brief` (Business Company Operations pack, below and [Morning brief](#morning-brief)), `finance-invoice-intake` (Business Finance pack), `sales-quote-intake` (Business Sales quotation pack, [Quotations](/business/quotations)),
+`procurement-po-draft` (Business Procurement pack: off until enabled; on `supplier.selected` in
+`proc-requests` and weekdays at half past each hour 09:30 to 18:30, `po.prepare` for each case
+`workitems_po_ready` lists. Each draft is recorded on the case (`purchaseOrderDraft`), so a choice
+is drafted once; new quotes or a new choice make it due again, and a draft whose choice changed
+mid-run is refused),
 `nightly-legacy-analysis` (Industrial pack), `literature-watch`, `citation-check` and
 `grant-deadlines` (Research pack, see [Scholars](#scholars)) and
-`platform-health` (`templates/autopilot/core-platform-health.yaml`).
+`platform-health` (`templates/autopilot/core-platform-health.yaml`) and `linked-cases`
+(`templates/autopilot/core-linked-cases.yaml`: weekdays 09:00 and 15:00, one work item when
+`workitems_linked` finds blocked, missing-step or unreadable linked cases).
 
 `nightly-legacy-analysis` (L1, nightly at 01:30 Asia/Tokyo and after a source drop in `source/`)
 compares the sources with the stored baseline
@@ -401,12 +419,12 @@ not a folder name or id, a files folder that is not under a read-only or writabl
 Project (or is the routines' own output folder `output/autopilot`), or a value out of range makes
 the whole file invalid. A routine with only `event` has no cron job.
 
-| Source      | What signals                                                                                                                                                                                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `m365.mail` | New mail in the folder, from one Microsoft Graph delta-query watcher per connector sign-in (every 60 s by default; see [Microsoft 365](/connectors/microsoft-365#autopilot-mail-triggers)). It says only that mail arrived; the routine's gather reads it as on any run. |
-| `workitems` | A work item of the Project is created (`created`), changed (`changed`), decided (`decided`) or has a flag cleared (`flag.clear`), optionally in one queue. Changes the routine made itself never trigger it.                                                             |
-| `deadline`  | Every 5 minutes: open items whose due date falls within `withinHours` (overdue included). Each item window (item and due date) signals once; a new due date is a new window.                                                                                             |
-| `files`     | A file under the folder changes (fs watch, polling every 30 s where watching is not available). The routines' output folder, hidden files and editor temporaries are ignored.                                                                                            |
+| Source      | What signals                                                                                                                                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `m365.mail` | New mail in the folder, from one Microsoft Graph delta-query watcher per connector sign-in (every 60 s by default; see [Microsoft 365](/connectors/microsoft-365#autopilot-mail-triggers)). It says only that mail arrived; the routine's gather reads it as on any run.                                                       |
+| `workitems` | A work item of the Project is created (`created`), changed (`changed`), decided (`decided`), has a flag cleared (`flag.clear`) or has its supplier chosen by a person (`supplier.selected`, the point to draft a purchase order with `po.prepare`), optionally in one queue. Changes the routine made itself never trigger it. |
+| `deadline`  | Every 5 minutes: open items whose due date falls within `withinHours` (overdue included). Each item window (item and due date) signals once; a new due date is a new window.                                                                                                                                                   |
+| `files`     | A file under the folder changes (fs watch, polling every 30 s where watching is not available). The routines' output folder, hidden files and editor temporaries are ignored.                                                                                                                                                  |
 
 Dispatch, per routine:
 
@@ -573,7 +591,12 @@ A brief covers a window (default: the 24 hours before now) and holds:
 - **documents**: the Office documents routines wrote (`office.create`), with run and routine;
 - **waiting**: decisions on items whose current stage the person may decide now, flagged items
   the person may clear (the `workitems.clearFlag` rule), and earned-autonomy proposals they may
-  accept (not yet declined), with `acceptBlocker`;
+  accept (not yet declined), with `acceptBlocker`; and `linked`: open linked cases the person
+  requested, is assigned or must decide whose steps are ready to open, whose child item is missing,
+  that are blocked (a step cancelled or stuck), or whose record cannot be read (`unreadable`).
+  Read-only: the brief never creates a plan, opens a step or attaches a child. `notifications`
+  counts the person's unread in-app notifications on items they can still read
+  (`unreadable: true` when their notification record cannot be read); it does not mark anything read;
 - **commitments**: open items the person requested, is assigned or must decide, due by the end of
   the next day (or overdue);
 - **problems**: watchdog trips, failed and skipped runs, demotions in the window, paused

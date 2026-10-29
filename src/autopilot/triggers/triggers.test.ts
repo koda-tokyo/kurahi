@@ -118,7 +118,7 @@ describe("event trigger validation (fail closed)", () => {
           {
             source: "workitems",
             queue: null,
-            actions: ["created", "changed", "decided", "flag.clear"],
+            actions: ["created", "changed", "decided", "flag.clear", "supplier.selected"],
           },
           { source: "deadline", withinHours: 24 },
           { source: "files", folder: "inbox/scans" },
@@ -210,6 +210,8 @@ describe("event trigger validation (fail closed)", () => {
     expect(workItemTriggerAction("create")).toBe("created");
     expect(workItemTriggerAction("decide.approve")).toBe("decided");
     expect(workItemTriggerAction("flag.clear")).toBe("flag.clear");
+    expect(workItemTriggerAction("supplier.select")).toBe("supplier.selected");
+    expect(workItemTriggerAction("procurement.record")).toBe("changed");
     expect(workItemTriggerAction("draft")).toBe("changed");
     expect(sourceKey({ source: "workitems", queue: null, actions: ["created"] })).toBe(
       "workitems:*",

@@ -195,6 +195,7 @@ export function evaluatePolicy(
       label: rule.label,
       result: out.result,
       blocking: rule.blocking,
+      ...(rule.overrideOutcome ? { overrideOutcome: rule.overrideOutcome } : {}),
       evidence: { kind: rule.kind, ...out.evidence },
       checkedAt,
       draftVersion: draft?.version ?? null,

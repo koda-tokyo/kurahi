@@ -1,0 +1,42 @@
+# 購買 / Procurement autopilot (starter routine; see docs/autopilot.md).
+# L1 Prepare. When a person records the chosen supplier on a 相見積 case (supplier.selected), a
+# 発注書 draft (Word and Excel) is written to output/purchase-orders/ for that case. The engine
+# binds the comparison, the supplier, the chooser and the reason from the case; the model names
+# only the case. Each choice is drafted once: the case records the draft, and new quotes or a new
+# choice make it due again. Nothing is issued, sent or paid: a person reviews and issues the order.
+# Off until the office plugin is enabled for the gateway and the Project is in 実行 Act mode.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: procurement-po-draft
+    edition: business
+    area: procurement
+    enabled: false
+    name: { ja: 選定済み案件の発注書（下書き）作成, en: Purchase order drafts for chosen suppliers }
+    # A choice starts a run within seconds; the schedule is the safety net after a restart.
+    trigger:
+      schedule: "30 9-18 * * 1-5"
+      tz: Asia/Tokyo
+      event: [{ source: workitems, queue: proc-requests, actions: [supplier.selected] }]
+      debounceSeconds: 30
+      maxRunsPerHour: 12
+    gather:
+      # Ids only. No case waiting: the run ends with no model call.
+      - id: due
+        tool: workitems_po_ready
+        gate: true
+    reasoning:
+      schema: autopilot.plan.v1
+      promptText: |
+        SOURCE lists procurement case ids waiting for a purchase order draft (fact dueIds).
+        For each listed id, one item with ref set to the id and one action: po.prepare with case
+        set to the id. Add language "ja" unless told otherwise. Never name a supplier, a price,
+        an amount, a chooser or a reason: the engine takes them from the case. Do not invent ids;
+        ids not in dueIds get no item. No ids: no items.
+        dueIds の各案件に po.prepare を1件。取引先・金額・選定者は書かない。
+    actions: [po.prepare]
+    level: L1
+    limits: { maxItemsPerRun: 10, maxActionsPerDay: 50 }
+    queue: proc-requests
+    metrics: { baselineMinutes: 15 }

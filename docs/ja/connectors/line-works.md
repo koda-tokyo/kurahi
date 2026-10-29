@@ -18,7 +18,7 @@ English: [LINE WORKS connector](/connectors/line-works)
 | 追加で有効にできるもの | 指定したチャンネル・ユーザーへのテキスト送信（`bot.message`）。毎回、人が承認                  |
 | 認証                   | Service Account：アプリの秘密鍵で署名した JWT（RS256）をトークンに交換                         |
 | シークレット           | `connector.line-works.privateKey`、`connector.line-works.clientSecret`、キャッシュしたトークン |
-| 状態                   | プレビュー                                                                                     |
+| 状態                   | 提供中                                                                                         |
 
 ## メッセージは読み取れません
 

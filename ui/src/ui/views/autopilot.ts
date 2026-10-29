@@ -206,10 +206,12 @@ export function renderAutopilot(state: State, project: { id: string }) {
     </form>`;
   };
   const detail = a.runDetail;
+  const retained = detail?.evidence.tombstone === true;
+  const evidencePassed = detail?.evidence.ok === true && detail.evidence.problems.length === 0;
   const limited = (values: unknown[]) =>
     values.length > 50 ? html`<p class="muted">${t("autopilot.detailLimit")}</p>` : nothing;
   const runDetails =
-    () => html`<section id="autopilot-run-details" aria-label=${t("autopilot.runDetails")} class="card ent-card">
+    () => html`<section id="autopilot-run-details" tabindex="-1" aria-label=${t("autopilot.runDetails")} class="card ent-card">
     <div class="ent-toolbar"><h3>${t("autopilot.runDetails")}</h3>
       <button class="btn" @click=${() => state.closeAutopilotRun()}>${t("autopilot.closeDetails")}</button></div>
     <p class="mono">${a.selectedRunId}</p>
@@ -226,13 +228,14 @@ export function renderAutopilot(state: State, project: { id: string }) {
         <p>${t("autopilot.ended")}: ${dateTime(detail.run.endedAt)}</p>
         ${detail.run.reason ? html`<p>${detail.run.reason}</p>` : nothing}
         <h4>${t("autopilot.evidence")}</h4>
-        <p role="status">${t(detail.evidence.ok && detail.evidence.problems.length === 0 ? "autopilot.evidencePassed" : "autopilot.evidenceUnverified")}</p>
-        <ul>${detail.evidence.problems.slice(0, 50).map((problem) => html`<li>${problem}</li>`)}</ul>
-        ${limited(detail.evidence.problems)}
+        <p role="status">${t(evidencePassed ? (retained ? "autopilot.evidenceRetained" : "autopilot.evidencePassed") : "autopilot.evidenceUnverified")}</p>
+        ${retained ? nothing : html`<ul>${detail.evidence.problems.slice(0, 50).map((problem) => html`<li>${problem}</li>`)}</ul>${limited(detail.evidence.problems)}`}
         ${
-          detail.run.evidence
-            ? html`<p>${t("autopilot.evidenceRecorded")}</p>`
-            : html`<p>${t("autopilot.noEvidenceBundle")}</p>`
+          retained
+            ? nothing
+            : detail.run.evidence
+              ? html`<p>${t("autopilot.evidenceRecorded")}</p>`
+              : html`<p>${t("autopilot.noEvidenceBundle")}</p>`
         }
         <h4>${t("autopilot.workItems")}</h4>
         ${detail.run.workItems.slice(0, 50).map((itemId) => html`<article><p class="mono">${itemId}</p>${reportControl(itemId)}</article>`)}
@@ -264,6 +267,7 @@ export function renderAutopilot(state: State, project: { id: string }) {
     <div class="ent-toolbar"><h2>${t("autopilot.title")}</h2>
       <button class="btn" ?disabled=${!state.connected || a.loading} @click=${() => state.refreshAutopilot()}>${t("autopilot.refresh")}</button></div>
     <p class="muted">${t("autopilot.readOnly")}</p>
+    ${a.mutationDelayed ? html`<p role="status">${t("autopilot.mutationDelayed")}</p>` : nothing}
     ${present && a.reportStatus ? html`<p role="status">${t(`autopilot.${a.reportStatus}`)}</p>` : nothing}
     ${renderAutopilotBrief(a, project.id, state.connected, state.locale)}
     <div class="ent-toolbar">

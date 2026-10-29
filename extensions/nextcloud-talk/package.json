@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/nextcloud-talk",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Kurahi Nextcloud Talk channel plugin",
   "type": "module",
   "devDependencies": {

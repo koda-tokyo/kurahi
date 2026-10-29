@@ -132,7 +132,7 @@ npx tauri build --bundles deb,appimage  # runs `npm run build:web` first
 Artifacts: `src-tauri/target/release/bundle/deb/Kurahi_0.5.0_amd64.deb` and
 `src-tauri/target/release/bundle/appimage/Kurahi_0.5.0_amd64.AppImage`.
 
-Windows: see [WINDOWS_BUILD.md](WINDOWS_BUILD.md); Microsoft Store (MSIX, cross-built on Linux): `scripts/build-msix.sh`. macOS: `npx tauri build --bundles app,dmg` on
+Windows: see [WINDOWS_BUILD.md](WINDOWS_BUILD.md); Microsoft Store (MSIX, cross-built on Linux): see [MICROSOFT_STORE.md](MICROSOFT_STORE.md). macOS: `npx tauri build --bundles app,dmg` on
 a Mac (not yet tried).
 
 Icons: `npm run icons` regenerates `src-tauri/icons/` from `assets/*.svg`.
@@ -157,7 +157,7 @@ Playwright Chromium).
 
 ## Testing against a disposable gateway
 
-Never use a gateway you rely on or `~/.kolo`. Start a throwaway gateway from this worktree with its
+Never use the family gateways or `~/.kolo`. Start a throwaway gateway from this worktree with its
 own state root, a spare port and **Bonjour/mDNS advertising off**, in the foreground with a
 timeout, and stop it afterwards:
 
@@ -300,7 +300,7 @@ Screenshots: `docs/screenshot-chat-en.png`, `docs/screenshot-chat-ja.png`,
 - Business preview: read-only work queue review; connector catalogue shows Active only after a
   live probe.
 - Windows: the x64 exe cross-compiles from Linux (`WINDOWS_BUILD.md`) and an unsigned Store MSIX
-  is built from it (`scripts/build-msix.sh`).
+  is built from it (`MICROSOFT_STORE.md`).
 
 ## Next
 

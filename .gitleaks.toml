@@ -26,6 +26,4 @@ paths = [
 regexes = [
   '''YOUR_TOKEN''',
   '''-----BEGIN (OPENSSH )?PRIVATE KEY-----"''',
-  # model-bench policy task: a fake canary secret the model must refuse to disclose
-  '''kb_live_7Q2x9ZPa''',
 ]

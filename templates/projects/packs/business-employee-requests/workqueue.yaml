@@ -1,0 +1,263 @@
+# Starter policy; configure real members and company limits before use.
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+access:
+  fallback: none
+queues:
+  - id: er-triage
+    department: admin
+    name:
+      ja: 従業員依頼の受付
+      en: Employee request triage
+    types:
+      - request
+    slaHours: 24
+    defaultAgent: main
+  - id: er-equipment
+    department: it
+    name:
+      ja: 備品・IT機器
+      en: Equipment and IT devices
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+  - id: er-cards
+    department: admin
+    name:
+      ja: 名刺
+      en: Business cards
+    types:
+      - request
+    slaHours: 48
+    defaultAgent: main
+  - id: er-facilities
+    department: facilities
+    name:
+      ja: 会議室・施設
+      en: Rooms and facilities
+    types:
+      - request
+    slaHours: 72
+    defaultAgent: main
+  - id: er-certificates
+    department: hr
+    name:
+      ja: 証明書発行
+      en: Employment certificates
+    types:
+      - request
+    slaHours: 72
+    defaultAgent: main
+rules:
+  - id: er.common
+    kind: required
+    fields:
+      - requester
+      - department
+      - description
+      - neededBy
+    label:
+      ja: 依頼者・部署・内容・希望日は必須
+      en: Requester, department, description and needed-by date required
+  - id: er.date
+    kind: date
+    field: neededBy
+    notInPast: true
+    minLeadDays: 2
+    label:
+      ja: 希望日は2暦日以上先
+      en: Needed-by date at least 2 calendar days ahead
+  - id: er.no-completion-claims
+    kind: forbiddenPhrases
+    target: draft
+    phrases:
+      - 発注済み
+      - 予約済み
+      - 発行済み
+      - 承認済み
+      - 支払済み
+      - 権限付与済み
+      - already ordered
+      - already booked
+      - certificate issued
+      - request approved
+      - already paid
+      - access granted
+    label:
+      ja: 未実施の承認・手配を完了と記載しない
+      en: Do not claim approval or fulfillment before it happens
+  - id: er-equipment.required
+    kind: required
+    queues:
+      - er-equipment
+    fields:
+      - item
+      - quantity
+      - estimatedCost
+      - budgetCode
+      - businessReason
+    label:
+      ja: 備品・IT機器の必須項目
+      en: Equipment and IT devices required fields
+  - id: er-cards.required
+    kind: required
+    queues:
+      - er-cards
+    fields:
+      - printedName
+      - jobTitle
+      - workEmail
+      - quantity
+      - deliveryLocation
+    label:
+      ja: 名刺の必須項目
+      en: Business cards required fields
+  - id: er-facilities.required
+    kind: required
+    queues:
+      - er-facilities
+    fields:
+      - location
+      - startsOn
+      - endsOn
+      - attendees
+      - purpose
+    label:
+      ja: 会議室・施設の必須項目
+      en: Rooms and facilities required fields
+  - id: er-certificates.required
+    kind: required
+    queues:
+      - er-certificates
+    fields:
+      - certificateType
+      - purpose
+      - language
+      - deliveryMethod
+    label:
+      ja: 証明書発行の必須項目
+      en: Employment certificates required fields
+  - id: er.equipment.cost
+    kind: threshold
+    queues:
+      - er-equipment
+    field: estimatedCost
+    warnAbove: 50000
+    max: 500000
+    label:
+      ja: 5万円超は注意、50万円超は本パックの対象外
+      en: Warn above JPY 50,000; above JPY 500,000 outside this pack
+  - id: er.facilities.start
+    kind: date
+    queues:
+      - er-facilities
+    field: startsOn
+    notInPast: true
+    minLeadDays: 2
+    before: endsOn
+    label:
+      ja: 利用開始日は2暦日以上先、終了日以前
+      en: Start at least 2 calendar days ahead and on or before end date
+  - id: er.facilities.end
+    kind: date
+    queues:
+      - er-facilities
+    field: endsOn
+    notInPast: true
+    label:
+      ja: 終了日は有効な日付
+      en: End date must be valid and not in the past
+routes:
+  - id: er-equipment.review
+    name:
+      ja: 備品・IT機器承認
+      en: Equipment and IT devices approval
+    queues:
+      - er-equipment
+    stages:
+      - id: review
+        name:
+          ja: 備品・IT機器担当者の確認
+          en: Equipment and IT devices reviewer
+        approvers:
+          roles:
+            - it-reviewer
+        dueHours: 48
+        onReturn: requester
+      - id: budget
+        name:
+          ja: 10万円超の予算承認
+          en: Budget approval above JPY 100,000
+        when:
+          - field: estimatedCost
+            gt: 100000
+        approvers:
+          roles:
+            - budget-approver
+        dueHours: 48
+        onReturn: previous
+  - id: er-cards.review
+    name:
+      ja: 名刺承認
+      en: Business cards approval
+    queues:
+      - er-cards
+    stages:
+      - id: review
+        name:
+          ja: 名刺担当者の確認
+          en: Business cards reviewer
+        approvers:
+          roles:
+            - admin-reviewer
+        dueHours: 48
+        onReturn: requester
+  - id: er-facilities.review
+    name:
+      ja: 会議室・施設承認
+      en: Rooms and facilities approval
+    queues:
+      - er-facilities
+    stages:
+      - id: review
+        name:
+          ja: 会議室・施設担当者の確認
+          en: Rooms and facilities reviewer
+        approvers:
+          roles:
+            - facilities-reviewer
+        dueHours: 72
+        onReturn: requester
+  - id: er-certificates.review
+    name:
+      ja: 証明書発行承認
+      en: Employment certificates approval
+    queues:
+      - er-certificates
+    stages:
+      - id: review
+        name:
+          ja: 証明書発行担当者の確認
+          en: Employment certificates reviewer
+        approvers:
+          roles:
+            - hr-reviewer
+        dueHours: 72
+        onReturn: requester
+  - id: er.triage
+    name:
+      ja: 受付確認
+      en: Triage review
+    queues:
+      - er-triage
+    stages:
+      - id: triage
+        name:
+          ja: 総務受付担当
+          en: Request coordinator
+        approvers:
+          roles:
+            - request-coordinator
+        dueHours: 24

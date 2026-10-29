@@ -103,6 +103,7 @@ describe("department navigation and scoped reads", () => {
     expect(h.business.department).toBe("finance");
     expect(h.business.queue).toBe("");
     expect(request.mock.calls).toEqual([
+      ["workitems.notifications.list", { projectId: "p1" }],
       ["workitems.config", { projectId: "p1" }],
       ["workitems.list", { projectId: "p1", department: "finance", limit: 50 }],
     ]);
@@ -113,6 +114,7 @@ describe("department navigation and scoped reads", () => {
     const { h, request } = fixture();
     await selectBusinessDepartment(h, "secretariat");
     expect(request.mock.calls).toEqual([
+      ["workitems.notifications.list", { projectId: "p1" }],
       ["workitems.config", { projectId: "p1" }],
       ["workitems.list", { projectId: "p1", department: "secretariat", limit: 50 }],
     ]);

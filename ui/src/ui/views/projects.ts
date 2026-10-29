@@ -428,7 +428,7 @@ function renderProjectPage(state: AppViewState, proj: Project) {
           class="ent-subtabs__tab ${v === view ? "active" : ""}"
           @click=${(e: Event) => {
             e.preventDefault();
-            state.setProjectView(v);
+            void state.setProjectView(v);
           }}
           >${t(VIEW_LABEL[v])}</a
         >`,

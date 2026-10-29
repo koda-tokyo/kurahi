@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/googlechat",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Kurahi Google Chat channel plugin",
   "type": "module",
   "dependencies": {

@@ -290,4 +290,29 @@ describe("department over the gateway", () => {
     const none = await call("workitems.stats", { projectId }, admin);
     expect(none.payload.total).toBe(5);
   });
+
+  it("queue and department stats read through the index and see a later item", async () => {
+    const fin = await call("workitems.stats", { projectId, queue: "fin" }, admin);
+    expect(fin.payload.total).toBe(3);
+    expect(Object.keys(fin.payload.byQueue)).toEqual(["fin"]);
+    const r = await call(
+      "workitems.create",
+      { projectId, queue: "hr", type: "leave", title: "B leave" },
+      reqB,
+    );
+    expect(r.ok, r.error?.message).toBe(true);
+    const hr = await call("workitems.stats", { projectId, department: "hr" }, admin);
+    expect(hr.payload.total).toBe(2);
+    expect((await call("workitems.stats", { projectId, queue: "hr" }, reqB)).payload.total).toBe(1);
+    // A non-privileged viewer's full stats read through the index too and match its list.
+    const mine = await call("workitems.stats", { projectId }, reqB);
+    expect(mine.payload.scope).toBe("visible");
+    const listed = await call("workitems.list", { projectId, limit: 200 }, reqB);
+    expect(mine.payload.total).toBe(listed.payload.items.length);
+    expect(mine.payload.total).toBeGreaterThan(1);
+    expect((await call("workitems.stats", { projectId }, admin)).payload.total).toBe(6);
+    expect((await call("workitems.stats", { projectId, queue: "fin" }, admin)).payload.total).toBe(
+      3,
+    );
+  });
 });

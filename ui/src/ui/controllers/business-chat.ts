@@ -26,6 +26,7 @@ export async function startBusinessChat(host: KoLoApp, projectId: string, messag
     business.decisionPending ||
     business.expensePending ||
     business.workPending ||
+    business.supplierForm ||
     business.decisionForm ||
     business.expenseForm ||
     business.workForm

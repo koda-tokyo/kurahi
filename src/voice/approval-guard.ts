@@ -21,6 +21,7 @@ export const APPROVAL_METHODS: ReadonlySet<string> = new Set([
   "artifacts.setStatus",
   "workitems.decide",
   "workitems.clearFlag",
+  "workitems.selectSupplier",
   "autopilot.approvals.create",
   "autopilot.approvals.revoke",
   "autopilot.autonomy.accept",
@@ -28,6 +29,14 @@ export const APPROVAL_METHODS: ReadonlySet<string> = new Set([
   "autopilot.reportError",
   "autopilot.stopAll",
   "autopilot.startAll",
+  // Data governance: everything that changes, deletes or discloses data.
+  "governance.policy.set",
+  "governance.retention.run",
+  "governance.holds.create",
+  "governance.holds.release",
+  "governance.export.create",
+  "governance.dsr.find",
+  "governance.dsr.execute",
 ]);
 
 /** Matches future approval-type methods by name as well (fail closed). */

@@ -120,7 +120,11 @@ const PROJECT_OBSERVE = [
   "workitems.evidence",
   "workitems.document",
   "workitems.draftDiff",
+  "workitems.handoffs",
   "workitems.stats",
+  "workitems.linked.get",
+  "workitems.linked.plans",
+  "workitems.notifications.list",
   // Autopilot reads (routines, runs, approvals, metrics).
   "autopilot.routines.list",
   "autopilot.runs.list",
@@ -130,6 +134,8 @@ const PROJECT_OBSERVE = [
   "autopilot.autonomy.proposals",
   // The caller's own morning brief (person only, items the caller can already read).
   "autopilot.brief.get",
+  // Data governance: the effective retention / personal data policy.
+  "governance.policy.get",
 ];
 const PROJECT_ATTACH = [
   "projects.chatKey",
@@ -147,8 +153,16 @@ const PROJECT_ATTACH = [
   "workitems.assignAgent",
   "workitems.decide",
   "workitems.delegate",
+  "workitems.withdrawDelegation",
+  "workitems.handoff.open",
+  "workitems.handoff.event",
   "workitems.intakeEmail",
   "workitems.clearFlag",
+  "workitems.recordQuotes",
+  "workitems.selectSupplier",
+  "workitems.linked.create",
+  "workitems.linked.attach",
+  "workitems.notifications.markRead",
   // Autopilot: manual run; pause / resume and standing approvals are person-only in the handler.
   "autopilot.run",
   "autopilot.pause",
@@ -161,6 +175,17 @@ const PROJECT_ATTACH = [
   // Global kill switch: person-only, operator.approvals, voice refused (handler + guard).
   "autopilot.stopAll",
   "autopilot.startAll",
+  // Data governance: person-only, operator.approvals, voice refused (handler + guard).
+  "governance.policy.set",
+  "governance.retention.run",
+  "governance.holds.create",
+  "governance.holds.list",
+  "governance.holds.release",
+  "governance.export.create",
+  "governance.export.get",
+  "governance.export.list",
+  "governance.dsr.find",
+  "governance.dsr.execute",
 ];
 
 const WS_OBSERVE = new Set([

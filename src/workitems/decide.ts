@@ -18,6 +18,7 @@ import { auditSafe } from "../audit/audit-log.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { getArtifact, isKnownIdentity, setArtifactStatus } from "../projects/artifacts.js";
 import { actedInStage, currentStage, deciderVia, isPrivileged } from "./access.js";
+import { changedDocuments } from "./documents.js";
 import { WorkItemRefused } from "./errors.js";
 import { assertNoFraudFlag } from "./flags.js";
 import { applyTransition, checkSummary, recheck, type LifecycleOpts } from "./lifecycle.js";
@@ -69,7 +70,7 @@ export function decideWorkItem(
       : null;
   // Filled inside the transition; read after it commits.
   const out: {
-    override: { reason: string; policyIds: string[] } | null;
+    override: { reason: string; policyIds: string[]; outcome?: "provisional" } | null;
     artifact: "approved" | "draft" | null;
   } = { override: null, artifact: null };
 
@@ -176,8 +177,21 @@ export function decideWorkItem(
           "the person you are delegated by approved an earlier stage of this item",
         );
       }
+      // A document changed since it was attached is not the one reviewed: no override approves it.
+      const changed = changedDocuments(project, cur, home);
+      if (changed.length > 0) {
+        throw new DecisionRefused(
+          "document_changed",
+          `a document changed after it was attached (${changed.join(", ")}); prepare it again for review`,
+          { documents: changed },
+        );
+      }
       recheck(project, cur, now, home);
-      const failing = blockingFailures(cur.checks).map((c) => c.policyId);
+      const failingChecks = blockingFailures(cur.checks);
+      const failing = failingChecks.map((c) => c.policyId);
+      // Overriding a check marked overrideOutcome "provisional" approves a provisional release
+      // only: the reason is the authorisation to release it as such, never a final approval.
+      const provisional = failingChecks.some((c) => c.overrideOutcome === "provisional");
       const at = now.toISOString();
       if (failing.length > 0) {
         if (!overrideReason || overrideReason.length < MIN_OVERRIDE_REASON) {
@@ -187,8 +201,18 @@ export function decideWorkItem(
             { failing },
           );
         }
-        out.override = { reason: overrideReason, policyIds: failing };
-        cur.override = { by: actor.id, at, reason: overrideReason, policyIds: failing };
+        out.override = {
+          reason: overrideReason,
+          policyIds: failing,
+          ...(provisional ? { outcome: "provisional" as const } : {}),
+        };
+        cur.override = {
+          by: actor.id,
+          at,
+          reason: overrideReason,
+          policyIds: failing,
+          ...(provisional ? { outcome: "provisional" as const } : {}),
+        };
       }
       stage.approvals.push({
         by: actor.id,
@@ -252,7 +276,12 @@ export function decideWorkItem(
       action: "workitem.override",
       outcome: "ok",
       source: "gateway.workitems",
-      detail: { id, policyIds: o.policyIds, reason: o.reason },
+      detail: {
+        id,
+        policyIds: o.policyIds,
+        reason: o.reason,
+        ...(o.outcome ? { outcome: o.outcome } : {}),
+      },
     });
   }
   if (out.artifact && item.draft) {

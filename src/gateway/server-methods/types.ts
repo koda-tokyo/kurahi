@@ -20,6 +20,8 @@ export type GatewayClient = {
   pairing?: import("../pair-store.js").PairPrincipal;
   /** Person principal when the socket authenticated with an SSO session (enterprise identity). */
   person?: import("../../identity/types.js").PersonPrincipal;
+  /** Demo visitor signed in with a `kdi_` invite (KURAHI_DEMO): its Project's chats only. */
+  demoVisitor?: { inviteId: string; projectId: string };
   /** Owner login admitted as break-glass with a stated reason (audited). */
   breakGlass?: boolean;
   /** Credential the handshake verified; personhood is derived from it, never from client fields. */
@@ -102,6 +104,8 @@ export type GatewayRequestOptions = {
   isWebchatConnect: (params: ConnectParams | null | undefined) => boolean;
   respond: RespondFn;
   context: GatewayRequestContext;
+  /** Closes the client's socket (private demo: an invite that ended mid-session). */
+  closeConnection?: (code: number, reason: string) => void;
 };
 
 export type GatewayRequestHandlerOptions = {

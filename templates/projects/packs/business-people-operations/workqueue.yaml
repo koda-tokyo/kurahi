@@ -1,0 +1,286 @@
+# Preview example: company policy, named reviewers and manual reconciliation required.
+version: 1
+timezone: Asia/Tokyo
+separationOfDuties: true
+access:
+  fallback: none
+queues:
+  - id: people-leave
+    department: hr
+    name:
+      ja: 休暇申請
+      en: Leave requests
+    types:
+      - leave
+    slaHours: 24
+    defaultAgent: main
+  - id: people-overtime
+    department: hr
+    name:
+      ja: 残業申請
+      en: Overtime requests
+    types:
+      - request
+    slaHours: 8
+    defaultAgent: main
+  - id: people-onboarding
+    department: hr
+    name:
+      ja: 入社準備
+      en: Onboarding checklist
+    types:
+      - case
+    slaHours: 72
+    defaultAgent: main
+  - id: people-offboarding
+    department: hr
+    name:
+      ja: 退社準備
+      en: Offboarding checklist
+    types:
+      - case
+    slaHours: 24
+    defaultAgent: main
+rules:
+  - id: people.common
+    kind: required
+    fields:
+      - employeeId
+      - department
+    label:
+      ja: 社員番号と所属部署は必須
+      en: Employee ID and department required
+  - id: people.no-completion
+    kind: forbiddenPhrases
+    target: draft
+    phrases:
+      - 承認済み
+      - 給与反映済み
+      - 権限付与済み
+      - 権限削除済み
+      - request approved
+      - leave approved
+      - overtime approved
+      - payroll updated
+      - access granted
+      - access revoked
+    label:
+      ja: 下書きで承認・実施の完了を主張しない
+      en: Drafts must not claim approval or downstream completion
+  - id: people-leave.required
+    kind: required
+    queues:
+      - people-leave
+    fields:
+      - leaveType
+      - startDate
+      - endDate
+      - requestedDays
+      - availableDays
+      - attendanceSource
+      - attendanceAsOf
+    label:
+      ja: 休暇申請の必須項目
+      en: Leave requests required fields
+  - id: people-overtime.required
+    kind: required
+    queues:
+      - people-overtime
+    fields:
+      - date
+      - hours
+      - reason
+      - monthToDateHours
+      - forecastMonthHours
+      - attendanceSource
+      - attendanceAsOf
+    label:
+      ja: 残業申請の必須項目
+      en: Overtime requests required fields
+  - id: people-onboarding.required
+    kind: required
+    queues:
+      - people-onboarding
+    fields:
+      - effectiveOn
+      - caseOwner
+      - checklistReference
+    label:
+      ja: 入社準備の必須項目
+      en: Onboarding checklist required fields
+  - id: people-offboarding.required
+    kind: required
+    queues:
+      - people-offboarding
+    fields:
+      - effectiveOn
+      - caseOwner
+      - checklistReference
+    label:
+      ja: 退社準備の必須項目
+      en: Offboarding checklist required fields
+  - id: people.leave.start
+    kind: date
+    queues:
+      - people-leave
+    field: startDate
+    label:
+      ja: 開始は3暦日以上先、終了日以前
+      en: Start at least 3 calendar days ahead and on or before end
+    notInPast: true
+    minLeadDays: 3
+    before: endDate
+  - id: people.leave.end
+    kind: date
+    queues:
+      - people-leave
+    field: endDate
+    label:
+      ja: 終了日を確認
+      en: Validate end date
+    notInPast: true
+  - id: people.overtime.date
+    kind: date
+    queues:
+      - people-overtime
+    field: date
+    label:
+      ja: 残業予定日は本日以降
+      en: Proposed overtime today or later
+    notInPast: true
+  - id: people.attendance.asof
+    kind: date
+    queues:
+      - people-leave
+      - people-overtime
+    field: attendanceAsOf
+    label:
+      ja: 勤怠集計日は未来日不可
+      en: Attendance snapshot cannot be future-dated
+    maxLeadDays: 0
+  - id: people.effective
+    kind: date
+    queues:
+      - people-onboarding
+      - people-offboarding
+    field: effectiveOn
+    label:
+      ja: 入退社予定日を確認（過去日も要確認として記録可）
+      en: Validate effective date (past dates allowed for exception tracking)
+  - id: people.overtime.daily
+    kind: threshold
+    queues:
+      - people-overtime
+    field: hours
+    max: 8
+    label:
+      ja: 残業時間の社内設定例（法令判定ではない）
+      en: Illustrative company hour threshold, not a compliance determination
+  - id: people.overtime.actual
+    kind: threshold
+    queues:
+      - people-overtime
+    field: monthToDateHours
+    max: 80
+    label:
+      ja: 残業時間の社内設定例（法令判定ではない）
+      en: Illustrative company hour threshold, not a compliance determination
+    warnAbove: 36
+  - id: people.overtime.forecast
+    kind: threshold
+    queues:
+      - people-overtime
+    field: forecastMonthHours
+    max: 80
+    label:
+      ja: 残業時間の社内設定例（法令判定ではない）
+      en: Illustrative company hour threshold, not a compliance determination
+    warnAbove: 36
+routes:
+  - id: people-leave.review
+    name:
+      ja: 休暇申請の確認
+      en: Leave requests review
+    queues:
+      - people-leave
+    stages:
+      - id: manager
+        name:
+          ja: 所属長確認
+          en: Department manager review
+        approvers:
+          roles:
+            - people-manager
+          departmentField: department
+        dueHours: 24
+        onReturn: requester
+      - id: hr
+        name:
+          ja: 人事確認
+          en: HR review
+        approvers:
+          roles:
+            - people-reviewer
+        dueHours: 24
+        onReturn: previous
+  - id: people-overtime.review
+    name:
+      ja: 残業申請の確認
+      en: Overtime requests review
+    queues:
+      - people-overtime
+    stages:
+      - id: manager
+        name:
+          ja: 所属長確認
+          en: Department manager review
+        approvers:
+          roles:
+            - people-manager
+          departmentField: department
+        dueHours: 8
+        onReturn: requester
+      - id: hr
+        name:
+          ja: 人事確認
+          en: HR review
+        approvers:
+          roles:
+            - people-reviewer
+        dueHours: 8
+        onReturn: previous
+        when:
+          - field: forecastMonthHours
+            gt: 45
+  - id: people-onboarding.review
+    name:
+      ja: 入社準備の確認
+      en: Onboarding checklist review
+    queues:
+      - people-onboarding
+    stages:
+      - id: hr
+        name:
+          ja: 人事確認
+          en: HR review
+        approvers:
+          roles:
+            - people-reviewer
+        dueHours: 72
+        onReturn: requester
+  - id: people-offboarding.review
+    name:
+      ja: 退社準備の確認
+      en: Offboarding checklist review
+    queues:
+      - people-offboarding
+    stages:
+      - id: hr
+        name:
+          ja: 人事確認
+          en: HR review
+        approvers:
+          roles:
+            - people-reviewer
+        dueHours: 24
+        onReturn: requester

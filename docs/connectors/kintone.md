@@ -21,7 +21,7 @@ and only the field codes listed for each app.
 | Opt-in access  | Add a record comment (`write.comment`), create a record (`write.createRecord`); each one approved |
 | Sign-in        | One API token per app (default), or an OAuth client (`auth: "oauth"`)                             |
 | Token storage  | Kurahi secret store (`connector.kintone.token`), never the config file                            |
-| Status         | Preview                                                                                           |
+| Status         | Available                                                                                         |
 
 ## What it reads
 

@@ -36,7 +36,7 @@ so the four template answers were run earlier and saved as outputs. Say so:
 - `scripts/demo-prerun.py`: how the prepared answers were made (setup, run, save, status) and
   `approval <template>` for the live approval card.
 
-Never point the demo at `~/.kolo` or at a gateway you use for real work (default port 18789 and the ports derived from it).
+Never point the demo at `~/.kolo` or the family gateways (18790, 18791, 18797, 18799).
 
 ## Prepared outputs (made on 20 October 2026, local model, unedited)
 

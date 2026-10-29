@@ -91,9 +91,15 @@ const CORE_READ_TOOLS: ReadToolDef[] = [
   { name: "web_search", provider: "core" },
   { name: "web_fetch", provider: "core" },
   // In-process deterministic checks (engine-tools.ts), the ops jobs' probes as tools.
-  ...["health_disk", "health_memory", "health_clock", "health_policy", "health_evidence"].map(
-    (name) => ({ name, provider: "engine" }),
-  ),
+  ...[
+    "health_disk",
+    "health_memory",
+    "health_clock",
+    "health_policy",
+    "health_evidence",
+    "workitems_linked",
+    "workitems_po_ready",
+  ].map((name) => ({ name, provider: "engine" })),
 ];
 
 /** Known write tools: named in errors so a misconfigured routine says what is wrong. */
@@ -111,6 +117,8 @@ const KNOWN_WRITE_TOOLS = new Set([
   "office_docx_create",
   "office_pptx_create",
   "office_xlsx_create",
+  "office_quote_create",
+  "office_po_create",
   "legacy_design_doc",
   "legacy_baseline_advance",
   "exec",

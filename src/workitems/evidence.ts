@@ -20,10 +20,13 @@ import {
   eventHash,
   fileEntryOf,
   MANIFEST_FILE,
+  readEventsFile,
   readManifestFile,
   resolveEvidenceSigningKey,
   signEvidenceManifest,
 } from "../evidence/store.js";
+import { readTombstone, TOMBSTONE_FILE, verifyTombstone } from "../evidence/tombstone.js";
+import { verifyEvidenceBundle } from "../evidence/verify.js";
 import { workItemDir } from "./store.js";
 
 export type TransitionEvidence = { bundle: string; root: string };
@@ -74,9 +77,12 @@ export function writeTransitionEvidence(
   const prevBundle = existing.at(-1) ?? null;
   let prevRoot: string | null = null;
   if (prevBundle) {
+    const prevDir = evidenceBundleDir(item, prevBundle, opts.home);
+    // A bundle retention deleted keeps its root in the tombstone, so the chain continues.
     prevRoot =
-      readManifestFile(path.join(evidenceBundleDir(item, prevBundle, opts.home), MANIFEST_FILE))
-        ?.events.root ?? null;
+      readManifestFile(path.join(prevDir, MANIFEST_FILE))?.events.root ??
+      readTombstone(path.join(prevDir, TOMBSTONE_FILE))?.root ??
+      null;
   }
   const seq = existing.length + 1;
   const safeAction = t.action.replace(/[^a-z_.]/g, "_").slice(0, 40);
@@ -139,4 +145,72 @@ export function writeTransitionEvidence(
     mode: 0o600,
   });
   return { bundle, root: prev };
+}
+
+export type BundleCheck = {
+  bundle: string;
+  ok: boolean;
+  status: string | null;
+  root: string | null;
+  signer: string | null;
+  /** True when retention deleted the bundle's events and left a signed tombstone. */
+  tombstone: boolean;
+  problems: string[];
+};
+
+/**
+ * Verify every bundle of an item and the links between them (bundle N's job.start names bundle
+ * N-1's root). A tombstoned bundle counts with its tombstone signature, the original manifest
+ * signature it keeps, and the prevRoot recorded at deletion.
+ */
+export async function verifyWorkItemEvidenceChain(
+  item: Pick<WorkItem, "projectId" | "id">,
+  home?: string,
+): Promise<{ bundles: BundleCheck[]; chainOk: boolean }> {
+  const bundles: BundleCheck[] = [];
+  let prevRoot: string | null = null;
+  let chainOk = true;
+  for (const bundle of listEvidenceBundles(item, home)) {
+    const dir = evidenceBundleDir(item, bundle, home);
+    const tomb = fs.existsSync(path.join(dir, MANIFEST_FILE))
+      ? null
+      : readTombstone(path.join(dir, TOMBSTONE_FILE));
+    let row: BundleCheck;
+    if (tomb) {
+      const t = verifyTombstone(tomb);
+      const linked = tomb.prevRoot === prevRoot && tomb.bundle === bundle;
+      row = {
+        bundle,
+        ok: t.ok && linked,
+        status: tomb.manifest?.status ?? null,
+        root: tomb.root,
+        signer: tomb.manifest?.signer?.keyId ?? tomb.signer?.keyId ?? null,
+        tombstone: true,
+        problems: linked ? t.problems : [...t.problems, "does not link to the previous bundle"],
+      };
+      prevRoot = tomb.root;
+    } else {
+      const v = await verifyEvidenceBundle(dir);
+      let linked = false;
+      try {
+        const events = readEventsFile(path.join(dir, EVENTS_FILE));
+        linked = (events[0]?.data?.prevRoot ?? null) === prevRoot;
+      } catch {
+        linked = false;
+      }
+      row = {
+        bundle,
+        ok: v.ok && linked,
+        status: v.manifest?.status ?? null,
+        root: v.manifest?.events.root ?? null,
+        signer: v.manifest?.signer?.keyId ?? null,
+        tombstone: false,
+        problems: linked ? v.problems : [...v.problems, "does not link to the previous bundle"],
+      };
+      prevRoot = v.manifest?.events.root ?? null;
+    }
+    chainOk = chainOk && row.ok;
+    bundles.push(row);
+  }
+  return { bundles, chainOk };
 }

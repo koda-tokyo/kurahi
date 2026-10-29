@@ -236,10 +236,15 @@ describe("templates", () => {
     const templates = loadTemplates(dir);
     expect(templates.map((t) => t.id).toSorted()).toEqual([
       "business-company-operations",
+      "business-contracts-obligations",
+      "business-employee-requests",
       "business-finance-expense-invoice",
       "business-general-affairs",
       "business-hr-leave-overtime",
+      "business-management-oversight",
+      "business-people-operations",
       "business-procurement",
+      "business-sales-quotation",
       "education",
       "industry-legacy-modernisation",
       "professional",

@@ -396,6 +396,9 @@
   font-size: 0.88rem;
   line-height: 1.55;
 }
+[data-business-linked-omitted] {
+  overflow-wrap: anywhere;
+}
 .business-load-more {
   width: 100%;
 }

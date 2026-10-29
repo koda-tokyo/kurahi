@@ -41,6 +41,8 @@ export interface Reasoner {
 /** Backends whose tool-less mode is verified (cli-permissions.ts); others are refused. */
 const TOOL_LESS_BACKENDS = new Set(["codex-cli", "claude-cli"]);
 export const DEFAULT_REASONING_BACKEND = "codex-cli";
+/** Every reasoning backend a routine may name: the tool-less CLIs and the model API (api-reasoner.ts). */
+export const REASONING_BACKENDS = new Set([...TOOL_LESS_BACKENDS, "api"]);
 
 export function createCliReasoner(
   cfg: KoLoConfig,

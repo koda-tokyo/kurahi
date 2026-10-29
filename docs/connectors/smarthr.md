@@ -17,7 +17,7 @@ title: "SmartHR"
 | Access        | **Read-only, always.** No write tool exists                                              |
 | Sign-in       | An access token a SmartHR administrator issues (hidden prompt at `kurahi smarthr login`) |
 | Token storage | Kurahi secret store (`connector.smarthr.token`)                                          |
-| Status        | Preview                                                                                  |
+| Status        | Available                                                                                |
 
 ## The field allow-list
 

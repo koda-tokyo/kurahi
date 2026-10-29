@@ -32,6 +32,14 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   "mail.send": MAIL,
   "legacy.analyze": { path: "source" },
   "legacy.design_doc": { path: "source" },
+  "po.prepare": { case: "wi_sample" },
+  "quote.prepare": {
+    quote: {
+      customer: "株式会社サンプル",
+      subject: "御見積",
+      lines: [{ description: "部品A", quantity: 10 }],
+    },
+  },
   "legacy.baseline_advance": { path: "source" },
   "research.search": { query: "q" },
   "repo.open_pr": { repo: "acme/app", title: "t" },
@@ -420,5 +428,43 @@ describe("authorizeAction: the model cannot widen anything", () => {
     expect(
       authorizeAction(routine("L1", ["mail.draft"]), act("mail.draft"), ctx({ actionsToday: 100 })),
     ).toMatchObject({ decision: "needs_person", code: "daily_limit" });
+  });
+});
+
+describe("quote.prepare", () => {
+  it("refuses lines that carry a price: prices come from the price list", () => {
+    const d = authorizeAction(
+      routine("L1", ["quote.prepare"], "business" as never),
+      act("quote.prepare", {
+        quote: {
+          customer: "c",
+          subject: "s",
+          lines: [{ description: "x", quantity: 1, unit_price: 1 }],
+        },
+      }),
+      ctx(),
+    );
+    expect(d.decision).toBe("refuse");
+  });
+
+  it("refuses scope exclusions and revisions from a routine: those are a person's decisions", () => {
+    for (const extra of [
+      { excluded: [{ description: "x", reason: "out of scope for now" }] },
+      { number: "Q-1", revision: 2 },
+    ]) {
+      const d = authorizeAction(
+        routine("L1", ["quote.prepare"], "business" as never),
+        act("quote.prepare", {
+          quote: {
+            customer: "c",
+            subject: "s",
+            lines: [{ description: "x", quantity: 1 }],
+            ...extra,
+          },
+        }),
+        ctx(),
+      );
+      expect(d.decision).toBe("refuse");
+    }
   });
 });

@@ -10,7 +10,7 @@
 # Microsoft Visual Studio license terms for those files.
 #
 # Output: $CARGO_TARGET_DIR/x86_64-pc-windows-msvc/release/kurahi-desktop.exe
-# Unsigned. Microsoft signs it when the MSIX goes through the Store (scripts/build-msix.sh).
+# Unsigned. Microsoft signs it when the MSIX goes through the Store (see MICROSOFT_STORE.md).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"   # apps/desktop

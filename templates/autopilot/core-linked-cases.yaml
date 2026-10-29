@@ -1,0 +1,24 @@
+# Core autopilot (starter routine; see docs/autopilot.md). Copy into a Project's
+# context/autopilot.yaml (or <KOLO_HOME>/projects/<id>/autopilot.yaml).
+# L2 Act internal: twice each weekday the engine checks the Project's open linked cases
+# (workitems_linked) and opens one work item for a person when a case is blocked, waits on a
+# missing step or has an unreadable record. Ids and counts only; never closes, reassigns or edits
+# a case.
+version: 1
+timezone: Asia/Tokyo
+reasoner: { backend: codex-cli }
+routines:
+  - id: linked-cases
+    edition: core
+    area: integrity
+    name: { ja: 連携案件の停滞チェック, en: Stuck linked cases }
+    trigger: { schedule: "0 9,15 * * 1-5", tz: Asia/Tokyo }
+    gather:
+      - { id: linked, tool: workitems_linked }
+    reasoning:
+      prompt: linked-cases
+      schema: autopilot.plan.v1
+    actions: [workitem.intake]
+    level: L2
+    limits: { maxItemsPerRun: 1, maxActionsPerDay: 2 }
+    metrics: { baselineMinutes: 10 }

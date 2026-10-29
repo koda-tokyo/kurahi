@@ -1,7 +1,7 @@
 // The morning brief (docs/autopilot.md#morning-brief): per person, what the autopilot handled in
 // a time window (default the last 24 h), the documents it prepared, what waits for that person
-// (decisions, flagged items they may clear, earned-autonomy proposals they may accept),
-// commitments coming due and the routines' problems (watchdog trips, failed or skipped runs,
+// (decisions, flagged items they may clear, earned-autonomy proposals they may accept, linked
+// cases they own that need a step opened or are blocked), commitments coming due and the routines' problems (watchdog trips, failed or skipped runs,
 // demotions, pauses, an invalid routines file).
 //
 // Built only from recorded data (run summaries and records, routine state, the work queue), with
@@ -30,6 +30,8 @@ import {
   rolesOf,
 } from "../workitems/access.js";
 import { mayClearFlags } from "../workitems/clear-flag.js";
+import { linkedCaseStatus } from "../workitems/links-store.js";
+import { listNotifications } from "../workitems/notifications-store.js";
 import { loadWorkQueuePolicy } from "../workitems/policy.js";
 import { readAllWorkItems } from "../workitems/store.js";
 import { TERMINAL_STATUSES } from "../workitems/types.js";
@@ -71,6 +73,22 @@ export type BriefArea = {
   handled: number;
 };
 
+/**
+ * A linked case the person owns (requested, assigned or must decide the parent) that needs a
+ * person: steps ready to open, a blocked or missing step, or a record that cannot be read.
+ */
+export type BriefLinkedCase = BriefItem & {
+  done: number;
+  total: number;
+  /** Step keys whose dependencies are done and that have no child item yet. */
+  ready: string[];
+  /** Step keys whose child item no longer exists. */
+  missing: string[];
+  blocked: boolean;
+  /** The linked case record could not be read; progress fields are zero/empty. */
+  unreadable: boolean;
+};
+
 export type MorningBrief = {
   version: 1;
   projectId: string;
@@ -108,11 +126,24 @@ export type MorningBrief = {
       needsStandingApproval: boolean;
       acceptBlocker: AutonomyProposalView["acceptBlocker"];
     }>;
+    /** Linked cases needing a person (optional: briefs delivered before it existed lack it). */
+    linked?: BriefLinkedCase[];
+    /**
+     * The person's unread in-app notifications on items they can still read; `unreadable` when
+     * their notification file refuses to read (optional: older briefs lack it).
+     */
+    notifications?: { unread: number; unreadable: boolean };
   };
   /** Open items this person requested or must decide, due by the end of the next day. */
   commitments: BriefItem[];
   /** A list was cut at its cap: more exist than the brief shows. */
-  truncated: { documents: boolean; decisions: boolean; flagged: boolean; commitments: boolean };
+  truncated: {
+    documents: boolean;
+    decisions: boolean;
+    flagged: boolean;
+    commitments: boolean;
+    linked?: boolean;
+  };
   problems: {
     watchdog: Array<{ routineId: string; runId: string; at: string; reasons: string[] }>;
     runs: Array<{
@@ -319,9 +350,15 @@ export function buildBrief(
   const decisions: BriefItem[] = [];
   const flagged: Array<BriefItem & { flags: string[] }> = [];
   const commitments: BriefItem[] = [];
+  const linked: BriefLinkedCase[] = [];
   const horizon = to.getTime() + DAY_MS;
+  const readable = new Set<string>();
   for (const item of readAllWorkItems(project.id, { home })) {
-    if (TERMINAL_STATUSES.has(item.status) || !canRead(item, actor, policy, now)) {
+    if (!canRead(item, actor, policy, now)) {
+      continue;
+    }
+    readable.add(item.id);
+    if (TERMINAL_STATUSES.has(item.status)) {
       continue;
     }
     const awaiting = awaitsPrincipal(item, actor.id, policy, now);
@@ -339,6 +376,25 @@ export function buildBrief(
     ) {
       commitments.push(briefItem(item, now));
     }
+    if (awaiting || item.requestedBy === actor.id || item.assignee?.id === actor.id) {
+      const entry = linkedEntry(project.id, item, now, home);
+      if (entry) {
+        linked.push(entry);
+      }
+    }
+  }
+
+  // ---- unread in-app notifications, only on items the person can still read ----
+  const notifications = { unread: 0, unreadable: false };
+  try {
+    notifications.unread = listNotifications(
+      project.id,
+      actor.id,
+      { unreadOnly: true, visible: (id) => readable.has(id) },
+      home,
+    ).length;
+  } catch {
+    notifications.unreadable = true;
   }
 
   // ---- earned-autonomy proposals the person may decide ----
@@ -374,6 +430,8 @@ export function buildBrief(
       decisions: decisions.toSorted(byDue).slice(0, LIST_MAX),
       flagged: flagged.toSorted(byDue).slice(0, LIST_MAX),
       proposals,
+      linked: linked.toSorted(byDue).slice(0, LIST_MAX),
+      notifications,
     },
     commitments: commitments.toSorted(byDue).slice(0, LIST_MAX),
     truncated: {
@@ -381,8 +439,48 @@ export function buildBrief(
       decisions: decisions.length > LIST_MAX,
       flagged: flagged.length > LIST_MAX,
       commitments: commitments.length > LIST_MAX,
+      linked: linked.length > LIST_MAX,
     },
     problems,
+  };
+}
+
+/**
+ * The parent's linked case when it needs a person, else null. A record that refuses to read is
+ * reported as unreadable rather than skipped or failing the whole brief.
+ */
+function linkedEntry(
+  projectId: string,
+  item: WorkItem,
+  now: Date,
+  home?: string,
+): BriefLinkedCase | null {
+  const base = briefItem(item, now);
+  let status: ReturnType<typeof linkedCaseStatus>;
+  try {
+    status = linkedCaseStatus(projectId, item.id, home);
+  } catch {
+    return {
+      ...base,
+      done: 0,
+      total: 0,
+      ready: [],
+      missing: [],
+      blocked: false,
+      unreadable: true,
+    };
+  }
+  if (!status || !(status.ready.length || status.missing.length || status.blocked)) {
+    return null;
+  }
+  return {
+    ...base,
+    done: status.done,
+    total: status.total,
+    ready: status.ready,
+    missing: status.missing,
+    blocked: status.blocked,
+    unreadable: false,
   };
 }
 
@@ -452,6 +550,14 @@ const LABELS = {
     flagged: "あなたが確認・解除できるフラグ付き案件",
     proposals: "承認できる自律レベルの提案",
     commitments: "期限が近い案件",
+    linked: "対応が必要な部門間連携案件",
+    linkedReady: "開始可能な工程",
+    linkedMissing: "子案件が見つからない工程",
+    linkedBlocked: "取消・停止した工程あり",
+    linkedUnreadable: "連携記録を読み取れません",
+    notifications: "通知",
+    notificationsUnread: (n: number) => `未読 ${n} 件`,
+    notificationsUnreadable: "通知記録を読み取れません",
     problems: "問題",
     none: "なし",
     overdue: "期限超過",
@@ -477,6 +583,14 @@ const LABELS = {
     flagged: "Flagged items you may clear",
     proposals: "Autonomy proposals you may accept",
     commitments: "Commitments due",
+    linked: "Linked cases that need a person",
+    linkedReady: "steps ready to open",
+    linkedMissing: "steps whose child item is missing",
+    linkedBlocked: "a step is cancelled or stuck",
+    linkedUnreadable: "the linked case record cannot be read",
+    notifications: "Notifications",
+    notificationsUnread: (n: number) => `${n} unread`,
+    notificationsUnreadable: "the notification record cannot be read",
     problems: "Problems",
     none: "none",
     overdue: "overdue",
@@ -541,6 +655,27 @@ export function renderBrief(b: MorningBrief, lang: "ja" | "en", tz = "Asia/Tokyo
     b.commitments.map((i) => itemLine(i, tz, L.overdue)),
     cut.commitments,
   );
+  section(
+    L.linked,
+    (b.waiting.linked ?? []).map((c) => {
+      const notes = c.unreadable
+        ? [L.linkedUnreadable]
+        : [
+            `${c.done}/${c.total}`,
+            ...(c.ready.length ? [`${L.linkedReady}: ${c.ready.join(", ")}`] : []),
+            ...(c.missing.length ? [`${L.linkedMissing}: ${c.missing.join(", ")}`] : []),
+            ...(c.blocked ? [L.linkedBlocked] : []),
+          ];
+      return `${itemLine(c, tz, L.overdue)} (${notes.join("; ")})`;
+    }),
+    cut.linked,
+  );
+  const n = b.waiting.notifications;
+  if (n) {
+    section(L.notifications, [
+      `- ${n.unreadable ? L.notificationsUnreadable : L.notificationsUnread(n.unread)}`,
+    ]);
+  }
   section(L.problems, [
     ...(b.problems.control.stopped || b.problems.control.emergencyStop ? [`- ${L.stopped}`] : []),
     ...(b.problems.routinesError ? [`- ${L.routinesError}: ${b.problems.routinesError}`] : []),

@@ -2,6 +2,7 @@
 import type { MessageId } from "./en";
 import { autopilotJa } from "./autopilot";
 import { businessJa } from "./business";
+import { businessNotificationsJa } from "./business-notifications";
 import { industrialJa } from "./industrial";
 import { terminalJa } from "./terminal";
 import { voiceJa } from "./voice";
@@ -9,6 +10,7 @@ import { voiceJa } from "./voice";
 export const ja: Partial<Record<MessageId, string>> = {
   ...autopilotJa,
   ...businessJa,
+  ...businessNotificationsJa,
   ...terminalJa,
   ...voiceJa,
   "brand.maker": "KODA SōKEN",
@@ -79,7 +81,7 @@ export const ja: Partial<Record<MessageId, string>> = {
   "projects.view.agents": "エージェント",
   "projects.view.rules": "ルール",
   "projects.view.history": "履歴",
-  "projects.readOnlyNote": "v0.3 では、ファイル・エージェント・ルールは閲覧のみです。",
+  "projects.readOnlyNote": "ここでは、ファイル・エージェント・ルールは閲覧のみです。",
   "projects.chat.new": "このプロジェクトで新しいチャット",
   "projects.chat.starters": "おすすめのプロンプト",
   "projects.chat.list": "このプロジェクトのチャット",
@@ -148,7 +150,7 @@ export const ja: Partial<Record<MessageId, string>> = {
   "artifacts.panel.exporting": "出力ファイルを検証中…",
   "artifacts.panel.exportError":
     "出力ファイルのハッシュを計算できませんでした。ファイルはダウンロードされていません。",
-  "artifacts.panel.pdfNote": "v0.3 では PDF 出力に対応していません。Markdown で出力してください。",
+  "artifacts.panel.pdfNote": "Markdown 形式で出力できます。PDF 出力には対応していません。",
   "artifacts.panel.meta": "v{version} · {user}{agent} · {date}",
   "artifacts.panel.agent": "(エージェント {agent})",
   "artifacts.panel.sha": "SHA-256",
@@ -284,8 +286,8 @@ export const ja: Partial<Record<MessageId, string>> = {
   "common.loading": "読み込み中…",
   "common.none": "なし",
   "common.notConnected": "サービスに接続されていません。",
-  "common.comingSoon": "v0.3 で提供予定",
-  "common.comingSoonBody": "このページは v0.3 で提供予定です。現時点では機能は有効ではありません。",
+  "common.comingSoon": "まだ利用できません",
+  "common.comingSoonBody": "このページはまだ利用できません。",
   "common.readOnly": "閲覧のみです。値の変更は「設定」で行います。",
   "common.exportCsv": "CSV を出力",
   "common.search": "検索",

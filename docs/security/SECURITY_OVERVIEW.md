@@ -56,6 +56,7 @@ Verify: `kurahi pair list`, `kurahi pair invite --scope observe` followed by an 
 
 - Every authentication, pairing, attach/detach, admin action and tool execution is appended to a hash-chained audit log under `KOLO_HOME/audit/` (one file per month; each entry carries the hash of the previous entry).
 - `kurahi audit verify` recomputes the chain and reports the first break; `kurahi audit tail` shows recent entries. The log is append-only from the gateway's point of view; tampering is detectable, not preventable, unless the files are shipped to write-once storage.
+- Audit retention removes whole months from the oldest end only, behind a signed anchor, so the remaining chain still verifies; it is never shorter than `governance.minimumRetentionDays.audit` (default 365 days). A valid My Number (個人番号) is always masked in audit rows. See [Data governance](/security/data-governance#audit-log).
 
 ## 7. Boot integrity gate
 
@@ -81,6 +82,8 @@ Verify: `kurahi pair list`, `kurahi pair invite --scope observe` followed by an 
 | Logs                                                     | `KOLO_HOME/logs/`                 | rotated daily; delete freely                                         |
 | Audit chain                                              | `KOLO_HOME/audit/`                | monthly files; keep as long as policy requires                       |
 | Support bundles                                          | `KOLO_HOME/support/`              | created only by `kurahi support`; redacted                           |
+
+Retention per data class (transcripts, work items, evidence, audit, attachments, outputs, memory, connector caches), legal holds, signed eDiscovery exports and data subject requests are described in [Data governance](/security/data-governance). Every class is kept indefinitely until a retention rule names it; deleted evidence leaves a signed tombstone.
 
 Files are protected by OS permissions of the service user. Full-disk encryption of the host is recommended; Kurahi does not add its own disk encryption beyond the secrets store.
 
@@ -124,6 +127,7 @@ which ones are still off ([Secure defaults](/security/secure-defaults)).
 | [Secure defaults](/security/secure-defaults)                 | Credential isolation, sandbox, exec approvals, budgets and the destructive-command guard on new installations                |
 | [Attachment intake](/security/attachment-intake)             | Mail attachments are quarantined, checked by a static policy and malware-scanned (fail closed) before a Project stores them  |
 | [Enterprise identity](/security/identity)                    | OIDC / SAML sign-in for people, SCIM provisioning, roles and org units, SSO required with audited break-glass                |
+| [Data governance](/security/data-governance)                 | Retention per data class, legal holds, signed eDiscovery export, My Number block on outbound tools, data subject requests    |
 | [Autopilot watchdog and stop](/autopilot#behaviour-watchdog) | A routine whose run exceeds its baseline executes nothing and pauses; `autopilot.stopAll` and a STOP file stop every routine |
 
 How these map to the OWASP Top 10 for Agentic Applications, with a rating per risk:

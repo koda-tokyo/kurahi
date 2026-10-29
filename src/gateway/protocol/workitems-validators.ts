@@ -5,9 +5,23 @@ import {
   WorkitemsIntakeEmailParamsSchema,
 } from "./schema/workitems-intake.js";
 import {
+  WorkitemsRecordQuotesParamsSchema,
+  WorkitemsSelectSupplierParamsSchema,
+} from "./schema/workitems-procurement.js";
+import {
   WorkitemsDelegateParamsSchema,
+  WorkitemsWithdrawDelegationParamsSchema,
   WorkitemsDocumentParamsSchema,
   WorkitemsDraftDiffParamsSchema,
+  WorkitemsHandoffEventParamsSchema,
+  WorkitemsHandoffOpenParamsSchema,
+  WorkitemsHandoffsParamsSchema,
+  WorkitemsLinkedAttachParamsSchema,
+  WorkitemsLinkedCreateParamsSchema,
+  WorkitemsLinkedGetParamsSchema,
+  WorkitemsLinkedPlansParamsSchema,
+  WorkitemsNotificationsListParamsSchema,
+  WorkitemsNotificationsMarkReadParamsSchema,
   WorkitemsStatsParamsSchema,
 } from "./schema/workitems-review.js";
 import {
@@ -57,11 +71,23 @@ export const workitemsValidators = {
   "workitems.config": lazyCompile(WorkitemsConfigParamsSchema),
   "workitems.evidence": lazyCompile(WorkitemsEvidenceParamsSchema),
   "workitems.delegate": lazyCompile(WorkitemsDelegateParamsSchema),
+  "workitems.withdrawDelegation": lazyCompile(WorkitemsWithdrawDelegationParamsSchema),
   "workitems.document": lazyCompile(WorkitemsDocumentParamsSchema),
   "workitems.draftDiff": lazyCompile(WorkitemsDraftDiffParamsSchema),
+  "workitems.handoffs": lazyCompile(WorkitemsHandoffsParamsSchema),
+  "workitems.handoff.open": lazyCompile(WorkitemsHandoffOpenParamsSchema),
+  "workitems.handoff.event": lazyCompile(WorkitemsHandoffEventParamsSchema),
   "workitems.stats": lazyCompile(WorkitemsStatsParamsSchema),
+  "workitems.linked.get": lazyCompile(WorkitemsLinkedGetParamsSchema),
+  "workitems.linked.plans": lazyCompile(WorkitemsLinkedPlansParamsSchema),
+  "workitems.notifications.list": lazyCompile(WorkitemsNotificationsListParamsSchema),
+  "workitems.notifications.markRead": lazyCompile(WorkitemsNotificationsMarkReadParamsSchema),
+  "workitems.linked.create": lazyCompile(WorkitemsLinkedCreateParamsSchema),
+  "workitems.linked.attach": lazyCompile(WorkitemsLinkedAttachParamsSchema),
   "workitems.intakeEmail": lazyCompile(WorkitemsIntakeEmailParamsSchema),
   "workitems.clearFlag": lazyCompile(WorkitemsClearFlagParamsSchema),
+  "workitems.recordQuotes": lazyCompile(WorkitemsRecordQuotesParamsSchema),
+  "workitems.selectSupplier": lazyCompile(WorkitemsSelectSupplierParamsSchema),
 } as const;
 
 export type WorkitemsMethod = keyof typeof workitemsValidators;

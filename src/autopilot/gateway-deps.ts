@@ -8,6 +8,7 @@ import { loadConfig } from "../config/config.js";
 import { resolveInvocableTools } from "../gateway/invocable-tools.js";
 import { invokeToolForSession } from "../gateway/tools-invoke-core.js";
 import { getPolicyEngine } from "../policy/engine.js";
+import { createApiReasoner, createRoutingReasoner } from "./api-reasoner.js";
 import { invokeAsEngine } from "./engine-origin.js";
 import { createCliReasoner } from "./reasoner.js";
 import { toolText } from "./runner.js";
@@ -56,7 +57,7 @@ export function gatewayRunnerDeps(): RunnerDeps {
   const cfg = loadConfig();
   return {
     cfg,
-    reasoner: createCliReasoner(cfg),
+    reasoner: createRoutingReasoner(createCliReasoner(cfg), createApiReasoner(cfg)),
     tools: gatewayToolInvoker,
     workItems: defaultWorkItemSink(),
     defaultAgentId: resolveDefaultAgentId(cfg),

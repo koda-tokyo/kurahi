@@ -218,6 +218,21 @@ export function main(
     return { version: next, tag, changed: [], committed: false, tagged: false };
   }
   const changed = syncVersions(root, next);
+  // The OpenAPI spec and the generated client carry the version too (info.version); regenerate
+  // them so the committed client matches the committed spec (2.3.0 prep found them a version behind).
+  if (opts.regenerate !== false) {
+    const generators = [["--import", "tsx", "scripts/openapi-gen.mjs"], ["scripts/client-gen.mjs"]];
+    for (const args of generators) {
+      if (fs.existsSync(path.join(root, args.at(-1)))) {
+        execFileSync(process.execPath, args, { cwd: root, stdio: "inherit" });
+      }
+    }
+    for (const f of ["openapi/kolo-gateway.openapi.json", ...generatedClientFiles(root)]) {
+      if (git(root, ["status", "--porcelain", "--", f]).trim()) {
+        changed.push(f);
+      }
+    }
+  }
   console.log(`release-prep: updated ${changed.length} file(s)`);
   let committed = false;
   let tagged = false;
@@ -234,6 +249,14 @@ export function main(
     console.log(`next: git push origin HEAD --follow-tags   (the tag starts the release workflow)`);
   }
   return { version: next, tag, changed, committed, tagged };
+}
+
+/** Generated client files (packages/client/src/generated/*), repository-relative. */
+function generatedClientFiles(root) {
+  const dir = path.join(root, "packages", "client", "src", "generated");
+  return fs.existsSync(dir)
+    ? fs.readdirSync(dir).map((f) => `packages/client/src/generated/${f}`)
+    : [];
 }
 
 const invokedDirectly = (() => {

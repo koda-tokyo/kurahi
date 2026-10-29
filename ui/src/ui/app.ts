@@ -110,6 +110,10 @@ import {
   type AutopilotFilters,
 } from "./controllers/autopilot";
 import {
+  beginBusinessReport as beginBusinessReportInternal,
+  editBusinessReport as editBusinessReportInternal,
+  cancelBusinessReport as cancelBusinessReportInternal,
+  submitBusinessReport as submitBusinessReportInternal,
   beginBusinessDecision as beginBusinessDecisionInternal,
   editBusinessDecision as editBusinessDecisionInternal,
   cancelBusinessDecision as cancelBusinessDecisionInternal,
@@ -130,6 +134,7 @@ import {
   departmentOfChat,
   startBusinessChat as startBusinessChatInternal,
 } from "./controllers/business-chat";
+import { loadBusinessDocument } from "./controllers/business-document";
 import { loadBusinessDraft } from "./controllers/business-draft";
 import { verifyBusinessEvidence } from "./controllers/business-evidence";
 import {
@@ -140,6 +145,32 @@ import {
   acknowledgeExpenseOutcome as acknowledgeExpenseOutcomeInternal,
   type ExpenseForm,
 } from "./controllers/business-intake";
+import {
+  beginBusinessLinkedAttach,
+  cancelBusinessLinkedAttach,
+  editBusinessLinkedAttach,
+  submitBusinessLinkedAttach,
+  beginBusinessLinkedCreate,
+  applyBusinessLinkedPlan,
+  loadBusinessLinkedPlans,
+  cancelBusinessLinkedCreate,
+  editBusinessLinkedCreate,
+  submitBusinessLinkedCreate,
+  type BusinessLinkedCreateStep,
+} from "./controllers/business-linked";
+import {
+  loadBusinessNotifications,
+  showMoreBusinessNotifications,
+  businessNotificationTarget,
+  toggleBusinessNotifications as toggleBusinessNotificationsInternal,
+  markBusinessNotificationRead as markBusinessNotificationReadInternal,
+} from "./controllers/business-notifications";
+import {
+  beginSupplier,
+  editSupplier,
+  cancelSupplier,
+  submitSupplier,
+} from "./controllers/business-supplier";
 import {
   beginBusinessWork as beginBusinessWorkInternal,
   editBusinessWork as editBusinessWorkInternal,
@@ -520,6 +551,7 @@ export class KoLoApp extends LitElement {
   }
 
   setTab(next: Tab) {
+    this.businessRunNavigation = (this.businessRunNavigation ?? 0) + 1;
     if (next !== this.tab) {
       cancelVoice(this);
     }
@@ -820,6 +852,7 @@ export class KoLoApp extends LitElement {
   }
 
   openProject(id: string | null) {
+    this.businessRunNavigation = (this.businessRunNavigation ?? 0) + 1;
     this.businessChatGeneration++;
     this.businessChatDraft = "";
     this.businessChatError = null;
@@ -878,6 +911,18 @@ export class KoLoApp extends LitElement {
     acknowledgeExpenseOutcomeInternal(this);
   }
 
+  beginBusinessSupplier(supplier: string) {
+    beginSupplier(this, supplier);
+  }
+  editBusinessSupplier(reason: string) {
+    editSupplier(this, reason);
+  }
+  cancelBusinessSupplier() {
+    cancelSupplier(this);
+  }
+  async submitBusinessSupplier() {
+    await submitSupplier(this);
+  }
   async beginBusinessDecision(decision: BusinessDecisionForm["decision"]) {
     beginBusinessDecisionInternal(this, decision);
     const form = this.business.decisionForm;
@@ -909,6 +954,46 @@ export class KoLoApp extends LitElement {
         ?.focus();
     }
   }
+  beginBusinessReport() {
+    beginBusinessReportInternal(this);
+  }
+  editBusinessReport(reason: string) {
+    editBusinessReportInternal(this, reason);
+  }
+  cancelBusinessReport() {
+    cancelBusinessReportInternal(this);
+  }
+  async submitBusinessReport() {
+    await submitBusinessReportInternal(this);
+  }
+  beginBusinessLinkedAttach(stepKey: string) {
+    beginBusinessLinkedAttach(this, stepKey);
+  }
+  editBusinessLinkedAttach(childId: string) {
+    editBusinessLinkedAttach(this, childId);
+  }
+  cancelBusinessLinkedAttach() {
+    cancelBusinessLinkedAttach(this);
+  }
+  async submitBusinessLinkedAttach() {
+    await submitBusinessLinkedAttach(this);
+  }
+  beginBusinessLinkedCreate() {
+    beginBusinessLinkedCreate(this);
+    void loadBusinessLinkedPlans(this);
+  }
+  applyBusinessLinkedPlan(file: string) {
+    applyBusinessLinkedPlan(this, file, this.locale === "ja" ? "ja" : "en");
+  }
+  editBusinessLinkedCreate(index: number, patch: Partial<BusinessLinkedCreateStep> | null) {
+    editBusinessLinkedCreate(this, index, patch, this.locale === "ja" ? "ja" : "en");
+  }
+  cancelBusinessLinkedCreate() {
+    cancelBusinessLinkedCreate(this);
+  }
+  async submitBusinessLinkedCreate() {
+    await submitBusinessLinkedCreate(this, this.locale === "ja" ? "ja" : "en");
+  }
   async submitBusinessDecision() {
     await submitBusinessDecisionInternal(this);
   }
@@ -918,8 +1003,40 @@ export class KoLoApp extends LitElement {
   async loadBusinessDraft() {
     await loadBusinessDraft(this);
   }
+  async loadBusinessDocument(ref: string) {
+    await loadBusinessDocument(this, ref);
+  }
   async refreshBusiness() {
     await loadBusiness(this);
+  }
+  showMoreBusinessNotifications() {
+    showMoreBusinessNotifications(this);
+  }
+  async refreshBusinessNotifications() {
+    await loadBusinessNotifications(this);
+  }
+  async toggleBusinessNotifications() {
+    await toggleBusinessNotificationsInternal(this);
+  }
+  async openBusinessNotification(id: string) {
+    const target = businessNotificationTarget(this, id);
+    if (!target) {
+      return;
+    }
+    await loadBusinessItem(this, target.itemId);
+    await this.updateComplete;
+    if (
+      target.current() &&
+      this.business.selectedId === target.itemId &&
+      this.business.item?.id === target.itemId &&
+      !this.business.detailLoading &&
+      !this.business.detailError
+    ) {
+      this.renderRoot.querySelector<HTMLElement>(".business-detail-panel")?.focus();
+    }
+  }
+  async markBusinessNotificationRead(id: string) {
+    await markBusinessNotificationReadInternal(this, id);
   }
   async beginBusinessWork() {
     beginBusinessWorkInternal(this);
@@ -1053,7 +1170,53 @@ export class KoLoApp extends LitElement {
     await loadAutopilot(this, cursor);
   }
 
-  setProjectView(view: ProjectView) {
+  private businessRunNavigation = 0;
+
+  async openBusinessRun() {
+    const item = this.business.item;
+    const id = item?.source.fields.autopilotRun;
+    const projectId = this.projects.selectedId;
+    const client = this.client;
+    if (
+      !this.connected ||
+      !client ||
+      this.tab !== "projects" ||
+      this.projects.view !== "business" ||
+      !item ||
+      item.projectId !== projectId ||
+      this.business.projectId !== projectId ||
+      this.business.selectedId !== item.id ||
+      this.business.loading ||
+      this.business.detailLoading ||
+      this.business.detailError ||
+      this.business.error ||
+      this.business.decisionPending ||
+      !item.createdBy.startsWith("autopilot:") ||
+      typeof id !== "string" ||
+      !id.trim()
+    ) {
+      return;
+    }
+    const load = this.setProjectView("autopilot", { id, itemId: item.id });
+    const navigation = this.businessRunNavigation;
+    await load;
+    if (
+      !this.connected ||
+      this.client !== client ||
+      this.tab !== "projects" ||
+      this.businessRunNavigation !== navigation ||
+      this.projects.selectedId !== projectId ||
+      (this.projects.view as ProjectView) !== "autopilot" ||
+      this.autopilot.error
+    ) {
+      return;
+    }
+    await this.updateComplete;
+    this.querySelector<HTMLElement>("#autopilot-run-details")?.focus();
+  }
+
+  setProjectView(view: ProjectView, linkedRun?: { id: string; itemId: string }) {
+    this.businessRunNavigation = (this.businessRunNavigation ?? 0) + 1;
     if (view !== this.projects.view) {
       cancelVoice(this);
     }
@@ -1063,7 +1226,15 @@ export class KoLoApp extends LitElement {
     }
     this.patchProjects({ view });
     if (view === "autopilot") {
-      void loadAutopilot(this);
+      if (linkedRun) {
+        this.autopilot = {
+          ...this.autopilot,
+          projectId: this.projects.selectedId,
+          linkedRun,
+          selectedRunId: linkedRun.id,
+        };
+      }
+      return loadAutopilot(this);
     }
     if (view === "business") {
       void loadBusiness(this);

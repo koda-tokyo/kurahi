@@ -57,7 +57,7 @@ Business テンプレートのプロジェクトで業務キューを開くと�
 | 項目                | 意味                                                                                                 |
 | ------------------- | ---------------------------------------------------------------------------------------------------- |
 | `queue`             | プロジェクトのポリシーで定義したキュー（例 `fin-expense`）                                           |
-| `type`              | `request` `case` `document` `invoice` `leave` `expense` `purchase` `custom`                          |
+| `type`              | `request` `case` `document` `invoice` `leave` `expense` `purchase` `quote` `custom`                  |
 | `source`            | `documents`（添付・プロジェクト内ファイル・成果物への参照。プロジェクト外は不可）と申請項目 `fields` |
 | `status`            | `new` `drafting` `awaiting_review` `approved` `sent_back` `done` `cancelled`                         |
 | `assignee`          | `{kind: "agent" \| "person", id}` または null                                                        |
@@ -90,22 +90,31 @@ Business テンプレートのプロジェクトで業務キューを開くと�
 すべて `projectId` を取ります。別プロジェクトのアイテム id は `work item not found` になります。
 読み取りと変更は、申請者・承認者の権限でも制限されます（後述の「申請者と閲覧権限」を参照）。
 
-| メソッド                | スコープ（ペアリング / operator） | 内容                                                                                                                                                                            |
-| ----------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workitems.list`        | observe / `operator.read`         | 絞り込み（キュー・状態・種別・優先度・担当・期限超過・`q`・`mine`・`awaitingMe`・`stage`・`department`・`flagged`）、カーソルでページング（1ページ最大200件）、件数と状態別件数 |
-| `workitems.get`         | observe / `operator.read`         | 履歴を含むアイテム全体                                                                                                                                                          |
-| `workitems.config`      | observe / `operator.read`         | キュー（`department` 付き）、部門一覧 `departments`、ルール、承認ルート、権限設定の概要、呼び出し元（`viewer`）、ポリシーの出所とダイジェスト                                   |
-| `workitems.evidence`    | observe / `operator.read`         | アイテムのエビデンスをすべて検証し、つながりも確認                                                                                                                              |
-| `workitems.document`    | observe / `operator.read`         | 元の書類または固定した下書きの安全なプレビュー                                                                                                                                  |
-| `workitems.draftDiff`   | observe / `operator.read`         | 固定した下書きの2つの版の行単位の差分と、その由来                                                                                                                               |
-| `workitems.stats`       | observe / `operator.read`         | 状態・キュー・段階ごとの件数、期限超過件数、承認までの時間の中央値と90パーセンタイル。`department` で絞り込み可                                                                 |
-| `workitems.create`      | attach / `operator.write`         | 新規作成。申請項目だけのチェックをすぐ実行                                                                                                                                      |
-| `workitems.update`      | attach / `operator.write`         | 決裁以外の項目。`status` は `awaiting_review`（確認に回す）と `done`（承認後）のみ                                                                                              |
-| `workitems.assignAgent` | attach / `operator.write`         | 下書きのエージェント実行を開始。`runId` をすぐ返す                                                                                                                              |
-| `workitems.decide`      | attach / `operator.approvals`     | 現在の段階に対する `approve` / `send_back` / `cancel`。人のみ                                                                                                                   |
-| `workitems.delegate`    | attach / `operator.approvals`     | 現在の段階の判断を他の人に委任。人のみ                                                                                                                                          |
-| `workitems.intakeEmail` | attach / `operator.write`         | メールから参照付きでアイテムを作成。同じメッセージは1件のみ（後述の「メールの取り込み」）                                                                                       |
-| `workitems.clearFlag`   | attach / `operator.approvals`     | リスクフラグを理由を書いて1つ解除。人のみ（後述の「リスクフラグ」）                                                                                                             |
+| メソッド                           | スコープ（ペアリング / operator） | 内容                                                                                                                                                                            |
+| ---------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workitems.list`                   | observe / `operator.read`         | 絞り込み（キュー・状態・種別・優先度・担当・期限超過・`q`・`mine`・`awaitingMe`・`stage`・`department`・`flagged`）、カーソルでページング（1ページ最大200件）、件数と状態別件数 |
+| `workitems.get`                    | observe / `operator.read`         | 履歴を含むアイテム全体                                                                                                                                                          |
+| `workitems.config`                 | observe / `operator.read`         | キュー（`department` 付き）、部門一覧 `departments`、ルール、承認ルート、権限設定の概要、呼び出し元（`viewer`）、ポリシーの出所とダイジェスト                                   |
+| `workitems.evidence`               | observe / `operator.read`         | アイテムのエビデンスをすべて検証し、つながりも確認                                                                                                                              |
+| `workitems.document`               | observe / `operator.read`         | 元の書類または固定した下書きの安全なプレビュー                                                                                                                                  |
+| `workitems.draftDiff`              | observe / `operator.read`         | 固定した下書きの2つの版の行単位の差分と、その由来                                                                                                                               |
+| `workitems.handoffs`               | observe / `operator.read`         | 読み取り専用：案件の受け渡し記録（古い順）。ディスク上で改変された記録があれば一覧ごと拒否（`handoff_tampered`）                                                                |
+| `workitems.linked.get`             | observe / `operator.read`         | 案件の部門横断プラン（各ステップの現在状態）、なければ `null`。可視性は `workitems.get` と同じ                                                                                  |
+| `workitems.linked.create`          | attach / `operator.write`         | 未完了の案件にプラン（ステップ・部門・依存）を付ける。申請者または特権のみ。1案件1プラン（`linked_case_exists`）                                                                |
+| `workitems.linked.attach`          | attach / `operator.write`         | 準備完了のステップに子案件を割り当てる。呼び出し者が読める案件で、現行ポリシー上そのステップの部門のキューにあること                                                            |
+| `workitems.stats`                  | observe / `operator.read`         | 状態・キュー・段階ごとの件数、期限超過件数、承認までの時間の中央値と90パーセンタイル。`department` で絞り込み可                                                                 |
+| `workitems.notifications.list`     | observe / `operator.read`         | 呼び出し者本人のアプリ内通知を新しい順に返す。`unreadOnly` は任意（[通知](#通知)を参照）                                                                                        |
+| `workitems.create`                 | attach / `operator.write`         | 新規作成。申請項目だけのチェックをすぐ実行                                                                                                                                      |
+| `workitems.update`                 | attach / `operator.write`         | 決裁以外の項目。`status` は `awaiting_review`（確認に回す）と `done`（承認後）のみ                                                                                              |
+| `workitems.assignAgent`            | attach / `operator.write`         | 下書きのエージェント実行を開始。`runId` をすぐ返す                                                                                                                              |
+| `workitems.decide`                 | attach / `operator.approvals`     | 現在の段階に対する `approve` / `send_back` / `cancel`。人のみ                                                                                                                   |
+| `workitems.delegate`               | attach / `operator.approvals`     | 現在の段階の判断を他の人に委任。人のみ                                                                                                                                          |
+| `workitems.withdrawDelegation`     | attach / `operator.approvals`     | 現在の段階で自分が行った委任を、代理人が使う前に取り消す。人のみ                                                                                                                |
+| `workitems.handoff.open`           | attach / `operator.approvals`     | 人のみ：承認済み案件を特定の製品・対象へ受け渡す。案件の承認者または特権オペレーターのみ（申請者本人は不可）                                                                    |
+| `workitems.handoff.event`          | attach / `operator.write`         | 受け渡しのイベント1件。再試行・差異の解決・再承認・外部入力の確認は人のみ（`handoff_person_required`）                                                                          |
+| `workitems.intakeEmail`            | attach / `operator.write`         | メールから参照付きでアイテムを作成。同じメッセージは1件のみ（後述の「メールの取り込み」）                                                                                       |
+| `workitems.clearFlag`              | attach / `operator.approvals`     | リスクフラグを理由を書いて1つ解除。人のみ（後述の「リスクフラグ」）                                                                                                             |
+| `workitems.notifications.markRead` | attach / `operator.write`         | 呼び出し者本人の通知1件を既読にする                                                                                                                                             |
 
 イベント `workitems.changed` `{projectId, id, queue, action, status, revision, updatedAt}`。
 件名や申請内容は含みません。`workitems.get` で取り直してください。読み取り権限のある接続に送られます。
@@ -118,9 +127,12 @@ Business テンプレートのプロジェクトで業務キューを開くと�
 `WorkItemDraftDiff`、`WorkItemDiffHunk`、`WorkItemDiffLine`、`WorkItemDraftProvenance`、
 `WorkQueueStats`、`WorkQueueStageStats`、`WorkItemOrigin`、`WorkItemFlag`、
 `WorkItemFlagClearance`、`WorkItemIntakeEmailInput`、`WorkItemIntakeEmailResult`、
-`WorkItemClearFlagInput`、拒否コードの一覧 `WORK_ITEM_DECISION_REFUSALS`・
+`WorkItemClearFlagInput`、`WorkItemLinkedCase`、`WorkItemLinkedPlan`、`WorkItemLinkedStep`、
+`WorkItemLinkedStepState`、拒否コードの一覧 `WORK_ITEM_DECISION_REFUSALS`・
 `WORK_ITEM_DELEGATION_REFUSALS`・`WORK_ITEM_ACCESS_REFUSALS`・`WORK_ITEM_FLAG_REFUSALS`・
-`WORK_ITEM_INTAKE_REFUSALS` を公開しています。
+`WORK_ITEM_HANDOFF_REFUSALS`・`WORK_ITEM_INTAKE_REFUSALS`・`WORK_ITEM_LINKED_REFUSALS` を公開しています。
+`linked_plan_invalid` の拒否は `details.problems` を返し、各要素のコードは
+`WORK_ITEM_LINKED_PLAN_PROBLEMS` のいずれかです。
 
 ### エージェントによる下書き
 
@@ -276,6 +288,34 @@ routes:
 `delegation_not_allowed`、`not_an_approver`、`already_approved`、`invalid_delegate`、
 `reason_required`、`invalid_expiry`。
 
+`workitems.withdrawDelegation {projectId, id, reason?}` で、現在の段階を委任した承認者は、代理人が
+判断する前にその委任を取り消せます。取消し後、代理人はその段階を判断できず、`awaitingMe` にも
+表示されません。期限切れの委任も整理のために取り消せます。取消しは独立した遷移
+（`delegate.withdraw`）として、エビデンスと監査ログ（`workitem.delegate.withdraw`）に記録され、
+代理人・有効期限・期限切れだったかどうかが残ります。拒否コード：`not_a_person`、
+`not_awaiting_review`、`no_delegation`（現在の段階に自分の委任がない）、`already_approved`
+（その段階はすでに本人または代理人によって承認済みで、その承認は有効なまま）。
+
+### 通知
+
+各遷移は、新たに関係する人へのアプリ内通知を記録します。案件が新たに待っている承認者
+（`awaiting_you`）、代理人（`delegated_to_you`）、委任が取り消されたときの元の代理人
+（`delegation_withdrawn`）、エスカレーション先（`escalated_to_you`）、そして他の人が承認・差戻し・
+取消し・完了したときの申請者（`decided`）です。連携案件の段階が完了または取消しになり、それによって次の段階が開始可能になった
+（`linked_step_ready`）、すべての段階が完了した（`linked_case_complete`）、または案件が進められなく
+なった（`linked_case_blocked`）ときは、親案件の申請者に親案件の通知として記録し、その子案件のID
+（`childId`）も含めます。開始可能の通知には開始可能になった段階（`stepKey`）も含めます。複数の段階が同時に終わっても、完了・進行不能の通知は案件ごとに1回、開始可能の通知は段階ごとに1回です。自分の操作について本人には通知せず、連続する段階で
+同じ人を待つ場合も通知は1回です。記録はID・理由・案件のリビジョンだけで、件名や項目の値は含みません。
+`workitems.notifications.list {projectId, unreadOnly?}` は呼び出し者本人の記録を新しい順に返し、
+現在も閲覧できる案件の記録だけを含みます。`workitems.notifications.markRead {projectId, id}` で
+1件を既読にします。案件を開いただけでは既読になりません。拒否コード：`notification_not_found`
+（呼び出し者にその記録がない）。1人あたり新しい500件を保持し、既読の古いものから削除します。
+
+制限：グループ所属だけで承認者となる人には通知されません。グループは人からグループへ解決され、
+逆方向に列挙できないためです。一覧が空でも、自分を待つ案件がないとは限りません（`awaitingMe` を
+使ってください）。記録に失敗しても元の遷移は失敗せず、`workitem.notify`（結果 `error`）として
+監査ログに残ります。メール・Teams・LINE WORKS への配信は含まれず、送信されません。
+
 段階の期限は、アイテムの取得・一覧・集計のたびと、ゲートウェイの定期処理（5分ごと）で確定的に
 確認されます。`dueHours` を過ぎると段階に `overdueAt` が付き（`stage.overdue`）、
 `escalation.afterHours` を過ぎると `escalatedAt` が付いて（`stage.escalate`）、エスカレーション先
@@ -295,7 +335,9 @@ access:
   members:
     - { principal: device:abc123def456, name: 営業部長, roles: [approver], departments: [sales] }
     - { principal: device:0123456789ab, name: 経理課長, roles: [finance] }
-  groups: {} # ディレクトリのグループ（Entra ID など）用。将来の連携フック経由
+  groups: # ID 基盤のグループ → 役割と部門（下記参照）
+    "role:approver": { roles: [approver], departments: [sales] }
+    "unit:finance": { roles: [finance] }
 ```
 
 メンバーには `email`（業務用のメールアドレス）も設定できます。オートパイロットはそのメンバーの[朝のブリーフ](/ja/autopilot#朝のブリーフ)をこの宛先の下書きにします。権限は何も与えません。
@@ -316,8 +358,11 @@ access:
   を返します。メンバー一覧は運用担当者にだけ返します。
 - 運用担当者であっても、承認者でない段階を判断することはできません。
 
-`setPrincipalGroupResolver()`（src/workitems/access.ts）は将来のディレクトリ連携用のフックです。
-識別子のグループ id を返すと、`access.groups` がそれを役割に対応付けます。
+[エンタープライズ ID](/security/identity) を有効にすると、SSO でサインインした人（または SCIM で
+プロビジョニングされた人）は、ID 層が提供するグループに解決されます。組織上の役割は `role:<役割>` と
+`role:<役割>@<組織>`、所属する部門・チームは `unit:<組織>`、ID プロバイダーが示すグループは
+`group:<プロバイダー id>:<グループ>` です。`access.groups` がこれらをプロジェクトの役割と部門に対応付けます。判断するのは
+引き続き段階のルールで、組織上の役割は、プロジェクトが対応付けた場合にだけ承認資格になります。
 
 ## 書類プレビュー・下書きの差分・集計
 
@@ -349,8 +394,9 @@ access:
 
 最初に見つかったファイルを使います：`<プロジェクトフォルダ>/context/workqueue.(yaml|yml|json)`
 （お客様自身のもの）、`<KOLO_HOME>/projects/<id>/workqueue.(yaml|yml|json)`（管理者）、テンプレートの
-`templates/projects/packs/<templateId>/workqueue.yaml`。読めない・不正なファイルは安全側に倒れ、
-ブロッキングの `policy.invalid` チェックが1件出ます。各チェックにはポリシーの SHA-256 が残ります。
+`templates/projects/packs/<templateId>/workqueue.yaml`。次のファイルに進むのはファイルが存在しない場合だけです。
+存在するが読めない（権限がないなど）・不正なファイルは安全側に倒れ、ブロッキングの `policy.invalid`
+チェックが1件出ます。後ろのファイルには切り替わりません。各チェックにはポリシーの SHA-256 が残ります。
 
 ```yaml
 version: 1
@@ -386,7 +432,10 @@ rules:
 ```
 
 各ルールには `severity: warn`（既定は `fail`）、`blocking: false`、`types`、`queues`、
-`label: {ja, en}` を指定できます。結果には根拠が付きます：不足項目、値と超えたしきい値、
+`label: {ja, en}` を指定できます。`overrideOutcome: provisional` を指定したルールは、理由を記録して
+承認しても **暫定としての発行** にしかならず、承認は `override.outcome: "provisional"` として記録され、
+コンソールにも正式な承認ではないと表示されます（見積パックでは価格未設定の品目と未対応の税区分に使用）。
+結果には根拠が付きます：不足項目、値と超えたしきい値、
 何日先か とタイムゾーン、一致した語句と前後の抜粋、添付の数。
 
 ## 部門
@@ -430,6 +479,32 @@ Business のコンソールは、キューを部門ごとのワークスペー�
 上限、実績で超過 / 月末見込みに基づくリスク）を使い、管理者の承認前に社員へ何も送らないという
 ルールも引き継いでいます。
 
+## 受け渡しと支払い完了
+
+受け渡し（hand-off）は、承認済みの案件について予定している後続処理を 1 件記録します（例：承認済み請求書を特定の製品・オブジェクトに取引として登録する）。これは受け渡しのライフサイクルであり、支払いのライフサイクルではありません。登録先にレコードがあっても、請求書が支払われたことは示しません。
+
+受け渡しは次のいずれかの目的で完了します。
+
+| 目的                | 完了時の表示                                         |
+| ------------------- | ---------------------------------------------------- |
+| `handoff_completed` | 受け渡し完了・支払いは未確認                         |
+| `payment_settled`   | 支払い完了・担当者の申告（銀行証跡はシステム未確認） |
+
+`payment_settled` は、`settlementRef` を添えた特定の人による申告です。エージェントはこの目的で完了できません。銀行証跡はシステムで確認しないため、「確認済み」とは表示しません。解決も受け入れもされていない差異が残っている間は完了できません（`handoff_open_exceptions`）。
+
+### 支払い完了の職務分掌
+
+ポリシーの最上位にある `settlementSod` で、支払い完了を申告する人に求める独立性を決めます。
+
+```yaml
+settlementSod: strict # 既定値。もう一つの値は "warn" のみ
+```
+
+- **`strict`**（既定）：案件の申請者、受け渡しを承認・再承認した人、または差異を解決した人（後の再承認より前の解決も含む）による `payment_settled` の完了を拒否します（`handoff_sod_conflict`、重複した `roles` を含む）。申請者が不明な受け渡しも拒否します（`handoff_requester_unknown`）。不明は独立とはみなしません。
+- **`warn`**：一人ですべてを担当する小規模な事業所向けの明示的な選択です。完了は認めますが、「本件の担当者による自己申告」と表示し、重複した役割を記録します。
+
+ルールを緩めるのは、値がちょうど `warn` の場合だけです。ポリシーがない、読めない、不正、または認識できない場合は `strict` になります。`warn` を設定できるのは管理者のポリシー（`<KOLO_HOME>/projects/<id>/workqueue.yaml`）だけです。クライアントのプロジェクトフォルダー（`context/workqueue.yaml`）やテンプレートに書かれた `warn` は、人や書き込み権限のあるエージェントが編集できるため `strict` として扱います。ゲートウェイは完了のたびにプロジェクトのポリシーファイルからモードを読み、クライアントがイベントで指定することはできません。支払い完了の記録には `attestedBy`、`settlementSod`、`sodOverlap`、`selfAttested` と、`warn` で申請者が不明な場合は `requesterUnknown` が残ります。拒否された完了は、拒否コード付きで `denied` として監査されます。
+
 ## エビデンスと監査
 
 すべての状態遷移（create, update, submit, assign_agent, draft, draft_failed, decide.approve,
@@ -450,8 +525,8 @@ id）にもエビデンスの名前付きで記録され、拒否された決裁
 - 一覧と `workitems.stats` はプロジェクトのアイテムをすべて読みます（1プロジェクト数千件までは
   問題ありません）。
 - 識別子は接続単位です。1つの資格情報を複数の人で共有している場合や、端末のないゲートウェイ
-  トークン（`owner`）は区別できません。一人ひとりにペアリング済み端末を用意してください。
-  ディレクトリのグループ（Entra ID）はフックのみで、まだ問い合わせは行いません。
+  トークン（`owner`）は区別できません。一人ひとりにペアリング済み端末を用意するか、エンタープライズ ID
+  で各自がサインインするようにしてください。
 - 委任は期限前に取り消せません（同じ承認者が新しく委任すると、前の委任は置き換わります）。
   エスカレーションは判断できる人を増やすだけで、`workitems.changed` イベント以外の通知は行いません。
 - ここでの承認は、署名付きエビデンスを伴うワークフロー上の記録です。特定の法令や契約が求める

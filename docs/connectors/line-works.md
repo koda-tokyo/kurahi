@@ -18,7 +18,7 @@ title: "LINE WORKS"
 | Opt-in access  | Send a text message to a configured channel or user (`bot.message`), every send approved |
 | Sign-in        | Service account: a JWT (RS256) signed with the app's private key, exchanged for a token  |
 | Secrets        | `connector.line-works.privateKey`, `connector.line-works.clientSecret`, cached token     |
-| Status         | Preview                                                                                  |
+| Status         | Available                                                                                |
 
 ## Reading messages is not possible
 

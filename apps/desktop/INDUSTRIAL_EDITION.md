@@ -108,8 +108,8 @@ source evidence, timestamp and export hash.
 | Operate | Run approved workflows, monitor results and roll back automatically |
 | Controlled | Cross a legal, safety or irreversible physical boundary after required authorization |
 
-Kurahi itself is the first production user; the internal adoption and validation sequence is kept
-with the maintainers.
+Kurahi itself is the first production user. The internal adoption and validation sequence is defined
+in `AUTONOMY_DOGFOOD_PLAN.md`.
 
 ## Release-one boundary
 

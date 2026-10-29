@@ -28,7 +28,7 @@
 
   <Dependencies>
     <!-- 10.0.17763.0 = Windows 10 1809. WebView2 (Evergreen) is required at runtime; it is
-         not a framework package, so it cannot be declared here. -->
+         not a framework package, so it cannot be declared here. See MICROSOFT_STORE.md. -->
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 

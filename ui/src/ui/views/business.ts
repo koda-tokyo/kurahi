@@ -2,18 +2,41 @@ import { html, nothing } from "lit";
 import { live } from "lit/directives/live.js";
 import type { WorkItem, WorkItemSummary } from "../../../../packages/client/src/workitems.js";
 import type { AppViewState } from "../app-view-state";
-import type { BusinessState } from "../controllers/business";
+import type { BusinessDocumentPreview, BusinessState } from "../controllers/business";
 import type { Project } from "../controllers/projects";
-import { getBusinessDepartment } from "../business-departments";
+import { BUSINESS_DEPARTMENTS, getBusinessDepartment } from "../business-departments";
+import { businessHistoryEvidenceStatus } from "../controllers/business-evidence";
+import { LINKED_CREATE_MAX_STEPS, linkedCreatePlan } from "../controllers/business-linked";
 import { t, type MessageId } from "../i18n";
 import { renderBusinessChatEntry, type BusinessChatEntryState } from "./business-chat-entry";
 import { renderDepartmentNavigation, renderDepartmentWorkspace } from "./business-departments";
 import { renderBusinessIntake } from "./business-intake";
+import { renderBusinessNotifications } from "./business-notifications";
 import { renderBusinessRoute } from "./business-route";
+import { renderBusinessSupplier } from "./business-supplier";
 import { renderBusinessWorkIntake } from "./business-work-intake";
 
 type BusinessViewState = Pick<
   AppViewState,
+  | "beginBusinessSupplier"
+  | "editBusinessSupplier"
+  | "cancelBusinessSupplier"
+  | "submitBusinessSupplier"
+  | "openBusinessRun"
+  | "canDeclineAutonomy"
+  | "beginBusinessReport"
+  | "editBusinessReport"
+  | "cancelBusinessReport"
+  | "submitBusinessReport"
+  | "beginBusinessLinkedAttach"
+  | "editBusinessLinkedAttach"
+  | "cancelBusinessLinkedAttach"
+  | "submitBusinessLinkedAttach"
+  | "beginBusinessLinkedCreate"
+  | "applyBusinessLinkedPlan"
+  | "editBusinessLinkedCreate"
+  | "cancelBusinessLinkedCreate"
+  | "submitBusinessLinkedCreate"
   | "beginBusinessExpense"
   | "editBusinessExpense"
   | "cancelBusinessExpense"
@@ -23,6 +46,11 @@ type BusinessViewState = Pick<
   | "locale"
   | "connected"
   | "refreshBusiness"
+  | "refreshBusinessNotifications"
+  | "showMoreBusinessNotifications"
+  | "toggleBusinessNotifications"
+  | "markBusinessNotificationRead"
+  | "openBusinessNotification"
   | "selectBusinessQueue"
   | "selectBusinessDepartment"
   | "setBusinessOrganizationMode"
@@ -35,6 +63,7 @@ type BusinessViewState = Pick<
   | "selectBusinessItem"
   | "loadMoreBusiness"
   | "loadBusinessDraft"
+  | "loadBusinessDocument"
   | "verifyBusinessEvidence"
   | "beginBusinessDecision"
   | "editBusinessDecision"
@@ -47,6 +76,42 @@ const label = (id: string, params?: Record<string, string | number>) => t(id as 
 const statusLabel = (value: string) => label(`business.status.${value}`);
 const typeLabel = (value: string) => label(`business.type.${value}`);
 const priorityLabel = (value: string) => label(`business.priority.${value}`);
+// Worksheet and plan problem codes the gateway reports (src/workitems/pack-plan.ts, links.ts,
+// pack-plan-file.ts); src/workitems/pack-plan-problems.test.ts keeps this list in step with them.
+const PLAN_PROBLEM_CODES = new Set([
+  "no_manifest",
+  "no_department_mapping",
+  "duplicate_table",
+  "duplicate_column",
+  "bad_row",
+  "bad_task_key",
+  "duplicate_task",
+  "bad_title",
+  "bad_dependency_cell",
+  "unmapped_task",
+  "mapping_without_task",
+  "duplicate_mapping",
+  "bad_department",
+  "empty",
+  "bad_step",
+  "bad_dependencies",
+  "too_many_steps",
+  "bad_key",
+  "duplicate_key",
+  "unknown_dependency",
+  "self_dependency",
+  "cycle",
+  "untrusted_file",
+  "unreadable_file",
+  "file_too_large",
+]);
+// An unrecognised code is shown as sent, so a newer gateway's reason is not hidden.
+const planProblemLabels = (codes: string[]) =>
+  codes
+    .map((code) =>
+      PLAN_PROBLEM_CODES.has(code) ? label(`business.linked.plans.problem.${code}`) : code,
+    )
+    .join(label("business.linked.plans.problem.separator"));
 
 function showValue(value: unknown) {
   if (value === null) {
@@ -95,6 +160,7 @@ function section(title: string, body: unknown, extra = "") {
 }
 
 function renderDecision(item: WorkItem, state: BusinessViewState, enabled: boolean) {
+  enabled = enabled && !state.business.reportForm && !state.business.supplierForm;
   const form = state.business.decisionForm;
   const matches = form?.id === item.id && form.revision === item.revision;
   const sameItem = form?.id === item.id ? form : null;
@@ -124,6 +190,10 @@ function renderDecision(item: WorkItem, state: BusinessViewState, enabled: boole
     !overrideValid ||
     state.business.decisionPending;
   const notice = state.business.decisionNotice;
+  // Overriding these failing checks releases a provisional estimate only, never a final approval.
+  const provisionalOnly = item.checks.some(
+    (c) => c.result === "fail" && c.blocking && c.overrideOutcome === "provisional",
+  );
 
   return html`<section class="business-decision" aria-labelledby="business-decision-title">
     <div class="business-decision__heading">
@@ -152,7 +222,7 @@ function renderDecision(item: WorkItem, state: BusinessViewState, enabled: boole
           ? html`<label class="business-decision__check"><input type="checkbox" ?disabled=${state.business.decisionPending} .checked=${sameItem.override} @change=${(event: Event) => state.editBusinessDecision({ override: (event.currentTarget as HTMLInputElement).checked })}> ${label("business.decision.override")}</label>
         ${
           sameItem.override
-            ? html`<label>${label("business.overrideReason")}
+            ? html`${provisionalOnly ? html`<p class="business-decision__notice" role="note">${label("business.decision.provisionalOnly")}</p>` : nothing}<label>${label("business.overrideReason")}
           <textarea rows="2" maxlength="2000" aria-invalid=${!overrideValid} aria-describedby=${!overrideValid ? "business-override-validation" : nothing} ?disabled=${state.business.decisionPending} .value=${sameItem.overrideReason} @input=${(event: Event) => state.editBusinessDecision({ overrideReason: (event.currentTarget as HTMLTextAreaElement).value })}></textarea>
         </label>${!overrideValid ? html`<small id="business-override-validation" class="business-decision__validation">${label("business.decision.overrideReasonRequired")}</small>` : nothing}`
             : nothing
@@ -171,6 +241,229 @@ function renderDecision(item: WorkItem, state: BusinessViewState, enabled: boole
     </div>`
     }
   </section>`;
+}
+
+function renderReport(item: WorkItem, state: BusinessViewState, enabled: boolean) {
+  if (!state.canDeclineAutonomy || !item.createdBy?.startsWith("autopilot:")) {
+    return nothing;
+  }
+  const form = state.business.reportForm;
+  const matching = form?.id === item.id && form.revision === item.revision ? form : null;
+  const pending = state.business.decisionPending;
+  const disabled =
+    !!state.business.error ||
+    !enabled ||
+    !!state.business.supplierForm ||
+    !!state.business.decisionForm ||
+    item.id !== state.business.selectedId;
+  return html`<section class="business-section" data-business-report>
+    ${state.business.reportNotice ? html`<p role="status">${state.business.reportNotice}</p>` : nothing}
+    ${
+      matching
+        ? html`<form @submit=${(event: Event) => {
+            event.preventDefault();
+            void state.submitBusinessReport();
+          }}>
+      <p>${t("autopilot.reportGuidance")}</p>
+      <label>${t("autopilot.reportReason")}
+        <textarea required minlength="4" maxlength="1000" rows="3"
+          .value=${live(matching.reason)} ?disabled=${disabled}
+          @input=${(event: Event) => state.editBusinessReport((event.currentTarget as HTMLTextAreaElement).value)}></textarea>
+      </label>
+      <button type="button" class="business-refresh" ?disabled=${pending} @click=${() => state.cancelBusinessReport()}>${label("business.decision.back")}</button>
+      <button type="submit" class="business-refresh" ?disabled=${disabled || matching.reason.trim().length < 4 || matching.reason.trim().length > 1000}>${t(pending ? "autopilot.reporting" : "autopilot.reportError")}</button>
+    </form>`
+        : html`<button type="button" class="business-refresh" ?disabled=${disabled} @click=${() => state.beginBusinessReport()}>${t("autopilot.reportError")}</button>`
+    }
+  </section>`;
+}
+
+/** Records which existing work item handles a ready step. The gateway rechecks everything. */
+function renderLinkedAttach(item: WorkItem, stepKey: string, state: BusinessViewState) {
+  const form = state.business.linkedAttach;
+  const open =
+    form && form.itemId === item.id && form.revision === item.revision && form.stepKey === stepKey;
+  if (!open) {
+    return html`<button type="button" class="business-refresh" data-business-linked-attach=${stepKey}
+      ?disabled=${!state.connected || !!form?.pending} @click=${() => state.beginBusinessLinkedAttach(stepKey)}>${label("business.linked.attach")}</button>`;
+  }
+  return html`<form class="business-decision" data-business-linked-attach-form=${stepKey}
+    @submit=${(event: Event) => {
+      event.preventDefault();
+      void state.submitBusinessLinkedAttach();
+    }}>
+    <label>${label("business.linked.attach.child")}
+      <input type="text" maxlength="200" .value=${live(form.childId)} ?disabled=${form.pending}
+        @input=${(event: Event) => state.editBusinessLinkedAttach((event.currentTarget as HTMLInputElement).value)} />
+    </label>
+    ${form.notice ? html`<p class="business-error" role="alert">${form.notice}</p>` : nothing}
+    <button type="button" class="business-refresh" ?disabled=${form.pending} @click=${() => state.cancelBusinessLinkedAttach()}>${label("business.decision.back")}</button>
+    <button type="submit" class="business-refresh" ?disabled=${form.pending || !state.connected || !form.childId.trim()}>${label(form.pending ? "business.linked.attach.pending" : "business.linked.attach.submit")}</button>
+  </form>`;
+}
+
+/** Starts a linked case on an item that has none. The gateway validates the plan again. */
+function renderLinkedCreate(item: WorkItem, state: BusinessViewState, locale: string) {
+  const form = state.business.linkedCreate?.itemId === item.id ? state.business.linkedCreate : null;
+  const open = !!form && form.revision === item.revision && form.steps.length > 0;
+  if (!open) {
+    return section(
+      label("business.linked"),
+      html`${form?.notice ? html`<p role="status" data-business-linked-create-notice>${form.notice}</p>` : nothing}
+        <p class="business-muted">${label("business.linked.none")}</p>
+        <button type="button" class="business-refresh" data-business-linked-create
+          ?disabled=${!state.connected || !!form?.pending} @click=${() => state.beginBusinessLinkedCreate()}>${label("business.linked.create")}</button>`,
+    );
+  }
+  const lang = locale === "ja" ? "ja" : "en";
+  const ready = !!linkedCreatePlan(form.steps, lang);
+  return section(
+    label("business.linked"),
+    html`<form class="business-decision" data-business-linked-create-form
+      @submit=${(event: Event) => {
+        event.preventDefault();
+        void state.submitBusinessLinkedCreate();
+      }}>
+      ${
+        form.plans?.length
+          ? html`<p class="business-muted" data-business-linked-plans>${label("business.linked.plans")}
+            ${form.plans.map(
+              (
+                plan,
+              ) => html`<button type="button" class="business-refresh" data-business-linked-plan=${plan.file}
+                ?disabled=${form.pending} @click=${() => state.applyBusinessLinkedPlan(plan.file)}>${label("business.linked.plans.use", { file: plan.file, n: plan.steps.length })}</button>`,
+            )}</p>`
+          : nothing
+      }
+      ${
+        form.omitted?.length
+          ? html`<ul class="business-muted" data-business-linked-omitted>
+            ${form.omitted.map(
+              (o) =>
+                html`<li data-business-linked-omitted-file=${o.file}>${label(
+                  `business.linked.plans.omitted.${o.reason}`,
+                  {
+                    file: o.file,
+                    codes: planProblemLabels(o.problems) || "—",
+                    max: LINKED_CREATE_MAX_STEPS,
+                  },
+                )}</li>`,
+            )}</ul>`
+          : nothing
+      }
+      <ol class="business-history">
+        ${form.steps.map(
+          (step, i) => html`<li data-business-linked-create-step=${String(i + 1)}>
+            <label>${label("business.linked.create.department")}
+              <select .value=${live(step.department)} ?disabled=${form.pending}
+                @change=${(event: Event) => state.editBusinessLinkedCreate(i, { department: (event.currentTarget as HTMLSelectElement).value })}>
+                <option value="" ?selected=${!step.department}>${label("business.linked.create.choose")}</option>
+                ${BUSINESS_DEPARTMENTS.map((d) => html`<option value=${d.id} ?selected=${d.id === step.department}>${d.name[lang]}</option>`)}
+              </select>
+            </label>
+            <label>${label("business.linked.create.title")}
+              <input type="text" maxlength="200" .value=${live(step.title)} ?disabled=${form.pending}
+                @input=${(event: Event) => state.editBusinessLinkedCreate(i, { title: (event.currentTarget as HTMLInputElement).value })} />
+            </label>
+            ${
+              i > 0
+                ? html`<fieldset data-business-linked-create-after><legend>${label("business.linked.create.after")}</legend>
+                  ${form.steps.slice(0, i).map(
+                    (
+                      _,
+                      j,
+                    ) => html`<label><input type="checkbox" value=${String(j + 1)} .checked=${live(step.after.includes(j))} ?disabled=${form.pending}
+                      @change=${(event: Event) =>
+                        state.editBusinessLinkedCreate(i, {
+                          after: (event.currentTarget as HTMLInputElement).checked
+                            ? [...step.after, j]
+                            : step.after.filter((k) => k !== j),
+                        })} />
+                      ${label("business.linked.create.afterStep", { n: j + 1 })}</label>`,
+                  )}
+                </fieldset>`
+                : nothing
+            }
+            ${
+              step.source
+                ? html`<p class="business-muted" data-business-linked-create-source>${label("business.linked.create.source", { n: i + 1, key: step.source })}</p>`
+                : nothing
+            }
+            ${
+              form.steps.length > 1
+                ? html`<button type="button" class="business-refresh" ?disabled=${form.pending} @click=${() => state.editBusinessLinkedCreate(i, null)}>${label("business.linked.create.remove")}</button>`
+                : nothing
+            }
+          </li>`,
+        )}
+      </ol>
+      ${
+        form.steps.length < LINKED_CREATE_MAX_STEPS
+          ? html`<button type="button" class="business-refresh" data-business-linked-create-add ?disabled=${form.pending}
+            @click=${() => state.editBusinessLinkedCreate(form.steps.length, {})}>${label("business.linked.create.add")}</button>`
+          : nothing
+      }
+      ${form.notice ? html`<p class="business-error" role="alert">${form.notice}</p>` : nothing}
+      <p class="business-muted">${label("business.linked.create.scope")}</p>
+      <button type="button" class="business-refresh" ?disabled=${form.pending} @click=${() => state.cancelBusinessLinkedCreate()}>${label("business.decision.back")}</button>
+      <button type="submit" class="business-refresh" ?disabled=${form.pending || !state.connected || !ready}>${label(form.pending ? "business.linked.create.pending" : "business.linked.create.submit")}</button>
+    </form>`,
+  );
+}
+
+function renderLinkedCase(item: WorkItem, state: BusinessViewState, locale: string) {
+  const linked = state.business.linked;
+  if (!linked || linked.itemId !== item.id || linked.revision !== item.revision) {
+    return nothing;
+  }
+  if (linked.status === "none") {
+    return item.status === "done" || item.status === "cancelled"
+      ? nothing
+      : renderLinkedCreate(item, state, locale);
+  }
+  if (linked.status === "loading") {
+    return section(
+      label("business.linked"),
+      html`<p class="business-muted" role="status">${label("business.loading")}</p>`,
+    );
+  }
+  if (linked.status !== "ready" || !linked.linkedCase) {
+    return section(
+      label("business.linked"),
+      html`<p class="business-error" role="alert">${label(linked.refusal ? `business.linked.refusal.${linked.refusal}` : "business.linked.unavailable")}</p>`,
+    );
+  }
+  const c = linked.linkedCase;
+  const lang = locale === "ja" ? "ja" : "en";
+  const attach =
+    state.business.linkedAttach?.itemId === item.id ? state.business.linkedAttach : null;
+  const attachOpen =
+    !!attach &&
+    attach.revision === item.revision &&
+    c.steps.some((s) => s.key === attach.stepKey && s.state === "ready" && !c.children[s.key]);
+  return section(
+    label("business.linked"),
+    html`
+      <p role="status" data-business-linked-progress>${label("business.linked.progress", { done: c.done, total: c.total })}${c.complete ? ` · ${label("business.linked.complete")}` : ""}</p>
+      ${c.blocked ? html`<p class="business-error" role="alert">${label("business.linked.blocked")}</p>` : nothing}
+      ${c.missing.length ? html`<p class="business-error" role="alert">${label("business.linked.missing", { steps: c.missing.join(", ") })}</p>` : nothing}
+      <ol class="business-history">
+        ${c.plan.steps.map((step, i) => {
+          const progress = c.steps[i];
+          const title = step.title[lang] ?? step.title.en ?? step.title.ja ?? step.key;
+          const department = getBusinessDepartment(step.department)?.name[lang] ?? step.department;
+          const child = c.children[step.key];
+          return html`<li data-business-linked-step=${step.key}><div><strong>${title}</strong><span>${label(`business.linked.state.${progress.state}`)}</span></div>
+            <div class="business-muted">${department}${step.dependsOn.length ? ` · ${label("business.linked.after", { steps: step.dependsOn.join(", ") })}` : ""}</div>
+            ${child ? html`<div class="business-muted">${label("business.linked.child")}: <span class="business-mono business-break">${child}</span></div>` : nothing}
+            ${!child && progress.state === "ready" ? renderLinkedAttach(item, step.key, state) : nothing}
+          </li>`;
+        })}
+      </ol>
+      ${attach?.notice && !attachOpen ? html`<p role="status" data-business-linked-notice>${attach.notice}</p>` : nothing}
+      <p class="business-muted">${label("business.linked.scope")}</p>
+    `,
+  );
 }
 
 function renderDetail(
@@ -199,6 +492,29 @@ function renderDetail(
   const preview = state.business.draftPreview;
   const matchingPreview =
     preview?.itemId === item.id && preview.revision === item.revision ? preview : null;
+  const documentPreview = state.business.documentPreview;
+  const matchingDocument =
+    documentPreview?.itemId === item.id && documentPreview.revision === item.revision
+      ? documentPreview
+      : null;
+  const renderDocumentPreview = (
+    ref: string,
+    current: BusinessDocumentPreview | null,
+    busy: boolean,
+  ) => {
+    const shown = current?.ref === ref ? current : null;
+    return html`
+      <button type="button" class="business-refresh" ?disabled=${busy || current?.status === "loading"} @click=${() => void state.loadBusinessDocument(ref)}>${label(shown?.status === "loading" ? "business.loading" : "business.document.load")}</button>
+      ${shown?.status === "error" ? html`<p role="alert" class="business-error">${label("business.document.error")}</p>` : nothing}
+      ${shown?.status === "changed" ? html`<p role="alert" class="business-error">${label("business.document.changed")}</p>` : nothing}
+      ${
+        shown?.status === "ready"
+          ? shown.text === null || shown.text === ""
+            ? html`<p class="business-muted" role="status">${shown.extractError ? `${label("business.document.extractError")}: ${shown.extractError}` : label("business.document.noText")}</p>`
+            : html`<p class="business-muted" role="status">${label("business.document.untrusted")}${shown.textSource === "extracted" ? html` ${label("business.document.extracted")}` : nothing}${shown.truncated ? html` ${label("business.document.truncated")}` : nothing}</p><pre class="business-draft-content" tabindex="0" aria-label=${label("business.document.content")}>${shown.text}</pre>`
+          : nothing
+      }`;
+  };
   return html`
     <div class="business-detail-head">
       <div><div class="business-eyebrow">${item.queue} · ${typeLabel(item.type)}</div><h2>${item.title}</h2></div>
@@ -211,7 +527,17 @@ function renderDetail(
       <span><b>${label("business.approvals")}</b>${item.approvals.length} / ${item.requiredApprovals}</span>
       <span><b>${label("business.revision")}</b>${item.revision}</span>
     </div>
+    ${
+      item.createdBy.startsWith("autopilot:") &&
+      typeof source.fields.autopilotRun === "string" &&
+      source.fields.autopilotRun.trim()
+        ? html`<button type="button" class="business-refresh" ?disabled=${loading || state.business.loading || state.business.decisionPending || !state.connected} @click=${() => void state.openBusinessRun()}>${label("business.run.open")}</button>`
+        : nothing
+    }
+    ${renderBusinessSupplier(item, state, enabled)}
+    ${renderReport(item, state, enabled)}
     ${renderBusinessRoute(item.route, locale)}
+    ${renderLinkedCase(item, state, locale)}
     ${section(
       label("business.source"),
       html`
@@ -223,6 +549,7 @@ function renderDetail(
               (doc) => html`<li>
         <span>${doc.name}</span><span class="business-mono">${doc.kind}: ${doc.ref}</span>
         ${doc.sha256 ? html`<span class="business-mono business-break">SHA-256: ${doc.sha256}</span>` : nothing}
+        ${renderDocumentPreview(doc.ref, matchingDocument, loading)}
       </li>`,
             )}</ul>`
           : html`<p class="business-muted">${label("business.noDocuments")}</p>`
@@ -278,6 +605,7 @@ function renderDetail(
       <div><dt>${label("business.overrideReason")}</dt><dd>${item.override.reason}</dd></div>
       <div><dt>${item.override.by}</dt><dd>${item.override.at}</dd></div>
       <div><dt>${label("business.checks")}</dt><dd>${item.override.policyIds.join(", ")}</dd></div>
+      ${item.override.outcome === "provisional" ? html`<div><dt>${label("business.overrideOutcome")}</dt><dd>${label("business.overrideOutcome.provisional")}</dd></div>` : nothing}
     </dl>`
         : html`<p class="business-muted">${label("business.noOverride")}</p>`,
     )}
@@ -289,7 +617,7 @@ function renderDetail(
         (event) => html`<li><div><strong>${event.action}</strong><span>${event.at}</span></div>
         <div class="business-muted">${event.by} · ${label(`business.actor.${event.actorKind}`)}${event.from || event.to ? ` · ${event.from ? statusLabel(event.from) : ""}${event.from && event.to ? " → " : ""}${event.to ? statusLabel(event.to) : ""}` : ""}</div>
         ${event.comment ? html`<p>${event.comment}</p>` : nothing}
-        ${event.evidence ? html`<div class="business-muted">${label("business.evidence")}: ${event.evidence.bundle} · <span class="business-mono business-break">${event.evidence.root}</span></div>` : nothing}
+        ${event.evidence ? html`<div class="business-muted">${label("business.evidence")}: ${event.evidence.bundle} · <span class="business-mono business-break">${event.evidence.root}</span><p data-business-history-evidence>${label(`business.evidence.history.${businessHistoryEvidenceStatus(matchingEvidence, event.evidence)}`)}</p></div>` : nothing}
       </li>`,
       )}
     </ol>`
@@ -303,6 +631,11 @@ function renderDetail(
       ${
         matchingEvidence
           ? html`<p role=${matchingEvidence.status === "failed" || matchingEvidence.status === "unavailable" ? "alert" : "status"}>${label(`business.evidence.${matchingEvidence.status}`)}</p>
+        ${
+          matchingEvidence.status === "verified" && matchingEvidence.retainedTombstones
+            ? html`<p role="status">${label("business.evidence.retained", { count: matchingEvidence.retainedTombstones })}</p>`
+            : nothing
+        }
         ${matchingEvidence.checkedAt ? html`<p class="business-muted">${label("business.evidence.checkedAt")}: <time datetime=${matchingEvidence.checkedAt}>${matchingEvidence.checkedAt}</time> · ${label("business.evidence.bundles", { count: matchingEvidence.bundles })}</p>` : nothing}`
           : html`<p class="business-muted">${label("business.evidenceNote")}</p>`
       }
@@ -328,7 +661,12 @@ export function renderBusiness(state: BusinessViewState, project: Project) {
     business.decisionPending ||
     business.expensePending ||
     Boolean(
-      business.decisionForm || business.expenseForm || business.workForm || business.workPending,
+      business.supplierForm ||
+      business.decisionForm ||
+      business.reportForm ||
+      business.expenseForm ||
+      business.workForm ||
+      business.workPending,
     );
   const intakeEnabled = Boolean(
     inProject &&
@@ -342,10 +680,13 @@ export function renderBusiness(state: BusinessViewState, project: Project) {
     !business.workPending &&
     !business.workForm &&
     !business.workUncertain &&
-    !business.decisionForm,
+    !business.supplierForm &&
+    !business.decisionForm &&
+    !business.reportForm,
   );
   const expenseQueues = queues.filter((queue) => queue.types.includes("expense"));
   const decisionEnabled = Boolean(
+    !project.archived &&
     item &&
     config &&
     !config.error &&
@@ -371,6 +712,7 @@ export function renderBusiness(state: BusinessViewState, project: Project) {
         <button type="button" data-business-refresh class="business-refresh" ?disabled=${!state.connected || business.loading || business.decisionPending} @click=${() => state.refreshBusiness()}>${label("business.refresh")}</button>
       </div>
     </header>
+    ${renderBusinessNotifications(state, project.id)}
     ${!state.connected ? html`<div class="business-error" role="status">${label("business.disconnected")}</div>` : nothing}
     ${state.connected && inProject && business.error ? html`<div class="business-error" role="alert">${label("business.loadError")}</div>` : nothing}
     ${state.connected && business.loading && !list ? html`<div class="business-loading" role="status">${label("business.loading")}</div>` : nothing}

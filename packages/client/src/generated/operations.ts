@@ -5,7 +5,7 @@ import type { OperationSpec } from "../operation-spec.js";
 import type * as T from "./types.js";
 
 /** info.version of the spec this client was generated from. */
-export const SPEC_VERSION = "2.2.0";
+export const SPEC_VERSION = "2.3.0";
 /** OpenAPI version of the source document. */
 export const OPENAPI_VERSION = "3.1.0";
 /** Default gateway port (servers[0].variables.port.default). */
@@ -36,6 +36,7 @@ export const operations = {
   cancelFactoryCard: {"operationId":"cancelFactoryCard","method":"POST","path":"/api/factory/cards/{id}/cancel","summary":"Cancel the card's run in progress","tags":["factory"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"json"},
   moveFactoryCard: {"operationId":"moveFactoryCard","method":"POST","path":"/api/factory/cards/{id}/move","summary":"Move a card to another column (audited; the state machine decides)","tags":["factory"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   runFactoryCard: {"operationId":"runFactoryCard","method":"POST","path":"/api/factory/cards/{id}/run","summary":"Run a card on the KIP engine","tags":["factory"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
+  downloadGovernanceExport: {"operationId":"downloadGovernanceExport","method":"GET","path":"/api/governance/exports/{id}/download","summary":"Download a finished eDiscovery export (signed zip)","tags":["governance"],"security":[["gatewayToken"],["pairToken"],["adminSession"],["ssoSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"binary"},
   getBuildHealth: {"operationId":"getBuildHealth","method":"GET","path":"/api/health","summary":"Lightweight build probe","tags":["health"],"security":[],"params":[],"body":null,"response":"json"},
   logoutIdentity: {"operationId":"logoutIdentity","method":"POST","path":"/api/identity/logout","summary":"End the SSO session (and get the IdP logout URL for OIDC)","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
   getIdentitySession: {"operationId":"getIdentitySession","method":"GET","path":"/api/identity/session","summary":"The signed-in person, roles and session expiry","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
@@ -249,6 +250,12 @@ export interface OperationTypes {
     body: T.RunFactoryCardBody;
     response: T.RunFactoryCardResponse;
     error: T.RunFactoryCardErrorBody;
+  };
+  downloadGovernanceExport: {
+    params: T.DownloadGovernanceExportParams;
+    body: T.DownloadGovernanceExportBody;
+    response: T.DownloadGovernanceExportResponse;
+    error: T.DownloadGovernanceExportErrorBody;
   };
   getBuildHealth: {
     params: T.GetBuildHealthParams;

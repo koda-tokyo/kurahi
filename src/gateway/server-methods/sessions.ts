@@ -7,6 +7,7 @@ import { stopSubagentsForRequester } from "../../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../../auto-reply/reply/queue.js";
 import { normalizeChannelId } from "../../channels/plugins/index.js";
 import { loadConfig } from "../../config/config.js";
+import { resolveKoloHome } from "../../config/kolo-home.js";
 import {
   loadSessionStore,
   snapshotSessionOrigin,
@@ -14,11 +15,13 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
+import { holdsBlockingDeletion } from "../../governance/holds.js";
 import {
   ensureOutboundSessionEntry,
   resolveOutboundSessionRoute,
 } from "../../infra/outbound/outbound-session.js";
 import { resolveOutboundTarget } from "../../infra/outbound/targets.js";
+import { parseProjectSessionKey } from "../../projects/scope.js";
 import { recordAuditEvent } from "../../security/audit-log.js";
 import {
   ErrorCodes,
@@ -308,6 +311,27 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         errorShape(ErrorCodes.INVALID_REQUEST, `Cannot delete the main session (${mainKey}).`),
       );
       return;
+    }
+
+    // Legal hold (docs/security/data-governance.md#legal-hold): a held conversation is not deleted.
+    {
+      const held = holdsBlockingDeletion(resolveKoloHome(), {
+        class: "transcripts",
+        id: target.canonicalKey,
+        projectId: parseProjectSessionKey(target.canonicalKey)?.projectId ?? null,
+        workItemId: null,
+        custodians: [resolveSessionAgentId({ sessionKey: target.canonicalKey, config: cfg })],
+      });
+      if (held.length > 0) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "this conversation is under a legal hold", {
+            details: { code: "legal_hold", holds: held.map((h) => h.id) },
+          }),
+        );
+        return;
+      }
     }
 
     const deleteTranscript = typeof p.deleteTranscript === "boolean" ? p.deleteTranscript : true;

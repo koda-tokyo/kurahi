@@ -18,6 +18,11 @@ import type { RunnerDeps } from "./runner.js";
 import type { PlanItem, Routine } from "./types.js";
 import type { EmailOriginRef } from "./workitems-adapter.js";
 import { loadWorkQueuePolicy } from "../workitems/policy.js";
+import {
+  procurementSourceOf,
+  purchaseOrderDue,
+  type DraftQuoteSource,
+} from "../workitems/procurement.js";
 import { buildBrief, memberActor, renderBriefText, writeBriefFile } from "./brief.js";
 import {
   hasOfficeSpecParser,
@@ -26,6 +31,7 @@ import {
   OFFICE_TOOL_OF,
   officeSpecError,
 } from "./office-spec.js";
+import { purchaseOrderToolArgs } from "./purchase-order.js";
 
 export type ItemContext = {
   /** 1-based position of the item in the run (output folder of its documents). */
@@ -35,6 +41,8 @@ export type ItemContext = {
   documentPath: string | null;
   /** Project-relative files this item's actions wrote (the work item references them). */
   documents: string[];
+  /** Work item fields from tool details (ActionDef.fieldsOf), engine-copied. */
+  fields: Record<string, string | number>;
 };
 
 /** A Project-relative path a tool reported (no absolute path, no `..`). */
@@ -115,6 +123,36 @@ export async function executeAction(
       }
       let toolArgs = args;
       let engine = call.engine;
+      let poCase: {
+        id: string;
+        comparisonDigest: string;
+        supplier: string;
+        selectionRevision: number;
+        source: DraftQuoteSource | null;
+      } | null = null;
+      if (def.id === "po.prepare") {
+        const id = typeof args.case === "string" ? args.case : "";
+        const found = call.deps.workItems.get?.(call.project, id) ?? null;
+        if (!found) {
+          throw new Error(`po.prepare: no case ${id.slice(0, 64)} in this Project`);
+        }
+        toolArgs = purchaseOrderToolArgs(found, args);
+        // purchaseOrderToolArgs refused unless the selection is current. A case the gather did
+        // not list (a draft already exists for this choice) is refused whatever the model names.
+        if (!purchaseOrderDue(found)) {
+          throw new Error(
+            `po.prepare: case ${found.id} already has a draft for the current choice`,
+          );
+        }
+        const selection = found.supplierSelection!;
+        poCase = {
+          id: found.id,
+          comparisonDigest: selection.comparisonDigest,
+          supplier: selection.supplier,
+          selectionRevision: selection.revision,
+          source: procurementSourceOf(found, selection.supplier),
+        };
+      }
       if (def.id === "mail.draft" && ctx.origin && toolArgs.replyToMessageId === undefined) {
         toolArgs = { ...toolArgs, replyToMessageId: ctx.origin.messageId };
       }
@@ -130,9 +168,32 @@ export async function executeAction(
       if (def.id === "mail.draft") {
         ctx.draftId = id ?? null;
       }
+      if (def.fieldsOf && res.details && !res.details.error) {
+        Object.assign(ctx.fields, def.fieldsOf(res.details));
+      }
       const file = def.producesFile ? relFile(res.details?.path) : null;
+      if (poCase && !res.details?.error) {
+        // Mark the case so later runs do not draft it again. A choice that changed meanwhile
+        // refuses: the action fails and the case stays due for the person's current choice.
+        call.deps.workItems.recordPurchaseOrder?.(call.project, call.routine, poCase.id, {
+          document: file,
+          comparisonDigest: poCase.comparisonDigest,
+          supplier: poCase.supplier,
+          selectionRevision: poCase.selectionRevision,
+          source: poCase.source,
+          runId: call.runId,
+        });
+      }
       if (file) {
         ctx.documents.push(file);
+        if (def.attachable && !ctx.documentPath) {
+          ctx.documentPath = file;
+        }
+        // A second file the tool wrote alongside (the quotation's Excel workbook).
+        const extra = relFile(res.details?.workbook);
+        if (extra) {
+          ctx.documents.push(extra);
+        }
         return {
           ref: `${name}:${file.slice(0, 200)}`,
           approvalUsed: res.approvalUsed ?? null,

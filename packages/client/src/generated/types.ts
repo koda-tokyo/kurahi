@@ -252,7 +252,7 @@ export type AutopilotAutonomyAcceptResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -273,7 +273,7 @@ export type AutopilotAutonomyAcceptResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -294,7 +294,7 @@ export type AutopilotAutonomyAcceptResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -558,6 +558,26 @@ export type AutopilotBriefGetResult = {
         needsStandingApproval: boolean;
         acceptBlocker: ("above_file_level" | "no_standing_approval") | null;
       }[];
+      linked?: {
+        projectId: string;
+        itemId: string;
+        title: string;
+        queue: string;
+        status: string;
+        priority: string;
+        dueAt: string | null;
+        overdue: boolean;
+        done: number;
+        total: number;
+        ready: string[];
+        missing: string[];
+        blocked: boolean;
+        unreadable: boolean;
+      }[];
+      notifications?: {
+        unread: number;
+        unreadable: boolean;
+      };
     };
     commitments: {
       projectId: string;
@@ -574,6 +594,7 @@ export type AutopilotBriefGetResult = {
       decisions: boolean;
       flagged: boolean;
       commitments: boolean;
+      linked?: boolean;
     };
     problems: {
       watchdog: {
@@ -647,7 +668,7 @@ export type AutopilotPauseResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -668,7 +689,7 @@ export type AutopilotPauseResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -689,7 +710,7 @@ export type AutopilotPauseResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -853,7 +874,7 @@ export type AutopilotReportErrorResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -874,7 +895,7 @@ export type AutopilotReportErrorResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -895,7 +916,7 @@ export type AutopilotReportErrorResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -1036,7 +1057,7 @@ export type AutopilotResumeResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -1057,7 +1078,7 @@ export type AutopilotResumeResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -1078,7 +1099,7 @@ export type AutopilotResumeResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -1217,7 +1238,7 @@ export type AutopilotRoutinesListResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -1238,7 +1259,7 @@ export type AutopilotRoutinesListResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -1259,7 +1280,7 @@ export type AutopilotRoutinesListResult = {
         } | {
           source: "workitems";
           queue: string | null;
-          actions: ("created" | "changed" | "decided" | "flag.clear")[];
+          actions: ("created" | "changed" | "decided" | "flag.clear" | "supplier.selected")[];
         } | {
           source: "deadline";
           withinHours: number;
@@ -2350,6 +2371,421 @@ export type GatewayError = {
   };
 };
 
+export type GovernanceChangedEvent = {
+  kind: "policy" | "hold" | "export" | "retention" | "dsr";
+  id: string | null;
+  at: string;
+};
+
+export type GovernanceDsrExecuteParams = {
+  reportId: string;
+  identifier: string;
+  mode: "delete" | "anonymize";
+  reason: string;
+};
+
+export type GovernanceDsrExecuteResult = {
+  report: {
+    id: string;
+    createdAt: string;
+    createdBy: string;
+    reason: string;
+    kind: "email" | "phone" | "principal" | "text";
+    identifierDigest: string;
+    projectIds: string[] | null;
+    matches: {
+      class: "transcripts" | "workitems" | "evidence" | "audit" | "attachments" | "outputs" | "memory" | "connectorCaches";
+      id: string;
+      projectId: string | null;
+      workItemId: string | null;
+      occurrences: number;
+      disposition: "deletable" | "held" | "retained";
+      holdIds: string[];
+      note?: string;
+    }[];
+    audit: {
+      rows: number;
+      disposition: "retained";
+    };
+    counts: {
+      deletable: number;
+      held: number;
+      retained: number;
+    };
+    executed?: {
+      at: string;
+      by: string;
+      mode: "delete" | "anonymize";
+      manifestId: string | null;
+      changed: number;
+      skipped: number;
+    };
+  };
+};
+
+export type GovernanceDsrFindParams = {
+  identifier: string;
+  kind?: "email" | "phone" | "principal" | "text";
+  projectIds?: string[];
+  reason: string;
+};
+
+export type GovernanceDsrFindResult = {
+  report: {
+    id: string;
+    createdAt: string;
+    createdBy: string;
+    reason: string;
+    kind: "email" | "phone" | "principal" | "text";
+    identifierDigest: string;
+    projectIds: string[] | null;
+    matches: {
+      class: "transcripts" | "workitems" | "evidence" | "audit" | "attachments" | "outputs" | "memory" | "connectorCaches";
+      id: string;
+      projectId: string | null;
+      workItemId: string | null;
+      occurrences: number;
+      disposition: "deletable" | "held" | "retained";
+      holdIds: string[];
+      note?: string;
+    }[];
+    audit: {
+      rows: number;
+      disposition: "retained";
+    };
+    counts: {
+      deletable: number;
+      held: number;
+      retained: number;
+    };
+    executed?: {
+      at: string;
+      by: string;
+      mode: "delete" | "anonymize";
+      manifestId: string | null;
+      changed: number;
+      skipped: number;
+    };
+  };
+};
+
+export type GovernanceExportCreateParams = {
+  reason: string;
+  matterId?: string;
+  scope: {
+    projectIds?: string[];
+    workItemIds?: string[];
+    persons?: string[];
+    custodians?: string[];
+    from?: string | null;
+    to?: string | null;
+  };
+  classes?: ("workitems" | "evidence" | "transcripts" | "attachments" | "outputs" | "memory" | "audit")[];
+  attachmentFiles?: boolean;
+  redact?: boolean;
+};
+
+export type GovernanceExportCreateResult = {
+  export: {
+    id: string;
+    status: "running" | "done" | "failed";
+    createdAt: string;
+    createdBy: string;
+    reason: string;
+    matterId: string | null;
+    scope: {
+      projectIds?: string[];
+      workItemIds?: string[];
+      persons?: string[];
+      custodians?: string[];
+      from?: string | null;
+      to?: string | null;
+    };
+    classes: ("workitems" | "evidence" | "transcripts" | "attachments" | "outputs" | "memory" | "audit")[];
+    attachmentFiles: boolean;
+    redacted: boolean;
+    finishedAt: string | null;
+    bytes: number | null;
+    sha256: string | null;
+    files: number | null;
+    verificationOk: boolean | null;
+    error: string | null;
+    downloadPath: string | null;
+  };
+};
+
+export type GovernanceExportGetParams = {
+  id: string;
+};
+
+export type GovernanceExportGetResult = {
+  export: {
+    id: string;
+    status: "running" | "done" | "failed";
+    createdAt: string;
+    createdBy: string;
+    reason: string;
+    matterId: string | null;
+    scope: {
+      projectIds?: string[];
+      workItemIds?: string[];
+      persons?: string[];
+      custodians?: string[];
+      from?: string | null;
+      to?: string | null;
+    };
+    classes: ("workitems" | "evidence" | "transcripts" | "attachments" | "outputs" | "memory" | "audit")[];
+    attachmentFiles: boolean;
+    redacted: boolean;
+    finishedAt: string | null;
+    bytes: number | null;
+    sha256: string | null;
+    files: number | null;
+    verificationOk: boolean | null;
+    error: string | null;
+    downloadPath: string | null;
+  };
+};
+
+export type GovernanceExportListParams = Record<string, never>;
+
+export type GovernanceExportListResult = {
+  exports: {
+    id: string;
+    status: "running" | "done" | "failed";
+    createdAt: string;
+    createdBy: string;
+    reason: string;
+    matterId: string | null;
+    scope: {
+      projectIds?: string[];
+      workItemIds?: string[];
+      persons?: string[];
+      custodians?: string[];
+      from?: string | null;
+      to?: string | null;
+    };
+    classes: ("workitems" | "evidence" | "transcripts" | "attachments" | "outputs" | "memory" | "audit")[];
+    attachmentFiles: boolean;
+    redacted: boolean;
+    finishedAt: string | null;
+    bytes: number | null;
+    sha256: string | null;
+    files: number | null;
+    verificationOk: boolean | null;
+    error: string | null;
+    downloadPath: string | null;
+  }[];
+};
+
+export type GovernanceHoldsCreateParams = {
+  matterId: string;
+  reason: string;
+  scope: {
+    projectIds?: string[];
+    workItemIds?: string[];
+    persons?: string[];
+    custodians?: string[];
+    from?: string | null;
+    to?: string | null;
+  };
+};
+
+export type GovernanceHoldsCreateResult = {
+  hold: {
+    id: string;
+    matterId: string;
+    reason: string;
+    scope: {
+      projectIds?: string[];
+      workItemIds?: string[];
+      persons?: string[];
+      custodians?: string[];
+      from?: string | null;
+      to?: string | null;
+    };
+    status: "active" | "released";
+    createdAt: string;
+    createdBy: string;
+    releasedAt?: string;
+    releasedBy?: string;
+    releaseReason?: string;
+  };
+};
+
+export type GovernanceHoldsListParams = {
+  status?: "active" | "released" | "all";
+};
+
+export type GovernanceHoldsListResult = {
+  holds: {
+    id: string;
+    matterId: string;
+    reason: string;
+    scope: {
+      projectIds?: string[];
+      workItemIds?: string[];
+      persons?: string[];
+      custodians?: string[];
+      from?: string | null;
+      to?: string | null;
+    };
+    status: "active" | "released";
+    createdAt: string;
+    createdBy: string;
+    releasedAt?: string;
+    releasedBy?: string;
+    releaseReason?: string;
+  }[];
+};
+
+export type GovernanceHoldsReleaseParams = {
+  id: string;
+  reason: string;
+};
+
+export type GovernanceHoldsReleaseResult = {
+  hold: {
+    id: string;
+    matterId: string;
+    reason: string;
+    scope: {
+      projectIds?: string[];
+      workItemIds?: string[];
+      persons?: string[];
+      custodians?: string[];
+      from?: string | null;
+      to?: string | null;
+    };
+    status: "active" | "released";
+    createdAt: string;
+    createdBy: string;
+    releasedAt?: string;
+    releasedBy?: string;
+    releaseReason?: string;
+  };
+};
+
+export type GovernancePolicyGetParams = {
+  projectId?: string;
+};
+
+export type GovernancePolicyGetResult = {
+  org: {
+    retention: Record<string, {
+        keepDays: number | null;
+        mode: "delete" | "anonymize";
+      }>;
+    personalData: {
+      myNumber: "block" | "warn" | "off";
+      otherIdentifiers: "block" | "warn" | "off";
+      redactExports: boolean;
+      redactLogs: boolean;
+    };
+    minimumRetentionDays: {
+      audit: number;
+      evidence: number;
+    };
+    sweep: {
+      enabled: boolean;
+      hourUtc: number;
+    };
+  };
+  project: {
+    projectId: string;
+    retention: Record<string, {
+        keepDays: number | null;
+        mode: "delete" | "anonymize";
+      }>;
+    personalData: {
+      myNumber: "block" | "warn" | "off";
+      otherIdentifiers: "block" | "warn" | "off";
+      redactExports: boolean;
+      redactLogs: boolean;
+    };
+    updatedAt: string | null;
+    updatedBy: string | null;
+  } | null;
+};
+
+export type GovernancePolicySetParams = {
+  projectId: string;
+  retention?: Record<string, {
+      keepDays?: number | null;
+      mode?: "delete" | "anonymize";
+    }>;
+  personalData?: {
+    myNumber?: "block" | "warn" | "off";
+    otherIdentifiers?: "block" | "warn" | "off";
+    redactExports?: boolean;
+    redactLogs?: boolean;
+  };
+  reason: string;
+};
+
+export type GovernancePolicySetResult = {
+  org: {
+    retention: Record<string, {
+        keepDays: number | null;
+        mode: "delete" | "anonymize";
+      }>;
+    personalData: {
+      myNumber: "block" | "warn" | "off";
+      otherIdentifiers: "block" | "warn" | "off";
+      redactExports: boolean;
+      redactLogs: boolean;
+    };
+    minimumRetentionDays: {
+      audit: number;
+      evidence: number;
+    };
+    sweep: {
+      enabled: boolean;
+      hourUtc: number;
+    };
+  };
+  project: {
+    projectId: string;
+    retention: Record<string, {
+        keepDays: number | null;
+        mode: "delete" | "anonymize";
+      }>;
+    personalData: {
+      myNumber: "block" | "warn" | "off";
+      otherIdentifiers: "block" | "warn" | "off";
+      redactExports: boolean;
+      redactLogs: boolean;
+    };
+    updatedAt: string | null;
+    updatedBy: string | null;
+  } | null;
+};
+
+export type GovernanceRetentionRunParams = {
+  dryRun?: boolean;
+  classes?: ("transcripts" | "workitems" | "evidence" | "audit" | "attachments" | "outputs" | "memory" | "connectorCaches")[];
+  reason: string;
+};
+
+export type GovernanceRetentionRunResult = {
+  at: string;
+  dryRun: boolean;
+  manifestId: string | null;
+  classes: Record<string, {
+      deleted: number;
+      anonymized: number;
+      held: number;
+      failed: number;
+      oldest: string | null;
+      newest: string | null;
+    }>;
+  audit: {
+    months: string[];
+    entries: number;
+  };
+  holds: number;
+};
+
 export type HelloOk = {
   type: "hello-ok";
   protocol: number;
@@ -3405,7 +3841,7 @@ export type WorkitemsAssignAgentResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -3431,6 +3867,7 @@ export type WorkitemsAssignAgentResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -3450,6 +3887,7 @@ export type WorkitemsAssignAgentResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -3525,6 +3963,29 @@ export type WorkitemsAssignAgentResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -3558,6 +4019,35 @@ export type WorkitemsAssignAgentResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
   runId: string;
 };
@@ -3585,7 +4075,7 @@ export type WorkitemsClearFlagResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -3611,6 +4101,7 @@ export type WorkitemsClearFlagResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -3630,6 +4121,7 @@ export type WorkitemsClearFlagResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -3705,6 +4197,29 @@ export type WorkitemsClearFlagResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -3738,6 +4253,35 @@ export type WorkitemsClearFlagResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
 };
 
@@ -3752,7 +4296,7 @@ export type WorkitemsConfigResult = {
       ja?: string;
       en?: string;
     };
-    types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
+    types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom")[];
     slaHours: number | null;
     defaultAgent: string | null;
     department?: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
@@ -3767,7 +4311,8 @@ export type WorkitemsConfigResult = {
     };
     severity: "fail" | "warn";
     blocking: boolean;
-    types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
+    overrideOutcome?: "provisional";
+    types: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom")[];
     queues: string[];
   }[];
   timezone: string;
@@ -3844,7 +4389,7 @@ export type WorkitemsConfigResult = {
 export type WorkitemsCreateParams = {
   projectId: string;
   queue: string;
-  type?: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+  type?: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
   title: string;
   source?: {
     documents?: {
@@ -3869,7 +4414,7 @@ export type WorkitemsCreateResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -3895,6 +4440,7 @@ export type WorkitemsCreateResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -3914,6 +4460,7 @@ export type WorkitemsCreateResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -3989,6 +4536,29 @@ export type WorkitemsCreateResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -4022,6 +4592,35 @@ export type WorkitemsCreateResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
 };
 
@@ -4041,7 +4640,7 @@ export type WorkitemsDecideResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -4067,6 +4666,7 @@ export type WorkitemsDecideResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -4086,6 +4686,7 @@ export type WorkitemsDecideResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -4161,6 +4762,29 @@ export type WorkitemsDecideResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -4194,6 +4818,35 @@ export type WorkitemsDecideResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
 };
 
@@ -4211,7 +4864,7 @@ export type WorkitemsDelegateResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -4237,6 +4890,7 @@ export type WorkitemsDelegateResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -4256,6 +4910,7 @@ export type WorkitemsDelegateResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -4331,6 +4986,29 @@ export type WorkitemsDelegateResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -4364,6 +5042,35 @@ export type WorkitemsDelegateResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
 };
 
@@ -4387,6 +5094,8 @@ export type WorkitemsDocumentResult = {
     version: number | null;
     binary: boolean;
     text: string | null;
+    textSource: "raw" | "extracted" | null;
+    extractError: string | null;
     truncated: boolean;
     escaped: "html";
     untrusted: true;
@@ -4462,6 +5171,7 @@ export type WorkitemsEvidenceResult = {
     status: string | null;
     root: string | null;
     signer: string | null;
+    tombstone?: boolean;
     problems: string[];
   }[];
   chainOk: boolean;
@@ -4477,7 +5187,7 @@ export type WorkitemsGetResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -4503,6 +5213,7 @@ export type WorkitemsGetResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -4522,6 +5233,7 @@ export type WorkitemsGetResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -4597,6 +5309,29 @@ export type WorkitemsGetResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -4630,14 +5365,270 @@ export type WorkitemsGetResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
+};
+
+export type WorkitemsHandoffEventParams = {
+  projectId: string;
+  id: string;
+  handOffId: string;
+  event: {
+    type: "await_entry";
+  } | {
+    type: "submit";
+    payloadVersion: number;
+    payloadSha256: string;
+  } | {
+    type: "confirm";
+    externalId: string;
+    externalStatus: string;
+  } | {
+    type: "reject";
+    reason: string;
+    notCreated: boolean;
+  } | {
+    type: "partial";
+    externalId: string;
+    missing: string[];
+  } | {
+    type: "timeout";
+  } | {
+    type: "lookup";
+    found: {
+      externalId: string;
+      externalStatus: string;
+    } | null;
+  } | {
+    type: "retry";
+    reason: string;
+  } | {
+    type: "reconcile";
+    diffs: {
+      field: string;
+      approved: unknown;
+      submitted: unknown;
+      destination: unknown;
+    }[];
+  } | {
+    type: "resolve";
+    field: string;
+    kind: "resolved" | "accepted";
+    reason: string;
+  } | {
+    type: "reopen";
+    reason: string;
+  } | {
+    type: "reapprove";
+  } | {
+    type: "close";
+    objective: "handoff_completed" | "payment_settled";
+    settlementRef?: string;
+  };
+};
+
+export type WorkitemsHandoffEventResult = {
+  handOff: {
+    id: string;
+    caseId: string;
+    caseRevision: number;
+    action: string;
+    destination: {
+      product: string;
+      object: string;
+      writable: boolean;
+    };
+    state: "approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened";
+    correlationId: string;
+    attempts: {
+      at: string;
+      payloadVersion: number;
+      payloadSha256: string;
+    }[];
+    externalId: string | null;
+    externalStatus: string | null;
+    lookup: {
+      at: string;
+      result: "found" | "not_found";
+    } | null;
+    diffs: {
+      field: string;
+      approved: unknown;
+      submitted: unknown;
+      destination: unknown;
+      resolution?: {
+        by: string;
+        reason: string;
+        kind: "resolved" | "accepted";
+      };
+    }[];
+    objective: ("handoff_completed" | "payment_settled") | null;
+    history: {
+      at: string;
+      by: string;
+      actorKind: string;
+      event: string;
+      from: ("approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened") | null;
+      to: "approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened";
+      detail: Record<string, unknown>;
+      snapshot: string;
+      prev: string | null;
+      hash: string;
+    }[];
+  };
+};
+
+export type WorkitemsHandoffOpenParams = {
+  projectId: string;
+  id: string;
+  action: string;
+  destination: {
+    product: string;
+    object: string;
+    writable: boolean;
+  };
+};
+
+export type WorkitemsHandoffOpenResult = {
+  handOff: {
+    id: string;
+    caseId: string;
+    caseRevision: number;
+    action: string;
+    destination: {
+      product: string;
+      object: string;
+      writable: boolean;
+    };
+    state: "approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened";
+    correlationId: string;
+    attempts: {
+      at: string;
+      payloadVersion: number;
+      payloadSha256: string;
+    }[];
+    externalId: string | null;
+    externalStatus: string | null;
+    lookup: {
+      at: string;
+      result: "found" | "not_found";
+    } | null;
+    diffs: {
+      field: string;
+      approved: unknown;
+      submitted: unknown;
+      destination: unknown;
+      resolution?: {
+        by: string;
+        reason: string;
+        kind: "resolved" | "accepted";
+      };
+    }[];
+    objective: ("handoff_completed" | "payment_settled") | null;
+    history: {
+      at: string;
+      by: string;
+      actorKind: string;
+      event: string;
+      from: ("approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened") | null;
+      to: "approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened";
+      detail: Record<string, unknown>;
+      snapshot: string;
+      prev: string | null;
+      hash: string;
+    }[];
+  };
+};
+
+export type WorkitemsHandoffsParams = {
+  projectId: string;
+  id: string;
+};
+
+export type WorkitemsHandoffsResult = {
+  handOffs: {
+    id: string;
+    caseId: string;
+    caseRevision: number;
+    action: string;
+    destination: {
+      product: string;
+      object: string;
+      writable: boolean;
+    };
+    state: "approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened";
+    correlationId: string;
+    attempts: {
+      at: string;
+      payloadVersion: number;
+      payloadSha256: string;
+    }[];
+    externalId: string | null;
+    externalStatus: string | null;
+    lookup: {
+      at: string;
+      result: "found" | "not_found";
+    } | null;
+    diffs: {
+      field: string;
+      approved: unknown;
+      submitted: unknown;
+      destination: unknown;
+      resolution?: {
+        by: string;
+        reason: string;
+        kind: "resolved" | "accepted";
+      };
+    }[];
+    objective: ("handoff_completed" | "payment_settled") | null;
+    history: {
+      at: string;
+      by: string;
+      actorKind: string;
+      event: string;
+      from: ("approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened") | null;
+      to: "approved" | "awaiting_external_entry" | "submitted" | "confirmed" | "reconciled" | "closed" | "rejected" | "partial" | "unknown" | "retry_pending" | "mismatch" | "reopened";
+      detail: Record<string, unknown>;
+      snapshot: string;
+      prev: string | null;
+      hash: string;
+    }[];
+  }[];
 };
 
 export type WorkitemsIntakeEmailParams = {
   projectId: string;
   queue: string;
   title: string;
-  type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+  type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
   priority: "low" | "normal" | "high" | "urgent";
   dueAt?: string | null;
   summary: string;
@@ -4658,7 +5649,7 @@ export type WorkitemsIntakeEmailResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -4684,6 +5675,7 @@ export type WorkitemsIntakeEmailResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -4703,6 +5695,7 @@ export type WorkitemsIntakeEmailResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -4778,6 +5771,29 @@ export type WorkitemsIntakeEmailResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -4811,15 +5827,185 @@ export type WorkitemsIntakeEmailResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
   created: boolean;
+};
+
+export type WorkitemsLinkedAttachParams = {
+  projectId: string;
+  id: string;
+  stepKey: string;
+  childId: string;
+};
+
+export type WorkitemsLinkedAttachResult = {
+  linkedCase: {
+    parentId: string;
+    plan: {
+      steps: {
+        key: string;
+        department: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
+        title: {
+          ja?: string;
+          en?: string;
+        };
+        dependsOn: string[];
+      }[];
+    };
+    steps: {
+      key: string;
+      department: string;
+      state: "waiting" | "ready" | "open" | "done" | "cancelled" | "stuck";
+    }[];
+    ready: string[];
+    done: number;
+    total: number;
+    complete: boolean;
+    blocked: boolean;
+    children: Record<string, string>;
+    missing: string[];
+  } | null;
+};
+
+export type WorkitemsLinkedCreateParams = {
+  projectId: string;
+  id: string;
+  plan: {
+    steps: {
+      key: string;
+      department: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
+      title: {
+        ja?: string;
+        en?: string;
+      };
+      dependsOn: string[];
+    }[];
+  };
+};
+
+export type WorkitemsLinkedCreateResult = {
+  linkedCase: {
+    parentId: string;
+    plan: {
+      steps: {
+        key: string;
+        department: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
+        title: {
+          ja?: string;
+          en?: string;
+        };
+        dependsOn: string[];
+      }[];
+    };
+    steps: {
+      key: string;
+      department: string;
+      state: "waiting" | "ready" | "open" | "done" | "cancelled" | "stuck";
+    }[];
+    ready: string[];
+    done: number;
+    total: number;
+    complete: boolean;
+    blocked: boolean;
+    children: Record<string, string>;
+    missing: string[];
+  } | null;
+};
+
+export type WorkitemsLinkedGetParams = {
+  projectId: string;
+  id: string;
+};
+
+export type WorkitemsLinkedGetResult = {
+  linkedCase: {
+    parentId: string;
+    plan: {
+      steps: {
+        key: string;
+        department: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
+        title: {
+          ja?: string;
+          en?: string;
+        };
+        dependsOn: string[];
+      }[];
+    };
+    steps: {
+      key: string;
+      department: string;
+      state: "waiting" | "ready" | "open" | "done" | "cancelled" | "stuck";
+    }[];
+    ready: string[];
+    done: number;
+    total: number;
+    complete: boolean;
+    blocked: boolean;
+    children: Record<string, string>;
+    missing: string[];
+  } | null;
+};
+
+export type WorkitemsLinkedPlansParams = {
+  projectId: string;
+  id: string;
+};
+
+export type WorkitemsLinkedPlansResult = {
+  plans: {
+    file: string;
+    plan: {
+      steps: {
+        key: string;
+        department: "secretariat" | "finance" | "admin" | "hr" | "planning" | "it" | "procurement" | "sales" | "marketing" | "service" | "operations" | "legal" | "product" | "facilities" | "quality";
+        title: {
+          ja?: string;
+          en?: string;
+        };
+        dependsOn: string[];
+      }[];
+    } | null;
+    sourceKeys: Record<string, string>;
+    problems: {
+      code: string;
+    }[];
+  }[];
 };
 
 export type WorkitemsListParams = {
   projectId: string;
   queue?: string;
   status?: ("new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled") | ("new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled")[];
-  type?: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom") | ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom")[];
+  type?: ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom") | ("request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom")[];
   priority?: ("low" | "normal" | "high" | "urgent") | ("low" | "normal" | "high" | "urgent")[];
   assigneeKind?: "agent" | "person" | "none";
   assigneeId?: string;
@@ -4839,7 +6025,7 @@ export type WorkitemsListResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -4865,6 +6051,7 @@ export type WorkitemsListResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -4884,6 +6071,7 @@ export type WorkitemsListResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -4959,6 +6147,29 @@ export type WorkitemsListResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -4992,6 +6203,490 @@ export type WorkitemsListResult = {
   nextCursor: string | null;
   total: number;
   counts: Record<string, number>;
+};
+
+export type WorkitemsNotificationsListParams = {
+  projectId: string;
+  unreadOnly?: boolean;
+};
+
+export type WorkitemsNotificationsListResult = {
+  notifications: {
+    id: string;
+    principal: string;
+    itemId: string;
+    reason: "awaiting_you" | "delegated_to_you" | "escalated_to_you" | "delegation_withdrawn" | "decided" | "linked_step_ready" | "linked_case_complete" | "linked_case_blocked";
+    revision: number;
+    childId?: string;
+    stepKey?: string;
+    createdAt: string;
+    readAt: string | null;
+  }[];
+};
+
+export type WorkitemsNotificationsMarkReadParams = {
+  projectId: string;
+  id: string;
+};
+
+export type WorkitemsNotificationsMarkReadResult = {
+  notification: {
+    id: string;
+    principal: string;
+    itemId: string;
+    reason: "awaiting_you" | "delegated_to_you" | "escalated_to_you" | "delegation_withdrawn" | "decided" | "linked_step_ready" | "linked_case_complete" | "linked_case_blocked";
+    revision: number;
+    childId?: string;
+    stepKey?: string;
+    createdAt: string;
+    readAt: string | null;
+  };
+};
+
+export type WorkitemsRecordQuotesParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  request: Record<string, unknown>[];
+  quotes: Record<string, unknown>[];
+};
+
+export type WorkitemsRecordQuotesResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      overrideOutcome?: "provisional";
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+      outcome?: "provisional";
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
+  };
+};
+
+export type WorkitemsSelectSupplierParams = {
+  projectId: string;
+  id: string;
+  expectedRevision: number;
+  supplier: string;
+  reason?: string;
+};
+
+export type WorkitemsSelectSupplierResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      overrideOutcome?: "provisional";
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+      outcome?: "provisional";
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
+  };
 };
 
 export type WorkitemsStatsParams = {
@@ -5039,7 +6734,7 @@ export type WorkitemsUpdateParams = {
   patch: {
     title?: string;
     queue?: string;
-    type?: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type?: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     priority?: "low" | "normal" | "high" | "urgent";
     dueAt?: string | null;
     assignee?: {
@@ -5068,7 +6763,7 @@ export type WorkitemsUpdateResult = {
     id: string;
     projectId: string;
     queue: string;
-    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "custom";
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
     title: string;
     status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
     assignee: {
@@ -5094,6 +6789,7 @@ export type WorkitemsUpdateResult = {
       };
       result: "pass" | "fail" | "warn";
       blocking: boolean;
+      overrideOutcome?: "provisional";
       evidence: Record<string, unknown>;
       checkedAt: string;
       draftVersion: number | null;
@@ -5113,6 +6809,7 @@ export type WorkitemsUpdateResult = {
       at: string;
       reason: string;
       policyIds: string[];
+      outcome?: "provisional";
     } | null;
     runIds: string[];
     lastError: string | null;
@@ -5188,6 +6885,29 @@ export type WorkitemsUpdateResult = {
       at: string;
       reason: string;
     }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
     updatedAt: string;
     revision: number;
     source: {
@@ -5221,6 +6941,257 @@ export type WorkitemsUpdateResult = {
         root: string;
       } | null;
     }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
+  };
+};
+
+export type WorkitemsWithdrawDelegationParams = {
+  projectId: string;
+  id: string;
+  expectedRevision?: number;
+  reason?: string;
+};
+
+export type WorkitemsWithdrawDelegationResult = {
+  item: {
+    id: string;
+    projectId: string;
+    queue: string;
+    type: "request" | "case" | "document" | "invoice" | "leave" | "expense" | "purchase" | "quote" | "custom";
+    title: string;
+    status: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+    assignee: {
+      kind: "agent" | "person";
+      id: string;
+    } | null;
+    priority: "low" | "normal" | "high" | "urgent";
+    dueAt: string | null;
+    slaHours: number | null;
+    draft: {
+      artifactId: string;
+      version: number;
+      sha256: string;
+      agentId: string | null;
+      runId: string | null;
+      createdAt: string;
+    } | null;
+    checks: {
+      policyId: string;
+      label: {
+        ja?: string;
+        en?: string;
+      };
+      result: "pass" | "fail" | "warn";
+      blocking: boolean;
+      overrideOutcome?: "provisional";
+      evidence: Record<string, unknown>;
+      checkedAt: string;
+      draftVersion: number | null;
+      policyDigest: string;
+    }[];
+    requiredApprovals: number;
+    approvals: {
+      by: string;
+      at: string;
+      comment: string | null;
+      stageId?: string;
+      onBehalfOf?: string | null;
+      via?: "approver" | "delegation" | "escalation";
+    }[];
+    override: {
+      by: string;
+      at: string;
+      reason: string;
+      policyIds: string[];
+      outcome?: "provisional";
+    } | null;
+    runIds: string[];
+    lastError: string | null;
+    createdAt: string;
+    createdBy: string;
+    requestedBy: string;
+    route: {
+      id: string;
+      kind: "staged" | "single";
+      policyDigest: string;
+      stages: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        approvers: {
+          any: boolean;
+          roles: string[];
+          principals: string[];
+          departmentField: string | null;
+          department: string | null;
+        };
+        minApprovals: number;
+        dueHours: number | null;
+        onReturn: "requester" | "previous";
+        delegation: boolean;
+        escalation: {
+          afterHours: number;
+          to: {
+            roles: string[];
+            principals: string[];
+          };
+        } | null;
+        status: "pending" | "active" | "approved";
+        approvals: {
+          by: string;
+          at: string;
+          comment: string | null;
+          stageId?: string;
+          onBehalfOf?: string | null;
+          via?: "approver" | "delegation" | "escalation";
+        }[];
+        delegations: {
+          from: string;
+          to: string;
+          reason: string;
+          at: string;
+          expiresAt: string;
+        }[];
+        activatedAt: string | null;
+        dueAt: string | null;
+        completedAt: string | null;
+        overdueAt: string | null;
+        escalatedAt: string | null;
+      }[];
+      skipped: {
+        id: string;
+        name: {
+          ja?: string;
+          en?: string;
+        };
+        reason: string;
+      }[];
+      current: number | null;
+    } | null;
+    summary?: string;
+    flags?: ("suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment")[];
+    flagReason?: string;
+    flagClearances?: {
+      flag: "suspected_fraud" | "phishing" | "prompt_injection" | "unverified_sender" | "malicious_attachment";
+      by: string;
+      at: string;
+      reason: string;
+    }[];
+    supplierSelection?: {
+      supplier: string;
+      selectedBy: string;
+      reason: string | null;
+      comparisonDigest: string;
+      lowest: string[];
+      deviatesFromLowest: boolean;
+      at: string;
+      revision: number;
+    };
+    purchaseOrderDraft?: {
+      document: string | null;
+      comparisonDigest: string;
+      supplier: string;
+      selectionRevision: number;
+      source?: {
+        file: string;
+        sha256: string;
+      } | null;
+      draftedBy: string;
+      runId: string;
+      at: string;
+    };
+    updatedAt: string;
+    revision: number;
+    source: {
+      documents: {
+        kind: "attachment" | "file" | "artifact";
+        ref: string;
+        name: string;
+        sha256?: string;
+      }[];
+      fields: Record<string, string | number | boolean | null>;
+      origin?: {
+        kind: "email";
+        connector: "microsoft-365" | "gmail";
+        messageId: string;
+        receivedAt?: string;
+        from?: string;
+        subject?: string;
+      };
+    };
+    history: {
+      at: string;
+      by: string;
+      actorKind: "person" | "agent" | "system";
+      action: string;
+      from?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      to?: "new" | "drafting" | "awaiting_review" | "approved" | "sent_back" | "done" | "cancelled";
+      comment?: string | null;
+      detail?: Record<string, unknown>;
+      evidence?: {
+        bundle: string;
+        root: string;
+      } | null;
+    }[];
+    procurement?: {
+      request: {
+        code: string;
+        description?: string;
+        quantity: string | number;
+      }[];
+      quotes: {
+        supplier: string;
+        lines: {
+          code?: string;
+          description: string;
+          quantity: string | number;
+          unit?: string;
+          unitPrice: string | number;
+          taxRate: number;
+          discountPercent?: string | number;
+          discountAmount?: number;
+        }[];
+        options?: Record<string, unknown>;
+      }[];
+      comparisonDigest: string;
+      files?: {
+        supplier: string;
+        file: string;
+        sha256: string;
+      }[];
+      recordedBy: string;
+      at: string;
+    };
   };
 };
 
@@ -6068,6 +8039,19 @@ export type RunFactoryCardErrorBody = GatewayError | {
   ok: false;
   error: string;
   code?: string;
+  [key: string]: unknown;
+} | RateLimitError;
+
+// downloadGovernanceExport: GET /api/governance/exports/{id}/download
+export type DownloadGovernanceExportParams = {
+  /** path parameter */
+  id: string;
+};
+export type DownloadGovernanceExportBody = never;
+export type DownloadGovernanceExportResponse = ArrayBuffer;
+export type DownloadGovernanceExportErrorBody = GatewayError | {
+  ok: false;
+  error: string;
   [key: string]: unknown;
 } | RateLimitError;
 

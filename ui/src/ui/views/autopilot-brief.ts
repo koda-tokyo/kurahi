@@ -102,6 +102,37 @@ export function renderAutopilotBrief(
         </li>`,
         )}</ul>${limit(brief.waiting.proposals)}
         <h4>${t("autopilot.briefCommitments")}</h4>${items(brief.commitments, brief.truncated?.commitments)}
+        <section data-brief-linked-section>
+        <h4>${t("autopilot.briefLinked")}</h4>
+        ${!brief.waiting.linked ? html`<p role="status">${t("autopilot.briefLinkedUnavailable")}</p>` : brief.waiting.linked.length === 0 && !brief.truncated?.linked ? html`<p>${t("autopilot.none")}</p>` : nothing}
+        <ul>${(brief.waiting.linked ?? []).slice(0, 50).map(
+          (entry) => html`<li data-brief-linked>
+          ${entry.title} · ${entry.queue} · <span class="mono">${entry.itemId}</span>
+          ${entry.dueAt ? html` · ${date(entry.dueAt)}` : nothing}
+          ${entry.overdue ? html` · ${t("autopilot.briefOverdue")}` : nothing}
+          ${
+            entry.unreadable
+              ? html`<div>${t("autopilot.briefLinkedUnreadable")}</div>`
+              : html`<div>${t("autopilot.briefLinkedProgress")}: ${entry.done}/${entry.total}</div>
+          ${entry.ready.length ? html`<div>${t("autopilot.briefLinkedReady")}: ${entry.ready.join(", ")}</div>` : nothing}
+          ${entry.missing.length ? html`<div>${t("autopilot.briefLinkedMissing")}: ${entry.missing.join(", ")}</div>` : nothing}
+          ${entry.blocked ? html`<div>${t("autopilot.briefLinkedBlocked")}</div>` : nothing}`
+          }
+        </li>`,
+        )}</ul>${brief.waiting.linked ? limit(brief.waiting.linked, brief.truncated?.linked) : nothing}
+        </section>
+        <section data-brief-notifications>
+          <h4>${t("autopilot.briefNotifications")}</h4>
+          ${
+            !brief.waiting.notifications ||
+            brief.waiting.notifications.unreadable ||
+            !Number.isSafeInteger(brief.waiting.notifications.unread) ||
+            brief.waiting.notifications.unread < 0
+              ? html`<p role="status">${t("autopilot.briefNotificationsUnavailable")}</p>`
+              : html`<p data-brief-notifications-count>${brief.waiting.notifications.unread}</p>`
+          }
+          <p class="muted">${t("autopilot.briefNotificationsScope")}</p>
+        </section>
         <h4>${t("autopilot.briefProblems")}</h4>
         ${brief.problems.control.stopped || brief.problems.control.emergencyStop ? html`<p>${t("autopilot.routineStopped")}</p>` : nothing}
         ${brief.problems.routinesError ? html`<p>${t("autopilot.invalid")}</p>` : nothing}

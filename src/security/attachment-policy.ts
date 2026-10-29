@@ -251,7 +251,7 @@ function cfbRefusal(buf: Buffer): PolicyResult {
   return refuse("unsupported_type", "a legacy Office or OLE file (not in the allow-list)");
 }
 
-type ZipEntry = {
+export type ZipEntry = {
   name: string;
   flags: number;
   method: number;
@@ -355,6 +355,27 @@ function entryData(buf: Buffer, e: ZipEntry, budget: { left: number }): Buffer {
   }
   budget.left -= out.length;
   return out;
+}
+
+/**
+ * One named entry of a zip read with readZipDirectory, inflated under the same caps as
+ * inspection (declared size, budget); null when the archive has no such entry. Encrypted
+ * entries are refused.
+ */
+export function readZipEntry(
+  buf: Buffer,
+  entries: ZipEntry[],
+  name: string,
+  budget: { left: number },
+): Buffer | null {
+  const e = entries.find((x) => x.name === name);
+  if (!e) {
+    return null;
+  }
+  if ((e.flags & 0x1) !== 0 || e.method === 99) {
+    throw new ZipRefused("encrypted_archive", "an encrypted (password protected) archive");
+  }
+  return entryData(buf, e, budget);
 }
 
 /**

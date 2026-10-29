@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { AUDIT_ANCHOR_FILE, readAuditAnchor, verifyAuditAnchor } from "./anchor.js";
 import {
   AUDIT_GENESIS,
   auditFileForMonth,
@@ -26,6 +27,8 @@ export type AuditVerifyResult = {
   months: string[];
   entries: number;
   lastSeq: number;
+  /** Set when retention removed older months: the signed anchor the chain starts from. */
+  anchor?: { seq: number; lineHash: string; removedMonths: string[]; keyId: string };
   firstBreak?: AuditBreak;
 };
 
@@ -73,6 +76,25 @@ export function verifyAuditChain(dir: string, opts: { month?: string } = {}): Au
     });
   }
 
+  // Retention anchor (anchor.ts): history before it was removed on purpose and is vouched for
+  // by a signed record of its last line.
+  const anchor = readAuditAnchor(dir);
+  if (anchor) {
+    if (!verifyAuditAnchor(anchor)) {
+      return fail({
+        file: path.join(dir, AUDIT_ANCHOR_FILE),
+        line: 0,
+        reason: "audit anchor signature does not verify",
+      });
+    }
+    result.anchor = {
+      seq: anchor.seq,
+      lineHash: anchor.lineHash,
+      removedMonths: anchor.removedMonths,
+      keyId: anchor.signer.keyId,
+    };
+  }
+  let anchorChecked = !anchor;
   let prevLine: string | null = null;
   let prevSeq: number | null = null;
   if (opts.month) {
@@ -112,7 +134,18 @@ export function verifyAuditChain(dir: string, opts: { month?: string } = {}): Au
         return fail({ file, line: lineNo, reason: "not valid JSON" });
       }
       const expectedPrev = prevLine === null ? AUDIT_GENESIS : sha256Hex(prevLine);
-      if (entry.prev !== expectedPrev) {
+      // The first line after removed history continues from the anchor. A prune interrupted
+      // between writing the anchor and deleting every month leaves months the anchor already
+      // lists; their first line is accepted and the anchored line is checked when reached.
+      const anchoredStart =
+        prevLine === null &&
+        anchor !== null &&
+        ((entry.seq === anchor.seq + 1 && entry.prev === anchor.lineHash) ||
+          (entry.seq <= anchor.seq && anchor.removedMonths.includes(month)));
+      if (anchoredStart && entry.seq === anchor.seq + 1) {
+        anchorChecked = true;
+      }
+      if (entry.prev !== expectedPrev && !anchoredStart) {
         return fail({
           file,
           line: lineNo,
@@ -139,6 +172,17 @@ export function verifyAuditChain(dir: string, opts: { month?: string } = {}): Au
           reason: "entry hash mismatch (content edited)",
         });
       }
+      if (anchor && entry.seq === anchor.seq) {
+        if (sha256Hex(raw) !== anchor.lineHash) {
+          return fail({
+            file,
+            line: lineNo,
+            seq: entry.seq,
+            reason: "entry does not match the audit anchor",
+          });
+        }
+        anchorChecked = true;
+      }
       lineHashBySeq.set(entry.seq, sha256Hex(raw));
       prevLine = raw;
       prevSeq = entry.seq;
@@ -150,7 +194,18 @@ export function verifyAuditChain(dir: string, opts: { month?: string } = {}): Au
   if (opts.month) {
     return result;
   }
+  if (!anchorChecked && result.entries > 0) {
+    return fail({
+      file: path.join(dir, AUDIT_ANCHOR_FILE),
+      line: 0,
+      reason: "the chain does not continue from the audit anchor",
+    });
+  }
   const checkHead = (head: AuditHead, file: string, line: number): AuditBreak | null => {
+    // Heads of days whose entries retention removed are vouched for by the anchor.
+    if (anchor && head.seq <= anchor.seq) {
+      return null;
+    }
     if (head.seq > result.lastSeq) {
       return {
         file,

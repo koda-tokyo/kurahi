@@ -15,7 +15,7 @@ DEMO_HOME="${KURAHI_DEMO_HOME:-$HOME/kurahi-demo-state}"
 PORT="${KURAHI_DEMO_PORT:-18871}"
 MODEL="${KURAHI_DEMO_MODEL:-qwen2.5:1.5b}"
 
-case "$PORT" in 18789|18790|18791|18792|18793) echo "port $PORT is the default gateway port or derived from it; pick another" >&2; exit 1 ;; esac
+case "$PORT" in 18790|18791|18797|18799) echo "port $PORT belongs to a family gateway; pick another" >&2; exit 1 ;; esac
 if [ "$DEMO_HOME" = "$HOME/.kolo" ]; then echo "refusing to use ~/.kolo" >&2; exit 1; fi
 command -v ollama >/dev/null || { echo "ollama not found" >&2; exit 1; }
 ollama list | awk '{print $1}' | grep -qx "$MODEL" || { echo "model $MODEL is not pulled (ollama pull $MODEL)" >&2; exit 1; }

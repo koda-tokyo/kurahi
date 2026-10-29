@@ -1,15 +1,29 @@
 import type {
+  AutopilotReportErrorResult,
   WorkitemsConfigResult,
   WorkitemsDecideParams,
   WorkitemsDecideResult,
   WorkitemsGetResult,
   WorkitemsListResult,
 } from "../../../../packages/client/src/generated/types";
-import type { GatewayBrowserClient } from "../gateway";
+import type { GatewayHelloOk, GatewayBrowserClient } from "../gateway";
 import type { Project, ProjectsState } from "./projects";
 import { WORK_ITEM_DECISION_REFUSALS } from "../../../../packages/client/src/workitems";
 import { getBusinessDepartment } from "../business-departments";
 import { t, type MessageId } from "../i18n";
+import { canDeclineAutonomy } from "./autopilot";
+import {
+  loadBusinessLinkedCase,
+  type BusinessLinkedAttach,
+  type BusinessLinkedCase,
+  type BusinessLinkedCreate,
+} from "./business-linked";
+import {
+  emptyBusinessNotifications,
+  loadBusinessNotifications,
+  type BusinessNotifications,
+} from "./business-notifications";
+import { type SupplierForm } from "./business-supplier";
 import { resetBusinessWorkState, type BusinessWorkForm } from "./business-work-intake";
 
 export type BusinessDecisionForm = {
@@ -28,12 +42,29 @@ export type BusinessDraftPreview = {
   content: string | null;
 };
 
+export type BusinessDocumentPreview = {
+  itemId: string;
+  revision: number;
+  ref: string;
+  status: "loading" | "ready" | "changed" | "error";
+  text: string | null;
+  textSource: "raw" | "extracted" | null;
+  extractError: string | null;
+  truncated: boolean;
+};
+
 export type BusinessEvidence = {
   itemId: string;
   revision: number;
   status: "loading" | "verified" | "failed" | "unavailable";
   checkedAt: string | null;
   bundles: number;
+  retainedTombstones?: number;
+  historyChecks?: Array<{
+    bundle: string;
+    root: string;
+    status: "verified" | "retained" | "failed" | "unavailable";
+  }>;
 };
 
 export type ExpenseForm = {
@@ -49,6 +80,11 @@ export type ExpenseForm = {
 };
 
 export type BusinessState = {
+  supplierForm?: SupplierForm | null;
+  supplierNotice?: string | null;
+  notifications: BusinessNotifications;
+  reportForm: { id: string; revision: number; reason: string } | null;
+  reportNotice: string | null;
   workForm: BusinessWorkForm | null;
   workPending: boolean;
   workNotice: string | null;
@@ -58,7 +94,11 @@ export type BusinessState = {
   search: string;
   status: "" | WorkitemsGetResult["item"]["status"];
   evidence: BusinessEvidence | null;
+  linked: BusinessLinkedCase | null;
+  linkedAttach: BusinessLinkedAttach | null;
+  linkedCreate: BusinessLinkedCreate | null;
   draftPreview: BusinessDraftPreview | null;
+  documentPreview: BusinessDocumentPreview | null;
   decisionForm: BusinessDecisionForm | null;
   decisionPending: boolean;
   decisionNotice: string | null;
@@ -78,6 +118,11 @@ export type BusinessState = {
   detailError: string | null;
 };
 export const emptyBusiness = (): BusinessState => ({
+  supplierForm: null,
+  supplierNotice: null,
+  notifications: emptyBusinessNotifications(),
+  reportForm: null,
+  reportNotice: null,
   workForm: null,
   workPending: false,
   workNotice: null,
@@ -87,7 +132,11 @@ export const emptyBusiness = (): BusinessState => ({
   search: "",
   status: "",
   evidence: null,
+  linked: null,
+  linkedAttach: null,
+  linkedCreate: null,
   draftPreview: null,
+  documentPreview: null,
   decisionForm: null,
   decisionPending: false,
   decisionNotice: null,
@@ -107,13 +156,14 @@ export const emptyBusiness = (): BusinessState => ({
   detailError: null,
 });
 export type BusinessHost = {
+  hello?: GatewayHelloOk | null;
   business: BusinessState;
   client: GatewayBrowserClient | null;
   connected: boolean;
   tab: string;
   projects: ProjectsState;
 };
-const inFlightDecisions = new WeakSet<BusinessHost>();
+export const inFlightDecisions = new WeakSet<BusinessHost>();
 export const inFlightBusinessExpenses = new WeakSet<BusinessHost>();
 export const uncertainBusinessExpenses = new WeakMap<BusinessHost, Map<string, string>>();
 const queuedEvents = new WeakMap<BusinessHost, boolean>();
@@ -183,6 +233,10 @@ export async function loadBusiness(
   if (more && (previous.loading || !previous.list?.nextCursor)) {
     return;
   }
+  // Notifications cover the Project, independently of department filters and queue failures.
+  if (!more) {
+    void loadBusinessNotifications(host);
+  }
   const queue = previous.queue;
   const department = previous.department ?? "all";
   const ticket = ++tokens(host).list;
@@ -240,6 +294,7 @@ export async function loadBusiness(
           detailLoading: false,
           detailError: null,
           draftPreview: null,
+          documentPreview: null,
           evidence: null,
         });
       }
@@ -274,7 +329,13 @@ export async function loadBusiness(
   }
 }
 export async function selectBusinessQueue(host: BusinessHost, queue: string) {
-  if (!activeProject(host) || host.business.workPending || host.business.workForm) {
+  if (
+    !activeProject(host) ||
+    host.business.supplierForm ||
+    host.business.decisionPending ||
+    host.business.workPending ||
+    host.business.workForm
+  ) {
     return;
   }
   if (queue && (host.business.department ?? "all") !== "all") {
@@ -288,6 +349,7 @@ export async function selectBusinessQueue(host: BusinessHost, queue: string) {
   patch(host, {
     evidence: null,
     draftPreview: null,
+    documentPreview: null,
     queue,
     selectedId: null,
     item: null,
@@ -306,6 +368,7 @@ export async function selectBusinessDepartment(host: BusinessHost, department: s
     host.business.decisionPending ||
     host.business.expensePending ||
     host.business.expenseForm ||
+    host.business.supplierForm ||
     host.business.decisionForm ||
     host.business.workPending ||
     host.business.workForm
@@ -325,6 +388,7 @@ export async function selectBusinessDepartment(host: BusinessHost, department: s
     selectedId: null,
     evidence: null,
     draftPreview: null,
+    documentPreview: null,
     detailLoading: false,
     detailError: null,
   });
@@ -347,6 +411,7 @@ export async function filterBusiness(
     host.business.decisionPending ||
     host.business.expensePending ||
     host.business.expenseForm ||
+    host.business.supplierForm ||
     host.business.decisionForm ||
     host.business.workPending ||
     host.business.workForm
@@ -375,6 +440,7 @@ export async function filterBusiness(
     item: null,
     evidence: null,
     draftPreview: null,
+    documentPreview: null,
     detailLoading: false,
     detailError: null,
   });
@@ -397,6 +463,7 @@ export async function loadBusinessItem(host: BusinessHost, id: string, backgroun
     selectedId: id,
     evidence: null,
     draftPreview: null,
+    documentPreview: null,
     ...(background && host.business.item?.id === id ? {} : { item: null }),
     detailLoading: true,
     detailError: null,
@@ -409,15 +476,25 @@ export async function loadBusinessItem(host: BusinessHost, id: string, backgroun
     if (item.projectId !== projectId || item.id !== id) {
       throw new Error("Item scope mismatch");
     }
+    const supplierForm = host.business.supplierForm;
+    if (supplierForm && (supplierForm.id !== item.id || supplierForm.revision !== item.revision)) {
+      patch(host, { supplierForm: null, supplierNotice: t("business.supplier.changed") });
+    }
     const form = host.business.decisionForm;
     const changed = form && (form.id !== item.id || form.revision !== item.revision);
+    const report = host.business.reportForm;
+    const reportChanged = report && (report.id !== item.id || report.revision !== item.revision);
     patch(host, {
       item,
       detailLoading: false,
+      ...(reportChanged
+        ? { reportForm: null, reportNotice: t("business.report.changed" as MessageId) }
+        : {}),
       ...(changed
         ? { decisionForm: null, decisionNotice: t("business.decision.changed" as MessageId) }
         : {}),
     });
+    void loadBusinessLinkedCase(host, item);
   } catch {
     if (current(host, client, projectId) && tokens(host).detail === ticket) {
       patch(host, { item: null, detailLoading: false, detailError: t("business.detailError") });
@@ -441,12 +518,16 @@ export function businessEvent(host: BusinessHost, payload: unknown) {
 function clearDecision(host: BusinessHost) {
   tokens(host).decision++;
   patch(host, {
+    supplierForm: null,
+    supplierNotice: null,
+    reportForm: null,
+    reportNotice: null,
     decisionForm: null,
     decisionPending: inFlightDecisions.has(host),
     decisionNotice: null,
   });
 }
-function canDecide(host: BusinessHost) {
+export function canDecide(host: BusinessHost) {
   const state = host.business;
   return (
     activeProject(host) === state.projectId &&
@@ -473,7 +554,7 @@ export function beginBusinessDecision(
   host: BusinessHost,
   decision: BusinessDecisionForm["decision"],
 ) {
-  if (!canDecide(host)) {
+  if (!canDecide(host) || host.business.reportForm || host.business.supplierForm) {
     return;
   }
   const item = host.business.item!;
@@ -592,6 +673,102 @@ export async function submitBusinessDecision(host: BusinessHost) {
     await loadBusiness(host, false, true);
   } finally {
     // The transport owns this lock: navigation and refresh cannot release an unresolved write.
+    inFlightDecisions.delete(host);
+    patch(host, { decisionPending: false });
+  }
+}
+
+/** The gateway rechecks person identity and item visibility; this is only a UI capability. */
+export function canReportBusinessError(host: BusinessHost): boolean {
+  return (
+    canDeclineAutonomy(host) &&
+    canDecide(host) &&
+    !host.business.error &&
+    !host.business.supplierForm &&
+    !host.business.decisionForm &&
+    host.business.item?.createdBy?.startsWith("autopilot:") === true
+  );
+}
+export function beginBusinessReport(host: BusinessHost) {
+  if (!canReportBusinessError(host)) {
+    return;
+  }
+  const item = host.business.item!;
+  patch(host, {
+    reportForm: { id: item.id, revision: item.revision, reason: "" },
+    reportNotice: null,
+  });
+}
+export function editBusinessReport(host: BusinessHost, reason: string) {
+  const form = host.business.reportForm;
+  if (!form || host.business.decisionPending) {
+    return;
+  }
+  patch(host, { reportForm: { ...form, reason } });
+}
+export function cancelBusinessReport(host: BusinessHost) {
+  if (!host.business.decisionPending) {
+    patch(host, { reportForm: null, reportNotice: null });
+  }
+}
+/** A report is a person-confirmed write. Events and refreshes must never replay it. */
+export async function submitBusinessReport(host: BusinessHost) {
+  const form = host.business.reportForm;
+  const client = host.client;
+  if (!form || !client || !canReportBusinessError(host)) {
+    return;
+  }
+  const item = host.business.item!;
+  if (form.id !== item.id || form.revision !== item.revision) {
+    patch(host, { reportForm: null, reportNotice: t("business.report.changed" as MessageId) });
+    return;
+  }
+  const reason = form.reason.trim();
+  if (reason.length < 4 || reason.length > 1000) {
+    patch(host, { reportNotice: t("autopilot.reportInvalid") });
+    return;
+  }
+  const projectId = item.projectId;
+  const ticket = ++tokens(host).decision;
+  const stillCurrent = () =>
+    current(host, client, projectId) &&
+    host.business.selectedId === item.id &&
+    tokens(host).decision === ticket;
+  // Share the existing Business write lock with decisions and intake. Reset cannot release it.
+  inFlightDecisions.add(host);
+  patch(host, { decisionPending: true, reportNotice: null });
+  try {
+    let notice = t("autopilot.reportSaved");
+    let saved = false;
+    try {
+      await client.request<AutopilotReportErrorResult>("autopilot.reportError", {
+        projectId,
+        itemId: item.id,
+        reason,
+      });
+      saved = true;
+    } catch (error) {
+      const code = (error as { details?: { code?: string } })?.details?.code;
+      notice =
+        code === "already_reported"
+          ? t("business.report.alreadyReported" as MessageId)
+          : [
+                "routines_invalid",
+                "item_not_found",
+                "not_autopilot_item",
+                "routine_not_found",
+                "archived",
+              ].includes(code ?? "")
+            ? t("business.report.changed" as MessageId)
+            : t("autopilot.reportFailed");
+    }
+    if (!stillCurrent()) {
+      return;
+    }
+    patch(host, { reportForm: saved ? null : form, reportNotice: notice });
+    // Read back both the detail and queue, including after an uncertain transport failure.
+    await loadBusiness(host, false, true);
+  } finally {
     inFlightDecisions.delete(host);
     patch(host, { decisionPending: false });
   }

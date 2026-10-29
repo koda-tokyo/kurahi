@@ -96,6 +96,33 @@ describe("routine file validation (fail closed)", () => {
     expect(bad(over)).toThrow(re);
   });
 
+  it("refuses a reasoning backend the engine cannot run when the file is loaded", () => {
+    expect(bad({ reasoning: { prompt: "mail-triage", backend: "gemini-cli" } })).toThrow(
+      /unknown reasoning backend "gemini-cli"/,
+    );
+    expect(() =>
+      parseRoutines(
+        YAML.stringify({ version: 1, reasoner: { backend: "nope" }, routines: [BASE] }),
+      ),
+    ).toThrow(/unknown reasoning backend "nope"/);
+  });
+
+  it("requires <provider>/<model> for the api backend", () => {
+    expect(bad({ reasoning: { prompt: "mail-triage", backend: "api" } })).toThrow(
+      /needs a model "<provider>\/<model>"/,
+    );
+    expect(bad({ reasoning: { prompt: "mail-triage", backend: "api", model: "qwen" } })).toThrow(
+      /needs a model/,
+    );
+    const [r] = parseRoutines(
+      doc({
+        ...BASE,
+        reasoning: { prompt: "mail-triage", backend: "api", model: "ollama/qwen3:4b" },
+      }),
+    );
+    expect(r.reasoning).toMatchObject({ backend: "api", model: "ollama/qwen3:4b" });
+  });
+
   it("refuses duplicate ids", () => {
     expect(() => parseRoutines(YAML.stringify({ routines: [BASE, BASE] }))).toThrow(/twice/);
   });
@@ -173,6 +200,12 @@ describe("starter routines", () => {
       "core",
       "L2",
     ],
+    [
+      path.join(resolveTemplatesDir(), "..", "autopilot", "core-linked-cases.yaml"),
+      "linked-cases",
+      "core",
+      "L2",
+    ],
   ];
   it.each(cases)("%s is valid", (file, id, edition, level) => {
     const [r] = parseRoutines(fs.readFileSync(file, "utf8"));
@@ -184,6 +217,14 @@ describe("starter routines", () => {
   it("the finance starter only intakes (payments never)", () => {
     const [r] = parseRoutines(fs.readFileSync(cases[1][0], "utf8"));
     expect(r.actions).toEqual(["workitem.intake"]);
+  });
+
+  it("the linked-cases starter only reads workitems_linked and intakes one item", () => {
+    const [r] = parseRoutines(fs.readFileSync(cases[cases.length - 1][0], "utf8"));
+    expect(r.gather.map((g) => g.tool)).toEqual(["workitems_linked"]);
+    expect(r.actions).toEqual(["workitem.intake"]);
+    expect(r.reasoning.promptId).toBe("linked-cases");
+    expect(r.limits.maxItemsPerRun).toBe(1);
   });
 
   it("the Industrial starter gates on legacy_changes and advances the baseline last", () => {

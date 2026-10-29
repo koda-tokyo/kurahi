@@ -21,7 +21,7 @@ Kurahi は既存の watsonx Orchestrate と並べて使うもので、置き換�
 | Orchestrate → Kurahi | OpenAPIツールの取り込み                                                       | A2Aプラグインのaskエンドポイント（`server.rest`） |
 | Kurahi → Orchestrate | `POST /v1/orchestrate/{agent_id}/chat/completions`                            | `watsonx-orchestrate` プラグイン                  |
 
-**状態：プレビュー。** このページの経路はすべてIBMが公開している Orchestrate の資料に沿って実装し、Kurahi の適合テストで確認しています。
+**状態：提供中。** このページの経路はすべてIBMが公開している Orchestrate の資料に沿って実装し、Kurahi の適合テストで確認しています。
 
 ## Orchestrate は信頼できない呼び出し元
 

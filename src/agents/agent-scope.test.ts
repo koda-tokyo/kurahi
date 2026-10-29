@@ -171,7 +171,7 @@ describe("resolveAgentConfig", () => {
         list: [
           {
             id: "family",
-            workspace: "~/kolo-team",
+            workspace: "~/kolo-family",
             sandbox: {
               mode: "all",
               scope: "agent",

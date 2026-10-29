@@ -22,7 +22,13 @@ export type GatewayResponseFrame = {
   id: string;
   ok: boolean;
   payload?: unknown;
-  error?: { code: string; message: string; details?: unknown };
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+    retryable?: boolean;
+    retryAfterMs?: number;
+  };
 };
 
 export type GatewayHelloOk = {
@@ -61,6 +67,10 @@ export type GatewayBrowserClientOptions = {
 
 // 4008 = application-defined code (browser rejects 1008 "Policy Violation")
 const CONNECT_FAILED_CLOSE_CODE = 4008;
+// 4013 = a retryable refusal (gateway said "try again", e.g. busy demo invites); not a sign-in failure.
+const CONNECT_UNAVAILABLE_CLOSE_CODE = 4013;
+// Longest server-requested wait honored before reconnecting (the sign-in limiter window).
+const MAX_RETRY_AFTER_MS = 60_000;
 
 export class GatewayBrowserClient {
   private ws: WebSocket | null = null;
@@ -71,6 +81,7 @@ export class GatewayBrowserClient {
   private connectSent = false;
   private connectTimer: number | null = null;
   private backoffMs = 800;
+  private retryAfterMs = 0;
 
   constructor(private opts: GatewayBrowserClientOptions) {}
 
@@ -101,6 +112,11 @@ export class GatewayBrowserClient {
       const reason = String(ev.reason ?? "");
       this.ws = null;
       this.flushPending(new Error(`gateway closed (${ev.code}): ${reason}`));
+      // The upgrade-time connection limiter closes 1013 "... retry in Ns" before any response frame.
+      const limited = ev.code === 1013 ? /retry in (\d+)s/.exec(reason) : null;
+      if (limited) {
+        this.retryAfterMs = Math.min(Number(limited[1]) * 1000, MAX_RETRY_AFTER_MS);
+      }
       this.opts.onClose?.({ code: ev.code, reason });
       this.scheduleReconnect();
     });
@@ -113,7 +129,8 @@ export class GatewayBrowserClient {
     if (this.closed) {
       return;
     }
-    const delay = this.backoffMs;
+    const delay = Math.max(this.backoffMs, this.retryAfterMs);
+    this.retryAfterMs = 0;
     this.backoffMs = Math.min(this.backoffMs * 1.7, 15_000);
     window.setTimeout(() => this.connect(), delay);
   }
@@ -227,7 +244,16 @@ export class GatewayBrowserClient {
         this.backoffMs = 800;
         this.opts.onHello?.(hello);
       })
-      .catch(() => {
+      .catch((err: { retryable?: boolean; retryAfterMs?: unknown }) => {
+        if (err?.retryable) {
+          // The gateway said when to come back (e.g. the sign-in limiter); retrying sooner is refused again.
+          const after = err.retryAfterMs;
+          if (typeof after === "number" && Number.isFinite(after) && after > 0) {
+            this.retryAfterMs = Math.min(after, MAX_RETRY_AFTER_MS);
+          }
+          this.ws?.close(CONNECT_UNAVAILABLE_CLOSE_CODE, "connect unavailable");
+          return;
+        }
         if (canFallbackToShared && deviceIdentity) {
           clearDeviceAuthToken({ deviceId: deviceIdentity.deviceId, role });
         }
@@ -284,6 +310,8 @@ export class GatewayBrowserClient {
           Object.assign(new Error(res.error?.message ?? "request failed"), {
             code: res.error?.code,
             details: res.error?.details,
+            retryable: res.error?.retryable,
+            retryAfterMs: res.error?.retryAfterMs,
           }),
         );
       }

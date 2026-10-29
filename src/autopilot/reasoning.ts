@@ -107,6 +107,13 @@ export const BUILTIN_PROMPTS: Record<string, string> = {
     "You are the platform operator. The sources are deterministic checks (`fact` and `verdict` " +
     "lines). For every check whose verdict is not OK propose one workitem.intake with the facts " +
     "and the next step for a person. Report nothing when every check is OK.",
+  "linked-cases":
+    "You are the operations controller. The source is the deterministic linked-case check " +
+    "(`fact` and `verdict` lines: counts and case ids only). When its verdict is not OK propose " +
+    "exactly one workitem.intake: title with the number of stuck linked cases; summary = the " +
+    "blocked, missing-step, unreadable and unowned counts and the case ids, then the next step " +
+    "for a person (open each case, unblock or assign it). Never invent titles, owners or reasons " +
+    "the source does not state. Report nothing when the verdict is OK.",
 };
 
 const str = (maxLength: number) => ({ type: "string", maxLength }) as const;
@@ -332,9 +339,17 @@ const OFFICE_GUIDE =
   "【要確認】 at the place it is missing (never as a prefix to a whole summary or item); " +
   "never invent prices, dates, names or figures.";
 const ATTACH_GUIDE =
-  "mail.attach takes no args: it attaches the document this item's office.create wrote to the " +
-  "draft this item's mail.draft created. Propose it after both, in the order mail.draft, " +
-  "office.create, mail.attach.";
+  "mail.attach takes no args: it attaches the document this item's office.create (or " +
+  "quote.prepare) wrote to the draft this item's mail.draft created. Propose it after both, in " +
+  "the order mail.draft, office.create or quote.prepare, mail.attach.";
+const QUOTE_GUIDE =
+  'quote.prepare args: {"quote":{"customer","honorific"?,"attention"?,"subject","lines":[{"code"?,' +
+  '"description","quantity"}],"validity_days"?,"delivery"?,"payment_terms"?,"notes"?,' +
+  '"language"?:"ja"|"en"}}. Copy each requested item and quantity from the source; give the ' +
+  "item code only when the source states it. Never give a price, an amount, a discount or a " +
+  "total: Kurahi prices the lines from the company price list and computes tax and totals. " +
+  "Items the price list cannot price are marked 要確認 for a person. The quotation is a draft " +
+  "for review; never say it was sent or accepted.";
 
 function knowledgeBlock(files: readonly KnowledgeFile[]): string[] {
   if (files.length === 0) {
@@ -386,6 +401,7 @@ export function buildPrompt(
       : "Propose no actions.",
     ...(routine.actions.includes("office.create") ? [OFFICE_GUIDE] : []),
     ...(routine.actions.includes("mail.attach") ? [ATTACH_GUIDE] : []),
+    ...(routine.actions.includes("quote.prepare") ? [QUOTE_GUIDE] : []),
     "",
     ...knowledgeBlock(knowledge),
     ...blocks,

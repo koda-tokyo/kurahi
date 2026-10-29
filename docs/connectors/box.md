@@ -18,7 +18,7 @@ title: "Box"
 | Opt-in access  | Upload Project files into ONE configured folder (`root_readwrite`), every upload approved |
 | Sign-in        | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store    |
 | Token storage  | Kurahi secret store (`connector.box.token`)                                               |
-| Status         | Preview                                                                                   |
+| Status         | Available                                                                                 |
 
 ## Tools
 

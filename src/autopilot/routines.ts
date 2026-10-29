@@ -26,6 +26,7 @@ import { projectDataDir } from "../projects/store.js";
 import { resolveTemplatesDir } from "../projects/templates.js";
 import { getActionDef } from "./actions.js";
 import { validateStepArgs } from "./args.js";
+import { REASONING_BACKENDS } from "./reasoner.js";
 import { BUILTIN_PROMPTS, isKnownSchema, MAX_INLINE_PROMPT_BYTES } from "./reasoning.js";
 import { gatherToolRefusal } from "./tools.js";
 import {
@@ -96,6 +97,30 @@ function parseKnowledge(raw: unknown, where: string): string[] {
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * A backend the engine can run, refused when the file is loaded instead of at the first run: `api`
+ * also needs the model as "<provider>/<model>".
+ */
+function reasoningBackend(
+  backend: string | null,
+  model: string | null,
+  where: string,
+): string | null {
+  if (backend === null) {
+    return null;
+  }
+  const id = backend.trim().toLowerCase();
+  if (!REASONING_BACKENDS.has(id)) {
+    throw new Error(
+      `${where}.backend: unknown reasoning backend "${backend}" (one of ${[...REASONING_BACKENDS].join(", ")})`,
+    );
+  }
+  if (id === "api" && !/^[^/\s]+\/\S+$/.test(model ?? "")) {
+    throw new Error(`${where}.model: the api backend needs a model "<provider>/<model>"`);
+  }
+  return backend;
+}
 
 function strictKeys(o: Obj, allowed: Set<string> | string[], where: string): void {
   const set = allowed instanceof Set ? allowed : new Set(allowed);
@@ -501,7 +526,11 @@ function parseRoutine(raw: unknown, i: number, defaults: Obj): Routine {
       promptId,
       prompt,
       schemaId,
-      backend: str(r.backend) ?? str((defaults.reasoner as Obj | undefined)?.backend),
+      backend: reasoningBackend(
+        str(r.backend) ?? str((defaults.reasoner as Obj | undefined)?.backend),
+        str(r.model) ?? str((defaults.reasoner as Obj | undefined)?.model),
+        `${where}.reasoning`,
+      ),
       model: str(r.model) ?? str((defaults.reasoner as Obj | undefined)?.model),
       timeoutSeconds: int(r.timeoutSeconds, 300, 30, 900, `${where}.reasoning.timeoutSeconds`),
     },

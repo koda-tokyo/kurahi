@@ -409,6 +409,7 @@ const T = {
   memory: ["memory"],
   audit: ["audit"],
   policy: ["policy"],
+  governance: ["governance"],
   channels: ["channels"],
 };
 
@@ -1419,6 +1420,32 @@ export const GATEWAY_ROUTES: readonly RouteDefinition[] = [
     responses: {
       200: { description: "HTML page.", contentType: "text/html", schema: Type.String() },
       404: EvidenceNotFound,
+    },
+  }),
+  defineRoute({
+    method: "GET",
+    path: "/api/governance/exports/{id}/download",
+    operationId: "downloadGovernanceExport",
+    summary: "Download a finished eDiscovery export (signed zip)",
+    description:
+      "The archive a person started with governance.export.create: manifest.json (SHA-256 of " +
+      "every file, Ed25519 signature), verification.json and the exported records. Only the " +
+      "person who created the export (or the owner credential) may download it; anyone else " +
+      "gets 404. Every download is audited as governance.export.download.",
+    tags: T.governance,
+    auth: ["gateway-token", "pair-credential", "session-admin", "sso-session"],
+    minScope: "attach",
+    request: { params: Type.Object({ id: Type.String() }) },
+    responses: {
+      200: {
+        description: "The zip archive.",
+        contentType: "application/zip",
+        schema: Type.String({ format: "binary" }),
+      },
+      404: {
+        description: "No finished export with this id for the caller.",
+        schema: Loose({ ok: Type.Literal(false), error: Type.String() }),
+      },
     },
   }),
   defineRoute({

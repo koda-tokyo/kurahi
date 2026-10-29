@@ -18,7 +18,7 @@ title: "マネーフォワード クラウド"
 | Access        | **Read-only, always.** Only `mfc/invoice/data.read` is requested                       |
 | Sign-in       | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store |
 | Token storage | Kurahi secret store (`connector.money-forward.token`)                                  |
-| Status        | Preview                                                                                |
+| Status        | Available                                                                              |
 
 ## Which products have a public API
 

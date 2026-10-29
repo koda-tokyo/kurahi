@@ -40,6 +40,12 @@ import {
   type TerminalState,
 } from "./controllers/terminal";
 import { cancelVoice, voiceEvent, type VoiceHost } from "./controllers/voice";
+import {
+  INVITE_BUSY_NOTICE,
+  INVITE_ENDED_NOTICE,
+  isInviteToken,
+  SIGN_IN_RATE_LIMITED_NOTICE,
+} from "./demo-invite-link";
 import { GatewayBrowserClient } from "./gateway";
 import { matchLocale } from "./i18n";
 import { clearSsoToken, loadSsoToken, type WhoAmI } from "./sso";
@@ -186,6 +192,7 @@ export function connectGateway(host: GatewayHost) {
   host.identity = null;
   // An organisation sign-in (SSO session in sessionStorage) wins over a stored gateway token.
   const ssoToken = loadSsoToken();
+  const inviteToken = !ssoToken && isInviteToken(host.settings.token);
   const client = new GatewayBrowserClient({
     url: host.settings.gatewayUrl,
     token: ssoToken ?? (host.settings.token.trim() ? host.settings.token : undefined),
@@ -229,8 +236,13 @@ export function connectGateway(host: GatewayHost) {
         return;
       }
       host.connected = false;
+      // The gateway's sign-in rate limit (1008) and upgrade-time connection limiter (1013
+      // "rate limited: ...") are per network, not a verdict on this token.
+      const rateLimited =
+        (code === 1008 && reason === "rate limited") ||
+        (code === 1013 && reason.startsWith("rate limited:"));
       // The SSO session ended (logout, expiry, deprovisioning): forget it and stop retrying.
-      if (ssoToken && (code === 4001 || code === 1008 || code === 4008)) {
+      if (ssoToken && !rateLimited && (code === 4001 || code === 1008 || code === 4008)) {
         clearSsoToken();
         host.identity = null;
         client.stop();
@@ -241,6 +253,23 @@ export function connectGateway(host: GatewayHost) {
       resetAutopilot(host as unknown as KoLoApp);
       cancelVoice(host);
       disconnectTerminal(host);
+      // Rate-limited: keep the SSO session or invite, wait it out and keep retrying.
+      if (rateLimited) {
+        host.lastError = SIGN_IN_RATE_LIMITED_NOTICE;
+        return;
+      }
+      // A demo visitor's invite was refused (expired or revoked): say so and stop retrying it.
+      if (inviteToken && (code === 1008 || code === 4008)) {
+        client.stop();
+        host.lastError = INVITE_ENDED_NOTICE;
+        return;
+      }
+      // The gateway's invites file was busy (1013 = try again later, or our own retryable 4013):
+      // keep retrying, say it plainly.
+      if (inviteToken && (code === 1013 || code === 4013)) {
+        host.lastError = INVITE_BUSY_NOTICE;
+        return;
+      }
       // Code 1012 = Service Restart (expected during config saves, don't show as error)
       if (code !== 1012) {
         host.lastError = `disconnected (${code}): ${reason || "no reason"}`;

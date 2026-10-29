@@ -15,7 +15,7 @@ their results as untrusted content, and audit ids and counts only (a hash of the
 parameter names, outcome; never SQL text, parameter values or rows). Neither is in the autopilot's
 read-tool catalogue, so a routine cannot use them to gather until that is decided separately.
 
-**Status: Preview.** Built on the Presto/Trino client protocol and IBM's Db2 REST
+**Status: Available.** Built on the Presto/Trino client protocol and IBM's Db2 REST
 documentation; see [References](#references).
 
 ## watsonx_data_query

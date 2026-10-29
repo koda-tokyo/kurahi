@@ -99,7 +99,9 @@ export function canBeginExpense(host: BusinessHost): boolean {
     !state.detailLoading &&
     !state.detailError &&
     !state.decisionPending &&
+    !state.supplierForm &&
     !state.decisionForm &&
+    !state.reportForm &&
     !state.workPending &&
     !state.workForm &&
     !state.workUncertain &&
@@ -257,6 +259,7 @@ export async function createBusinessExpense(host: BusinessHost) {
     host.business.detailLoading ||
     !!host.business.detailError ||
     host.business.decisionPending ||
+    host.business.reportForm ||
     host.business.workPending ||
     host.business.workForm ||
     host.business.workUncertain ||

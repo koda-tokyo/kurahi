@@ -1,4 +1,6 @@
 export const autopilotEn = {
+  "autopilot.mutationDelayed":
+    "This change is taking longer than expected. Its outcome is not yet confirmed. Further changes remain disabled while we wait.",
   "autopilot.reportError": "Report a serious error",
   "autopilot.reporting": "Reporting…",
   "autopilot.reportReason": "What went wrong?",
@@ -45,6 +47,17 @@ export const autopilotEn = {
   "autopilot.briefDecisions": "Decisions waiting for you",
   "autopilot.briefFlagged": "Flagged items",
   "autopilot.briefCommitments": "Your commitments",
+  "autopilot.briefLinked": "Linked cases that need a person",
+  "autopilot.briefLinkedUnavailable": "Linked case information unavailable in this snapshot",
+  "autopilot.briefNotifications": "Unread in-app notifications",
+  "autopilot.briefNotificationsUnavailable": "Notification count unavailable in this snapshot",
+  "autopilot.briefNotificationsScope":
+    "Recorded notifications for items you can read, as of this snapshot. This is not a count of pending decisions. Viewing the brief does not mark notifications as read.",
+  "autopilot.briefLinkedProgress": "Steps done",
+  "autopilot.briefLinkedReady": "Steps ready to open",
+  "autopilot.briefLinkedMissing": "Steps whose child item is missing",
+  "autopilot.briefLinkedBlocked": "A step is cancelled or stuck",
+  "autopilot.briefLinkedUnreadable": "The linked case record cannot be read",
   "autopilot.briefProblems": "Problems to review",
   "autopilot.briefOverdue": "Overdue",
   "autopilot.briefWatchdog": "Watchdog trip",
@@ -128,6 +141,7 @@ export const autopilotEn = {
   "autopilot.evidence": "Evidence verification",
   "autopilot.evidencePassed": "Server evidence verification passed.",
   "autopilot.evidenceUnverified": "Evidence has not passed verification.",
+  "autopilot.evidenceRetained": "Evidence removed; signed record kept.",
   "autopilot.evidenceRecorded": "Evidence bundle recorded.",
   "autopilot.noEvidenceBundle": "No evidence bundle recorded.",
   "autopilot.gather": "Gather results",
@@ -209,6 +223,8 @@ export const autopilotEn = {
 } as const;
 
 export const autopilotJa = {
+  "autopilot.mutationDelayed":
+    "変更の処理に通常より時間がかかっています。結果はまだ確認できていません。結果を待つ間、追加の変更はできません。",
   "autopilot.reportError": "重大な誤りを報告",
   "autopilot.reporting": "報告中…",
   "autopilot.reportReason": "何が問題でしたか？",
@@ -255,6 +271,17 @@ export const autopilotJa = {
   "autopilot.briefDecisions": "あなたの判断を待つ案件",
   "autopilot.briefFlagged": "フラグ付き案件",
   "autopilot.briefCommitments": "あなたの期限付き案件",
+  "autopilot.briefLinked": "対応が必要な部門間連携案件",
+  "autopilot.briefLinkedUnavailable": "このスナップショットでは連携案件の情報を取得できません",
+  "autopilot.briefNotifications": "未読のアプリ内通知",
+  "autopilot.briefNotificationsUnavailable": "このスナップショットでは通知件数を取得できません",
+  "autopilot.briefNotificationsScope":
+    "このスナップショット時点で閲覧可能な案件について記録された通知です。承認待ちの件数ではありません。ブリーフを表示しても通知は既読になりません。",
+  "autopilot.briefLinkedProgress": "完了した工程",
+  "autopilot.briefLinkedReady": "開始可能な工程",
+  "autopilot.briefLinkedMissing": "子案件が見つからない工程",
+  "autopilot.briefLinkedBlocked": "取消・停止した工程あり",
+  "autopilot.briefLinkedUnreadable": "連携記録を読み取れません",
   "autopilot.briefProblems": "確認が必要な問題",
   "autopilot.briefOverdue": "期限超過",
   "autopilot.briefWatchdog": "監視による停止",
@@ -338,6 +365,7 @@ export const autopilotJa = {
   "autopilot.evidence": "証跡の検証",
   "autopilot.evidencePassed": "サーバーによる証跡の検証に合格しました。",
   "autopilot.evidenceUnverified": "証跡は検証に合格していません。",
+  "autopilot.evidenceRetained": "証跡が削除され、署名付き記録が保持されています。",
   "autopilot.evidenceRecorded": "証跡バンドルが記録されています。",
   "autopilot.noEvidenceBundle": "証跡バンドルの記録はありません。",
   "autopilot.gather": "収集結果",

@@ -9,6 +9,8 @@ node ui/visual/capture-business.mjs
 The finite capture opens a temporary loopback Vite server and closes it and Chromium when done.
 It produces English and Japanese desktop (1440×1000), mobile (390×844), and light-theme desktop
 captures under `apps/desktop/screenshots/business-*.png`, checking page errors and horizontal overflow.
+It also renders not-offered worksheet plans with an unbreakable pack path at a 360px viewport
+(`business-linked-omitted-{en,ja}-360.png`) and fails if the whole page overflows horizontally.
 
 ## Initial baseline — 2026-10-23
 

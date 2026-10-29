@@ -36,6 +36,7 @@ export * from "./types.format.js";
 export * from "./types.snapshots.js";
 export * from "./types.console.js";
 export * from "./types.evidence.js";
+export * from "./types.governance.js";
 export * from "./types.factory.js";
 export * from "./types.channels-resident.js";
 export * from "./types.whatsapp.js";

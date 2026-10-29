@@ -21,7 +21,7 @@ kintone コネクターを使うと、Kurahi のエージェントが、管理�
 | 追加で有効にできるもの | レコードへのコメント追加（`write.comment`）、レコード作成（`write.createRecord`）。毎回、人が承認 |
 | 認証                   | アプリごとの API トークン（既定）、または OAuth クライアント（`auth: "oauth"`）                   |
 | トークンの保存先       | Kurahi のシークレット ストア（`connector.kintone.token`）。設定ファイルには保存しません           |
-| 状態                   | プレビュー                                                                                        |
+| 状態                   | 提供中                                                                                            |
 
 ## 読み取るもの
 
