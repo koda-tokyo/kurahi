@@ -863,7 +863,7 @@
           },
           {
             "group": "Releases",
-            "pages": ["releases/2.2.0"]
+            "pages": ["releases/2.3.0", "releases/2.2.0"]
           },
           {
             "group": "Help",
@@ -1278,7 +1278,7 @@
           },
           {
             "group": "リリース",
-            "pages": ["ja/releases/2.2.0"]
+            "pages": ["ja/releases/2.3.0", "ja/releases/2.2.0"]
           },
           {
             "group": "業務コネクター",
