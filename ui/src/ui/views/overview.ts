@@ -1,8 +1,9 @@
 import { html } from "lit";
 import type { GatewayHelloOk } from "../gateway";
-import type { SsoConfig, SsoProvider, WhoAmI } from "../sso";
+import type { SsoConfig, SsoProvider, TotpSetup, WhoAmI } from "../sso";
 import type { UiSettings } from "../storage";
 import { formatAgo, formatDurationMs } from "../format";
+import { t } from "../i18n";
 import { formatNextRun } from "../presenter";
 
 export type OverviewProps = {
@@ -27,12 +28,144 @@ export type OverviewProps = {
   identity?: WhoAmI | null;
   onSsoSignIn?: (provider: SsoProvider) => void;
   onSsoSignOut?: () => void;
+  /** Built-in sign-in (passkeys, one-time codes). */
+  passkey?: {
+    /** An admin's enrollment link was opened: the code (null when the link was malformed). */
+    enrollCode: string | null | undefined;
+    busy: boolean;
+    notice: string | null;
+    totpSetup: TotpSetup | null;
+  };
+  onPasskeySignIn?: () => void;
+  onTotpSignIn?: (userName: string, code: string) => void;
+  onPasskeyEnroll?: (label: string) => void;
+  onTotpEnrollBegin?: () => void;
+  onTotpEnrollFinish?: (code: string) => void;
 };
+
+/** Read named fields of a submitted form, and stop the page from navigating. */
+function formValues(e: Event, ...names: string[]): string[] {
+  e.preventDefault();
+  const data = new FormData(e.target as HTMLFormElement);
+  return names.map((n) => String(data.get(n) ?? ""));
+}
+
+function renderTotpSetup(props: OverviewProps, setup: TotpSetup) {
+  const busy = props.passkey?.busy ?? false;
+  return html`
+    <div class="callout" style="margin-top: 10px;" data-testid="totp-setup">
+      <div>${t("identity.enroll.totpBody")}</div>
+      <div style="margin-top: 6px;">
+        ${t("identity.enroll.secret")}: <code style="user-select: all;">${setup.secret.replace(/(.{4})/g, "$1 ").trim()}</code>
+      </div>
+      <div class="muted" style="margin-top: 4px; word-break: break-all;">
+        <a href=${setup.otpauthUri}>${setup.otpauthUri.split("?")[0]}</a>
+      </div>
+      <form
+        class="row"
+        style="margin-top: 8px; flex-wrap: wrap;"
+        @submit=${(e: Event) => {
+          const [code] = formValues(e, "code");
+          props.onTotpEnrollFinish?.(code);
+        }}
+      >
+        <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+          aria-label=${t("identity.totp.code")} placeholder=${t("identity.totp.code")} required />
+        <button class="btn primary" type="submit" ?disabled=${busy}>${t("identity.enroll.confirm")}</button>
+      </form>
+    </div>
+  `;
+}
+
+/** An identity admin's enrollment link was opened: create a passkey (or set up an app). */
+function renderEnroll(props: OverviewProps) {
+  const pk = props.passkey;
+  const totp = props.sso?.passkeys?.totp ?? false;
+  if (!pk || pk.enrollCode === undefined) {
+    return "";
+  }
+  return html`
+    <div class="callout" style="margin-top: 14px;" data-testid="passkey-enroll">
+      <div><strong>${t("identity.enroll.title")}</strong></div>
+      ${
+        pk.enrollCode === null
+          ? html`<div class="muted">${t("identity.enroll.badLink")}</div>`
+          : html`
+            <div class="muted" style="margin-top: 4px;">${t("identity.enroll.body")}</div>
+            <form
+              class="row"
+              style="margin-top: 8px; flex-wrap: wrap;"
+              @submit=${(e: Event) => {
+                const [label] = formValues(e, "label");
+                props.onPasskeyEnroll?.(label);
+              }}
+            >
+              <input name="label" maxlength="64" aria-label=${t("identity.enroll.label")}
+                placeholder=${t("identity.enroll.label")} />
+              <button class="btn primary" type="submit" ?disabled=${pk.busy}>
+                ${t("identity.enroll.passkey")}
+              </button>
+              ${
+                totp && !pk.totpSetup
+                  ? html`<button class="btn" type="button" ?disabled=${pk.busy}
+                    @click=${() => props.onTotpEnrollBegin?.()}>${t("identity.enroll.totp")}</button>`
+                  : ""
+              }
+            </form>
+            ${pk.totpSetup ? renderTotpSetup(props, pk.totpSetup) : ""}
+          `
+      }
+    </div>
+  `;
+}
+
+/** Passkey button and the one-time code form (signed out). */
+function renderPasskeySignIn(props: OverviewProps) {
+  const cfg = props.sso?.passkeys;
+  if (!cfg?.enabled) {
+    return "";
+  }
+  const busy = props.passkey?.busy ?? false;
+  return html`
+    <div style="margin-top: 10px;" data-testid="passkey-login">
+      <button class="btn primary" ?disabled=${busy} @click=${() => props.onPasskeySignIn?.()}>
+        ${t("identity.passkey.signIn")}
+      </button>
+      ${
+        cfg.totp
+          ? html`
+            <details style="margin-top: 8px;">
+              <summary class="muted">${t("identity.totp.toggle")}</summary>
+              <form
+                class="row"
+                style="margin-top: 8px; flex-wrap: wrap;"
+                @submit=${(e: Event) => {
+                  const [userName, code] = formValues(e, "userName", "code");
+                  props.onTotpSignIn?.(userName, code);
+                }}
+              >
+                <input name="userName" autocomplete="username" maxlength="256" required
+                  aria-label=${t("identity.totp.userName")} placeholder=${t("identity.totp.userName")} />
+                <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required
+                  aria-label=${t("identity.totp.code")} placeholder=${t("identity.totp.code")} />
+                <button class="btn" type="submit" ?disabled=${busy}>${t("identity.totp.submit")}</button>
+              </form>
+            </details>
+          `
+          : ""
+      }
+    </div>
+  `;
+}
 
 function renderSignIn(props: OverviewProps) {
   const me = props.identity?.kind === "person" ? props.identity : null;
   const providers = props.sso?.enabled ? props.sso.providers : [];
-  if (!me && providers.length === 0) {
+  const passkeys = props.sso?.passkeys?.enabled === true;
+  const notice = props.passkey?.notice
+    ? html`<div class="callout" style="margin-top: 10px;" role="status">${props.passkey.notice}</div>`
+    : "";
+  if (!me && providers.length === 0 && !passkeys) {
     return "";
   }
   if (me) {
@@ -45,9 +178,19 @@ function renderSignIn(props: OverviewProps) {
         <div class="muted">Roles: ${roles.join(", ") || "none"} · Session until ${until}</div>
         <div class="row" style="margin-top: 8px;">
           <button class="btn" @click=${() => props.onSsoSignOut?.()}>Sign out</button>
+          ${
+            passkeys
+              ? html`<button class="btn" ?disabled=${props.passkey?.busy ?? false}
+                @click=${() => props.onPasskeyEnroll?.("")}>${t("identity.passkey.add")}</button>`
+              : ""
+          }
         </div>
       </div>
+      ${notice}
     `;
+  }
+  if (props.passkey?.enrollCode !== undefined) {
+    return html`${renderEnroll(props)}${notice}`;
   }
   return html`
     <div class="row" style="margin-top: 14px; flex-wrap: wrap;" data-testid="sso-login">
@@ -60,6 +203,8 @@ function renderSignIn(props: OverviewProps) {
         ${props.sso?.required ? "Organisation sign-in is required." : "Or connect with a gateway token below."}
       </span>
     </div>
+    ${renderPasskeySignIn(props)}
+    ${notice}
   `;
 }
 

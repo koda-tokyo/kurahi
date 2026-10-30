@@ -32,7 +32,8 @@ export type OidcFailure =
   | "nonce_mismatch"
   | "nonce_replayed"
   | "domain_not_allowed"
-  | "too_many_pending";
+  | "too_many_pending"
+  | "not_fresh";
 
 export class OidcError extends Error {
   constructor(readonly reason: OidcFailure) {
@@ -58,6 +59,8 @@ type Pending = {
   returnTo: string;
   createdAt: number;
   binding: string | null;
+  /** A step-up re-authentication for this live session (not a sign-in). */
+  stepUp: { sessionId: string; personId: string } | null;
 };
 
 const STATE_TTL_MS = 10 * 60_000;
@@ -304,6 +307,11 @@ export class OidcClient {
       binding?: string | null;
       /** Client address (or "local") for the per-source quota. */
       source?: string | null;
+      /**
+       * Step-up for a live session: forces a fresh authentication (`max_age=0`,
+       * `prompt=login`, the provider's `stepUpAcrValues`); complete() hands the flow back.
+       */
+      stepUp?: { sessionId: string; personId: string } | null;
     },
   ): Promise<{ url: string; state: string }> {
     const d = await this.discover(p);
@@ -317,6 +325,7 @@ export class OidcClient {
       returnTo: opts.returnTo,
       binding: opts.binding ?? null,
       createdAt: this.now(),
+      stepUp: opts.stepUp ?? null,
     };
     if (!this.pending.add(state, pending)) {
       throw new OidcError("too_many_pending");
@@ -333,6 +342,13 @@ export class OidcClient {
     url.searchParams.set("nonce", pending.nonce);
     url.searchParams.set("code_challenge", pkceChallenge(pending.verifier));
     url.searchParams.set("code_challenge_method", "S256");
+    if (pending.stepUp) {
+      url.searchParams.set("max_age", "0");
+      url.searchParams.set("prompt", "login");
+      if (p.stepUpAcrValues?.length) {
+        url.searchParams.set("acr_values", p.stepUpAcrValues.join(" "));
+      }
+    }
     return { url: url.toString(), state };
   }
 
@@ -341,7 +357,11 @@ export class OidcClient {
     p: IdentityOidcProviderConfig,
     query: { code?: string | null; state?: string | null; error?: string | null },
     opts: { redirectUri: string; binding?: string | null },
-  ): Promise<{ claims: SignInClaims; returnTo: string }> {
+  ): Promise<{
+    claims: SignInClaims;
+    returnTo: string;
+    stepUp: { sessionId: string; personId: string; startedAt: number } | null;
+  }> {
     const state = typeof query.state === "string" ? query.state : "";
     const pending = state ? this.pending.take(state) : undefined;
     if (!pending || pending.providerId !== p.id || this.now() - pending.createdAt > STATE_TTL_MS) {
@@ -386,15 +406,22 @@ export class OidcClient {
     const claims = await this.validateIdToken(p, tokens.id_token, {
       nonce: pending.nonce,
       flowStartedAt: pending.createdAt,
+      // Step-up: the IdP must say when it authenticated (max_age=0 asks for auth_time); the
+      // token's issue time would let a cached IdP session pass as a fresh login.
+      requireAuthTime: pending.stepUp !== null,
     });
-    return { claims, returnTo: pending.returnTo };
+    return {
+      claims,
+      returnTo: pending.returnTo,
+      stepUp: pending.stepUp ? { ...pending.stepUp, startedAt: pending.createdAt } : null,
+    };
   }
 
   /** ID token checks (exported for tests and for providers that post the token directly). */
   async validateIdToken(
     p: IdentityOidcProviderConfig,
     idToken: string,
-    expect: { nonce: string; flowStartedAt: number },
+    expect: { nonce: string; flowStartedAt: number; requireAuthTime?: boolean },
   ): Promise<SignInClaims> {
     const d = await this.discover(p);
     let decoded: ReturnType<typeof decodeJws>;
@@ -471,6 +498,12 @@ export class OidcClient {
     if (!sub || !iss) {
       throw new OidcError("malformed");
     }
+    if (
+      expect.requireAuthTime &&
+      (typeof c.auth_time !== "number" || c.auth_time > nowSec + this.skewSec)
+    ) {
+      throw new OidcError("not_fresh");
+    }
     // An e-mail is used only when the IdP says it verified it. `preferred_username` and `upn`
     // are login names the user or tenant may choose: never an e-mail.
     const emailRaw = c.email_verified === true ? str(c[p.emailClaim ?? "email"]) : null;
@@ -499,6 +532,18 @@ export class OidcClient {
       familyName: str(c.family_name),
       groups,
       idTokenHint: idToken,
+      auth: {
+        // auth_time when the IdP sends it (requested via max_age), else the token's issue time.
+        at: new Date(
+          (typeof c.auth_time === "number" && c.auth_time <= nowSec + this.skewSec
+            ? c.auth_time
+            : c.iat) * 1000,
+        ).toISOString(),
+        methods: (Array.isArray(c.amr) ? c.amr : [])
+          .filter((m): m is string => typeof m === "string" && m.length > 0 && m.length <= 64)
+          .slice(0, 16),
+        context: typeof c.acr === "string" && c.acr.length <= 256 ? c.acr : null,
+      },
     };
   }
 

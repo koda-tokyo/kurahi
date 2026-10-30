@@ -20,7 +20,7 @@ import {
 } from "./app-settings";
 import { takeInviteFragment } from "./demo-invite-link";
 import { handlePairLink } from "./pair-link";
-import { fetchSsoConfig, takeSsoFragment, type SsoConfig } from "./sso";
+import { fetchSsoConfig, takeEnrollFragment, takeSsoFragment, type SsoConfig } from "./sso";
 
 type LifecycleHost = {
   basePath: string;
@@ -57,6 +57,11 @@ export function handleConnected(host: LifecycleHost) {
   // Organisation sign-in: `#sso_code=` from the gateway's SSO callback (exchanged for the session
   // token before the first connection), and the providers to offer.
   const ssoReady = takeSsoFragment();
+  // An identity admin's enrollment link (`#kurahi_enroll=`): set up a passkey or an app.
+  const enrollCode = takeEnrollFragment();
+  if (enrollCode !== undefined) {
+    (host as unknown as { passkeyEnrollCode: string | null }).passkeyEnrollCode = enrollCode;
+  }
   void fetchSsoConfig(window.location.origin).then((config) => {
     (host as unknown as { ssoConfig: SsoConfig | null }).ssoConfig = config;
   });

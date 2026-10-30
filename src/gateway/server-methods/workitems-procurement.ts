@@ -6,10 +6,13 @@
 //     the selector recorded is the session actor, never a request field.
 import type { GatewayRequestHandlers } from "./types.js";
 import { auditSafe } from "../../audit/audit-log.js";
+import { getIdentityService } from "../../identity/service.js";
 import { WorkItemRefused } from "../../workitems/errors.js";
 import { recordWorkItemProcurement, selectWorkItemSupplier } from "../../workitems/procurement.js";
+import { readWorkItem } from "../../workitems/store.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
+import { itemAmount, requireStepUp } from "./step-up.js";
 import { actorFor, emit, fail, nonPersonOrigin, projectOf, valid } from "./workitems-shared.js";
 
 type P = Record<string, unknown> & { projectId: string; id: string; expectedRevision?: number };
@@ -64,6 +67,16 @@ export const workitemsProcurementHandlers: GatewayRequestHandlers = {
       return;
     }
     const p = params as P;
+    // Choosing the supplier commits the purchase: step-up like an approval of the item's amount.
+    const field = getIdentityService().settings.stepUp.approvals.amountField;
+    const current = readWorkItem(p.projectId, p.id);
+    const stepUp = requireStepUp(client, "approval", respond, {
+      method: "workitems.selectSupplier",
+      context: { amount: current ? itemAmount(current.source.fields[field]) : NaN },
+    });
+    if (!stepUp) {
+      return;
+    }
     try {
       const item = selectWorkItemSupplier(
         projectOf(p.projectId),
@@ -71,6 +84,7 @@ export const workitemsProcurementHandlers: GatewayRequestHandlers = {
         { supplier: p.supplier, reason: p.reason },
         actorFor(client),
         p.expectedRevision,
+        { authnEvidence: stepUp.evidence },
       );
       void auditSafe({
         identity: actorOf(client),

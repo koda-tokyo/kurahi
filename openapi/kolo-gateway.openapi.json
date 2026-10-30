@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "KoLo Gateway API",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "description": "HTTP surface of one Kurahi gateway (one per identity). Generated from the route registry in src/gateway/http-routes.ts; the gateway serves the live copy at GET /doc. Every operation names its token class in `x-kolo-scope`. All HTTP requests share a per-IP sliding window (x-kolo-rate-limit) and credential-bearing requests also count against a 20/min credential-attempt limiter; both answer 429 with Retry-After. Routes that exist but are not described operation by operation are listed in x-kolo-undocumented-routes with the reason.",
     "license": {
       "name": "MIT"
@@ -4732,6 +4732,347 @@
         }
       }
     },
+    "/api/identity/device": {
+      "get": {
+        "operationId": "getDeviceVerificationPage",
+        "summary": "Command-line sign-in: the verification page",
+        "description": "The person signs in (any provider), enters or confirms the user code, sees the client, what the device says it is and the address it asked from, and approves or denies.",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "parameters": [
+          {
+            "name": "user_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 16,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Command-line sign-in is off.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/device/decision": {
+      "post": {
+        "operationId": "decideDeviceCode",
+        "summary": "Command-line sign-in: approve or deny (audited)",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user_code",
+                  "approve"
+                ],
+                "properties": {
+                  "user_code": {
+                    "maxLength": 32,
+                    "type": "string"
+                  },
+                  "approve": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "approved"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true,
+                      "type": "boolean"
+                    },
+                    "approved": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "approve missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Unknown, used or expired code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/device/lookup": {
+      "post": {
+        "operationId": "lookupDeviceCode",
+        "summary": "Command-line sign-in: what a user code asks for",
+        "description": "Wrong codes count per person and per source (5 per 10 minutes, then 429), and every wrong code counts against all pending codes (a code locks after 20).",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user_code"
+                ],
+                "properties": {
+                  "user_code": {
+                    "maxLength": 32,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The pending request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "request"
+                  ],
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "required": [
+                        "userCode",
+                        "clientId",
+                        "clientName",
+                        "deviceName",
+                        "ip",
+                        "requestedAt",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "userCode": {
+                          "type": "string"
+                        },
+                        "clientId": {
+                          "type": "string"
+                        },
+                        "clientName": {
+                          "type": "string"
+                        },
+                        "deviceName": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "ip": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "requestedAt": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Unknown, used or expired code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/api/identity/logout": {
       "post": {
         "operationId": "logoutIdentity",
@@ -4793,6 +5134,3120 @@
         }
       }
     },
+    "/api/identity/oauth/authorize": {
+      "get": {
+        "operationId": "authorizeNativeApp",
+        "summary": "Native app sign-in: authorization request (RFC 8252, PKCE S256)",
+        "description": "For a registered native client (`gateway.identity.nativeClients`). Loopback clients may use `http://127.0.0.1:<any port>/…` or `http://[::1]:<any port>/…`; scheme clients `<scheme>:/…`. `state` and PKCE S256 are required. An unknown client or redirect URI gets an error page, never a redirect; other errors go back to the redirect URI.",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "name": "response_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "code",
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "minLength": 43,
+              "maxLength": 43,
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "const": "S256",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Back to the app with an OAuth error.",
+            "headers": {
+              "Location": {
+                "description": "Where the browser goes next.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "303": {
+            "description": "To the sign-in and confirmation page.",
+            "headers": {
+              "Location": {
+                "description": "Where the browser goes next.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/oauth/authorize/complete": {
+      "post": {
+        "operationId": "completeNativeAuthorization",
+        "summary": "Native app sign-in: confirm or cancel; returns the redirect to the app",
+        "description": "Needs the request's browser cookie. The redirect carries a one-time code (60 seconds), `state` and `iss`, or `error=access_denied` when the person cancels.",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "request",
+                  "approve"
+                ],
+                "properties": {
+                  "request": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "approve": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Where the browser goes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "redirect"
+                  ],
+                  "properties": {
+                    "redirect": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown or expired request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/oauth/continue": {
+      "get": {
+        "operationId": "getNativeSignInPage",
+        "summary": "Native app sign-in: sign-in and confirmation page",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "parameters": [
+          {
+            "name": "request",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HTML page.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown or expired request, or another browser.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/oauth/device": {
+      "post": {
+        "operationId": "startDeviceAuthorization",
+        "summary": "Command-line sign-in: device authorization request (RFC 8628)",
+        "description": "Public client `kurahi-cli` (or a registered native client). Returns a device code for the token endpoint and a user code the person confirms at `verification_uri` after signing in. Codes live 10 minutes; poll no faster than `interval` seconds.",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "client_id"
+                ],
+                "properties": {
+                  "client_id": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "device_name": {
+                    "maxLength": 200,
+                    "description": "Shown to the approver (not verified)",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Device and user codes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "device_code",
+                    "user_code",
+                    "verification_uri",
+                    "verification_uri_complete",
+                    "expires_in",
+                    "interval"
+                  ],
+                  "properties": {
+                    "device_code": {
+                      "type": "string"
+                    },
+                    "user_code": {
+                      "description": "XXXX-XXXX",
+                      "type": "string"
+                    },
+                    "verification_uri": {
+                      "type": "string"
+                    },
+                    "verification_uri_complete": {
+                      "type": "string"
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    },
+                    "interval": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "OAuth error (invalid_client, unauthorized_client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "error_description": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/oauth/token": {
+      "post": {
+        "operationId": "issueSignInToken",
+        "summary": "Token endpoint for command-line and native app sign-in",
+        "description": "`grant_type=urn:ietf:params:oauth:grant-type:device_code` (client_id, device_code): authorization_pending, slow_down, access_denied, expired_token or the session. `grant_type=authorization_code` (client_id, code, redirect_uri, code_verifier). Every code works once. The result is a new `kss_` session of the person, separate from the browser's, listed with its client and revoked like any other.",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type",
+                  "client_id"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "device_code": {
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The session token (`kss_…`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "access_token",
+                    "token_type",
+                    "expires_in",
+                    "session_id"
+                  ],
+                  "properties": {
+                    "access_token": {
+                      "type": "string"
+                    },
+                    "token_type": {
+                      "const": "Bearer",
+                      "type": "string"
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    },
+                    "session_id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "OAuth error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "error_description": {
+                      "type": "string"
+                    },
+                    "interval": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/credentials": {
+      "get": {
+        "operationId": "listOwnAuthenticators",
+        "summary": "The signed-in person's passkeys and authenticator app",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "responses": {
+          "200": {
+            "description": "No public keys or secrets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "passkeys",
+                    "totp"
+                  ],
+                  "properties": {
+                    "passkeys": {
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "label"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "totp": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": true,
+                          "type": "object",
+                          "required": [
+                            "label"
+                          ],
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/login/begin": {
+      "post": {
+        "operationId": "beginPasskeyLogin",
+        "summary": "Start a passkey sign-in (usernameless)",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request options for navigator.credentials.get().",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "ceremonyId",
+                    "publicKey"
+                  ],
+                  "properties": {
+                    "ceremonyId": {
+                      "type": "string"
+                    },
+                    "publicKey": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "challenge"
+                      ],
+                      "properties": {
+                        "challenge": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/login/finish": {
+      "post": {
+        "operationId": "finishPasskeyLogin",
+        "summary": "Finish a passkey sign-in; returns the session token",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ceremonyId",
+                  "credential"
+                ],
+                "properties": {
+                  "ceremonyId": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "description": "PublicKeyCredential.toJSON() (binary fields base64url).",
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "rawId": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "response": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in (protocol passkey).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token",
+                    "principal",
+                    "session",
+                    "methods"
+                  ],
+                  "properties": {
+                    "token": {
+                      "description": "The SSO session token (`kss_…`).",
+                      "type": "string"
+                    },
+                    "principal": {
+                      "type": "string"
+                    },
+                    "session": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "methods": {
+                      "description": "RFC 8176 amr values.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/register/begin": {
+      "post": {
+        "operationId": "beginPasskeyRegistration",
+        "summary": "Start registering a passkey (enrollment code, or signed in)",
+        "description": "Who may register: the holder of a one-time enrollment code an identity admin issued, or a signed-in person (Bearer `kss_…`) adding another passkey. No self-registration.",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enrollmentCode": {
+                    "maxLength": 64,
+                    "description": "One-time code from an identity admin; omit when signed in (Bearer).",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Creation options for navigator.credentials.create().",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "ceremonyId",
+                    "publicKey"
+                  ],
+                  "properties": {
+                    "ceremonyId": {
+                      "type": "string"
+                    },
+                    "publicKey": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "challenge"
+                      ],
+                      "properties": {
+                        "challenge": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/register/finish": {
+      "post": {
+        "operationId": "finishPasskeyRegistration",
+        "summary": "Finish registering a passkey",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ceremonyId",
+                  "credential"
+                ],
+                "properties": {
+                  "ceremonyId": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "description": "PublicKeyCredential.toJSON() (binary fields base64url).",
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "rawId": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "response": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  },
+                  "label": {
+                    "maxLength": 64,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "passkey"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true,
+                      "type": "boolean"
+                    },
+                    "passkey": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/stepup/begin": {
+      "post": {
+        "operationId": "beginPasskeyStepUp",
+        "summary": "Start a passkey step-up of the current session",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request options limited to the person's passkeys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "ceremonyId",
+                    "publicKey"
+                  ],
+                  "properties": {
+                    "ceremonyId": {
+                      "type": "string"
+                    },
+                    "publicKey": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "challenge"
+                      ],
+                      "properties": {
+                        "challenge": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/stepup/finish": {
+      "post": {
+        "operationId": "finishPasskeyStepUp",
+        "summary": "Finish a passkey step-up (records a fresh authentication on the session)",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ceremonyId",
+                  "credential"
+                ],
+                "properties": {
+                  "ceremonyId": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "description": "PublicKeyCredential.toJSON() (binary fields base64url).",
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "rawId",
+                      "type",
+                      "response"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "rawId": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string"
+                      },
+                      "response": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stepped up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "auth"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true,
+                      "type": "boolean"
+                    },
+                    "auth": {
+                      "type": "object",
+                      "required": [
+                        "at",
+                        "methods",
+                        "context"
+                      ],
+                      "properties": {
+                        "at": {
+                          "type": "string"
+                        },
+                        "methods": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "context": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/totp/enroll/begin": {
+      "post": {
+        "operationId": "beginTotpEnrollment",
+        "summary": "Start setting up an authenticator app (enrollment code, or signed in)",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enrollmentCode": {
+                    "maxLength": 64,
+                    "description": "One-time code from an identity admin; omit when signed in (Bearer).",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new secret (base32) and otpauth:// URI.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ceremonyId",
+                    "secret",
+                    "otpauthUri"
+                  ],
+                  "properties": {
+                    "ceremonyId": {
+                      "type": "string"
+                    },
+                    "secret": {
+                      "type": "string"
+                    },
+                    "otpauthUri": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/totp/enroll/finish": {
+      "post": {
+        "operationId": "finishTotpEnrollment",
+        "summary": "Confirm the authenticator app with a first code",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ceremonyId",
+                  "code"
+                ],
+                "properties": {
+                  "ceremonyId": {
+                    "maxLength": 64,
+                    "type": "string"
+                  },
+                  "code": {
+                    "maxLength": 16,
+                    "type": "string"
+                  },
+                  "label": {
+                    "maxLength": 64,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enrolled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "label"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true,
+                      "type": "boolean"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/totp/stepup": {
+      "post": {
+        "operationId": "stepUpTotp",
+        "summary": "Step up the current session with a one-time code",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "maxLength": 16,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stepped up (amr otp).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "auth"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true,
+                      "type": "boolean"
+                    },
+                    "auth": {
+                      "type": "object",
+                      "required": [
+                        "at",
+                        "methods",
+                        "context"
+                      ],
+                      "properties": {
+                        "at": {
+                          "type": "string"
+                        },
+                        "methods": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "context": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/passkey/totp/verify": {
+      "post": {
+        "operationId": "verifyTotp",
+        "summary": "Sign in with a user name and a one-time code; returns the session token",
+        "tags": [
+          "identity"
+        ],
+        "security": [],
+        "x-kolo-scope": "public",
+        "x-kolo-auth-enforced-by": "none",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userName",
+                  "code"
+                ],
+                "properties": {
+                  "userName": {
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "code": {
+                    "maxLength": 16,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in (amr otp).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "token",
+                    "principal",
+                    "session",
+                    "methods"
+                  ],
+                  "properties": {
+                    "token": {
+                      "description": "The SSO session token (`kss_…`).",
+                      "type": "string"
+                    },
+                    "principal": {
+                      "type": "string"
+                    },
+                    "session": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "methods": {
+                      "description": "RFC 8176 amr values.",
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Refused (reason in error.type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid enrollment code or session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin is not a passkey origin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkeys (or one-time codes) are off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Refusal reason.",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
     "/api/identity/session": {
       "get": {
         "operationId": "getIdentitySession",
@@ -4828,7 +8283,8 @@
                     "units",
                     "scope",
                     "approvals",
-                    "session"
+                    "session",
+                    "auth"
                   ],
                   "properties": {
                     "ok": {
@@ -4906,6 +8362,43 @@
                           "type": "string"
                         }
                       }
+                    },
+                    "auth": {
+                      "description": "The last authentication (sign-in or step-up); null for old sessions.",
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "at",
+                            "methods",
+                            "context"
+                          ],
+                          "properties": {
+                            "at": {
+                              "type": "string"
+                            },
+                            "methods": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "context": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   }
                 }
@@ -4947,7 +8440,8 @@
                   "required": [
                     "enabled",
                     "required",
-                    "providers"
+                    "providers",
+                    "passkeys"
                   ],
                   "properties": {
                     "enabled": {
@@ -4988,6 +8482,23 @@
                           "loginPath": {
                             "type": "string"
                           }
+                        }
+                      }
+                    },
+                    "passkeys": {
+                      "type": "object",
+                      "required": [
+                        "enabled",
+                        "totp"
+                      ],
+                      "properties": {
+                        "enabled": {
+                          "description": "Built-in passkey sign-in is on.",
+                          "type": "boolean"
+                        },
+                        "totp": {
+                          "description": "One-time codes (TOTP) are offered as a fallback.",
+                          "type": "boolean"
                         }
                       }
                     }
@@ -5088,6 +8599,117 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          }
+        }
+      }
+    },
+    "/api/identity/sso/step-up": {
+      "post": {
+        "operationId": "startIdentityStepUp",
+        "summary": "Start a step-up re-authentication for the current session",
+        "description": "Returns the IdP URL that re-authenticates the signed-in person (OIDC max_age=0 and prompt=login, SAML ForceAuthn). On return the session's authentication time is refreshed; no new session is opened and the person cannot change. The browser lands on `returnTo` with `#sso_stepup=ok` or `#sso_error=<reason>`.",
+        "tags": [
+          "identity"
+        ],
+        "security": [
+          {
+            "ssoSession": []
+          }
+        ],
+        "x-kolo-scope": "person",
+        "x-kolo-auth-enforced-by": "router",
+        "x-kolo-rate-limit": {
+          "class": "http",
+          "limit": 100,
+          "windowSeconds": 60,
+          "credentialAttempts": "only when the request carries credentials and fails with 401/403"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "returnTo": {
+                    "maxLength": 512,
+                    "type": "string"
+                  },
+                  "provider": {
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                    "description": "Provider id",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Open `url` (popup or same window) to re-authenticate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "url",
+                    "provider"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true,
+                      "type": "boolean"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No provider linked to this person for a step-up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "additionalProperties": true,
+                      "type": "object",
+                      "required": [
+                        "message",
+                        "type"
+                      ],
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -32316,6 +35938,293 @@
           }
         }
       },
+      "IdentityAuthenticatorsEnrollParams": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "personId"
+        ],
+        "properties": {
+          "personId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "ttlMinutes": {
+            "minimum": 1,
+            "maximum": 4320,
+            "description": "Default 60, at most 72 hours.",
+            "type": "integer"
+          }
+        }
+      },
+      "IdentityAuthenticatorsEnrollResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "enrollment",
+          "code",
+          "link",
+          "evidence"
+        ],
+        "properties": {
+          "ok": {
+            "const": true,
+            "type": "boolean"
+          },
+          "enrollment": {
+            "type": "object",
+            "required": [
+              "id",
+              "personId",
+              "expiresAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "personId": {
+                "type": "string"
+              },
+              "expiresAt": {
+                "type": "string"
+              }
+            }
+          },
+          "code": {
+            "description": "The one-time enrollment code (shown once, never stored).",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "description": "Console link that opens enrollment (`#kurahi_enroll=…`).",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "object",
+                "required": [
+                  "bundle",
+                  "root"
+                ],
+                "properties": {
+                  "bundle": {
+                    "type": "string"
+                  },
+                  "root": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "IdentityAuthenticatorsListParams": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "personId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        }
+      },
+      "IdentityAuthenticatorsListResult": {
+        "type": "object",
+        "required": [
+          "persons"
+        ],
+        "properties": {
+          "persons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "personId",
+                "passkeys",
+                "totp",
+                "enrollments"
+              ],
+              "properties": {
+                "personId": {
+                  "type": "string"
+                },
+                "passkeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "label",
+                      "createdAt",
+                      "lastUsedAt",
+                      "synced",
+                      "transports"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "lastUsedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "synced": {
+                        "type": "boolean"
+                      },
+                      "transports": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "totp": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "label",
+                        "createdAt",
+                        "lastUsedAt"
+                      ],
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "lastUsedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "enrollments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "state",
+                      "createdAt",
+                      "createdBy",
+                      "expiresAt",
+                      "usedFor"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "anyOf": [
+                          {
+                            "const": "pending",
+                            "type": "string"
+                          },
+                          {
+                            "const": "used",
+                            "type": "string"
+                          },
+                          {
+                            "const": "revoked",
+                            "type": "string"
+                          },
+                          {
+                            "const": "expired",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "createdBy": {
+                        "type": "string"
+                      },
+                      "expiresAt": {
+                        "type": "string"
+                      },
+                      "usedFor": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "IdentityAuthenticatorsRemoveParams": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "personId"
+        ],
+        "properties": {
+          "personId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "passkeyId": {
+            "minLength": 1,
+            "maxLength": 1400,
+            "type": "string"
+          },
+          "totp": {
+            "const": true,
+            "type": "boolean"
+          },
+          "enrollmentId": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        }
+      },
       "IdentityGroupMappingsRemoveParams": {
         "additionalProperties": false,
         "type": "object",
@@ -32741,6 +36650,31 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "IdentityPersonsCreateParams": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "userName"
+        ],
+        "properties": {
+          "userName": {
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Unique sign-in name (often the e-mail); used for one-time code sign-in.",
+            "type": "string"
+          },
+          "email": {
+            "minLength": 3,
+            "maxLength": 320,
+            "type": "string"
+          },
+          "displayName": {
+            "minLength": 1,
+            "maxLength": 256,
+            "type": "string"
           }
         }
       },
@@ -61407,6 +65341,33 @@
         "x-kolo-untyped": true
       },
       {
+        "name": "identity.authenticators.enroll",
+        "params": {
+          "$ref": "#/components/schemas/IdentityAuthenticatorsEnrollParams"
+        },
+        "result": {
+          "$ref": "#/components/schemas/IdentityAuthenticatorsEnrollResult"
+        }
+      },
+      {
+        "name": "identity.authenticators.list",
+        "params": {
+          "$ref": "#/components/schemas/IdentityAuthenticatorsListParams"
+        },
+        "result": {
+          "$ref": "#/components/schemas/IdentityAuthenticatorsListResult"
+        }
+      },
+      {
+        "name": "identity.authenticators.remove",
+        "params": {
+          "$ref": "#/components/schemas/IdentityAuthenticatorsRemoveParams"
+        },
+        "result": {
+          "$ref": "#/components/schemas/IdentityAdminResult"
+        }
+      },
+      {
         "name": "identity.groupMappings.remove",
         "params": {
           "$ref": "#/components/schemas/IdentityGroupMappingsRemoveParams"
@@ -61437,6 +65398,15 @@
         "name": "identity.org.update",
         "params": {
           "$ref": "#/components/schemas/IdentityOrgUpdateParams"
+        },
+        "result": {
+          "$ref": "#/components/schemas/IdentityAdminResult"
+        }
+      },
+      {
+        "name": "identity.persons.create",
+        "params": {
+          "$ref": "#/components/schemas/IdentityPersonsCreateParams"
         },
         "result": {
           "$ref": "#/components/schemas/IdentityAdminResult"

@@ -65,10 +65,12 @@ import {
 import { watchdogView } from "../../autopilot/watchdog.js";
 import { verifyEvidenceBundle } from "../../evidence/verify.js";
 import { SSO_PERSON_DECISIONS } from "../../identity/connect.js";
+import { personAuthn } from "../../identity/step-up.js";
 import { getProject } from "../../projects/store.js";
 import { autopilotValidators, type AutopilotMethod } from "../protocol/autopilot-validators.js";
 import { ErrorCodes, errorShape, formatValidationErrors } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
+import { requireStepUp } from "./step-up.js";
 import { actorFor, nonPersonOrigin } from "./workitems-shared.js";
 
 export const AUTOPILOT_EVENT = "autopilot.changed";
@@ -571,6 +573,13 @@ export const autopilotHandlers: GatewayRequestHandlers = {
       reason: string;
       expiresAt: string;
     };
+    // A standing approval lets a routine act on its own (L3): step-up like raising its level.
+    const stepUp = requireStepUp(client, "autopilotLevel", respond, {
+      method: "autopilot.approvals.create",
+    });
+    if (!stepUp) {
+      return;
+    }
     try {
       const project = projectOf(p.projectId);
       const approval = createStandingApproval(
@@ -583,6 +592,7 @@ export const autopilotHandlers: GatewayRequestHandlers = {
           expiresAt: p.expiresAt,
         },
         { id: actorOf(client), kind: "person" },
+        { authn: stepUp.evidence },
       );
       emit(context, { projectId: project.id, routineId: approval.routineId, kind: "approval" });
       respond(true, { approval: { ...approval, state: "active" } });
@@ -631,10 +641,15 @@ export const autopilotHandlers: GatewayRequestHandlers = {
     const p = params as P & { id: string; reason: string };
     try {
       const project = projectOf(p.projectId);
-      const approval = revokeStandingApproval(project, p.id, p.reason, {
-        id: actorOf(client),
-        kind: "person",
-      });
+      // Revoking only takes autonomy away (protective, like the emergency stop): no step-up,
+      // but the person's authentication is recorded.
+      const approval = revokeStandingApproval(
+        project,
+        p.id,
+        p.reason,
+        { id: actorOf(client), kind: "person" },
+        { authn: personAuthn(client?.person) },
+      );
       emit(context, { projectId: project.id, routineId: approval.routineId, kind: "approval" });
       respond(true, { approval: { ...approval, state: "revoked" } });
     } catch (err) {
@@ -714,12 +729,21 @@ export const autopilotHandlers: GatewayRequestHandlers = {
       proposed: Routine["level"];
       reason: string;
     };
+    // Raising a routine's level needs a fresh authentication (step-up); a demotion does not.
+    const stepUp =
+      p.kind === "promote"
+        ? requireStepUp(client, "autopilotLevel", respond, { method: "autopilot.autonomy.accept" })
+        : { evidence: personAuthn(client?.person) };
+    if (!stepUp) {
+      return;
+    }
     try {
       const project = projectOf(p.projectId);
       const out = acceptAutonomyProposal(
         project,
         { routineId: p.routineId, kind: p.kind, proposed: p.proposed, reason: p.reason },
         { id: actorOf(client), kind: "person" },
+        { authn: stepUp.evidence },
       );
       emit(context, { projectId: project.id, routineId: p.routineId, kind: "autonomy" });
       respond(true, {
@@ -878,6 +902,13 @@ export const autopilotHandlers: GatewayRequestHandlers = {
     if (!valid("autopilot.startAll", params, respond)) {
       return;
     }
+    // Lifting the global stop needs a fresh authentication (step-up); stopping never does.
+    const stepUp = requireStepUp(client, "emergencyStopRelease", respond, {
+      method: "autopilot.startAll",
+    });
+    if (!stepUp) {
+      return;
+    }
     const p = params as { reason: string };
     try {
       const by = actorOf(client);
@@ -900,6 +931,7 @@ export const autopilotHandlers: GatewayRequestHandlers = {
           resumed: result.resumed.reduce((n, c) => n + c.routineIds.length, 0),
           emergencyStop: result.control.emergencyStop,
           alreadyStarted: result.alreadyStarted,
+          ...(stepUp.evidence ? { authn: stepUp.evidence } : {}),
         },
       });
       respond(true, {

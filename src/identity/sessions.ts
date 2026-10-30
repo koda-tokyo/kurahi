@@ -9,7 +9,12 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { identityDir, writeJsonAtomic } from "./store.js";
-import { SSO_SESSION_PREFIX, type SsoSession } from "./types.js";
+import {
+  type SessionClient,
+  type SignInAuth,
+  SSO_SESSION_PREFIX,
+  type SsoSession,
+} from "./types.js";
 
 export const SESSIONS_FILENAME = "sessions.json";
 const MAX_SESSIONS = 20_000;
@@ -89,8 +94,11 @@ export class SessionStore {
     lifetimeMs: number;
     idleMs: number;
     idTokenHint?: string | null;
+    auth?: SignInAuth;
     /** The IdP's own session end (SAML SessionNotOnOrAfter); the session never outlives it. */
     notAfterMs?: number | null;
+    /** Command-line or native app the session is issued to. */
+    client?: SessionClient;
   }): { token: string; session: SsoSession } {
     if (this.sessions.size >= MAX_SESSIONS) {
       this.persist();
@@ -114,6 +122,8 @@ export class SessionStore {
       idTokenHint: input.idTokenHint ?? null,
       revokedAt: null,
       revokedReason: null,
+      ...(input.auth ? { auth: input.auth } : {}),
+      ...(input.client ? { client: input.client } : {}),
     };
     this.sessions.set(session.id, session);
     this.byHash.set(session.tokenHash, session.id);
@@ -154,6 +164,21 @@ export class SessionStore {
       session.lastSeenAt = new Date(now).toISOString();
     }
     return { ok: true, session };
+  }
+
+  /**
+   * Step-up: record a fresh authentication of the session's own person (IdP re-authentication or
+   * a passkey assertion). Refused for a revoked or expired session. The caller has verified that
+   * the authentication belongs to `session.personId`.
+   */
+  refreshAuth(id: string, auth: SignInAuth): SsoSession | null {
+    const session = this.sessions.get(id);
+    if (!session || !this.check(session, true).ok) {
+      return null;
+    }
+    session.auth = auth;
+    this.persist();
+    return session;
   }
 
   get(id: string): SsoSession | null {

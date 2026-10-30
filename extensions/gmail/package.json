@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/gmail",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Gmail business connector: list, search and read mail (read-only by default)",
   "type": "module",
   "devDependencies": {

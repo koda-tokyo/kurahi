@@ -80,6 +80,21 @@ describe("OIDC relying party (local fake IdP)", () => {
     expect(pkceChallenge(verifier)).toBe(u.searchParams.get("code_challenge"));
   });
 
+  it("records how and when the person authenticated (auth_time, amr, acr)", async () => {
+    const s = setup();
+    const t = Math.floor(Date.now() / 1000) - 60;
+    s.idp.nextClaims = { auth_time: t, amr: ["pwd", "mfa", 7, "x".repeat(65)], acr: "urn:mfa" };
+    const { claims } = await (await signIn(s)).run();
+    expect(claims.auth).toEqual({
+      at: new Date(t * 1000).toISOString(),
+      methods: ["pwd", "mfa"],
+      context: "urn:mfa",
+    });
+    const plain = setup();
+    const done = await (await signIn(plain)).run();
+    expect(done.claims.auth).toMatchObject({ methods: [], context: null });
+  });
+
   it("uses an e-mail only with email_verified: true, never preferred_username or upn", async () => {
     const run = async (extra: Record<string, unknown>) => {
       const s = setup();

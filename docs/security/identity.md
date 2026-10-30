@@ -26,6 +26,8 @@ stop) still refuse every agent connection, whatever roles it carries.
 | SCIM 2.0         | Users and Groups for Entra ID and Okta provisioning; deactivation ends sessions at once            |
 | Organisation     | Departments and teams you define, roles, IdP group → role mappings, all changes audited and sealed |
 | SSO required     | People must use SSO; the gateway token only works as an audited break-glass login                  |
+| CLI and desktop  | `kurahi login` (RFC 8628) and native apps (RFC 8252, PKCE) get their own session from the same SSO |
+| Passkeys         | Built-in sign-in without an IdP: passkeys (WebAuthn) and one-time codes, free on every plan        |
 
 ## Configuration
 
@@ -62,21 +64,23 @@ kurahi secrets set identity.scim.token              # at least 32 random charact
 }
 ```
 
-| Key                                | Default                    | Meaning                                                                                                         |
-| ---------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `publicUrl`                        | none                       | Required for SSO; `https://` (plain `http://` only on loopback for tests)                                       |
-| `providers[]`                      | none                       | Up to 10 OIDC or SAML providers; `id` appears in URLs (`a-z`, `0-9`, `-`; `scim` and `legacy` are reserved)     |
-| `session.lifetimeMinutes`          | 480 (max 1440)             | Absolute session length; a SAML `SessionNotOnOrAfter` shortens it                                               |
-| `session.idleMinutes`              | 60                         | A session without requests for this long ends                                                                   |
-| `clockSkewSeconds`                 | 120 (max 300)              | Allowed clock difference for tokens and assertions                                                              |
-| `defaultRole`                      | none                       | Role for a person with no assignment or mapped group; none = sign-in refused                                    |
-| `requireProvisioned`               | true with SCIM, else false | Only active SCIM-provisioned persons may sign in                                                                |
-| `scim.enabled` / `scim.token`      | off                        | SCIM endpoints answer only when both are set                                                                    |
-| `ssoRequired`                      | false                      | See [SSO required and break-glass](#sso-required-and-break-glass)                                               |
-| `breakGlass.localOnly`             | true                       | Break-glass logins only from the gateway host                                                                   |
-| `providers[].trustEmailForLinking` | false                      | See [Account linking](#account-linking)                                                                         |
-| `localPersons`                     | see below                  | See [Who counts as a person](#who-counts-as-a-person)                                                           |
-| `configRoles`                      | none                       | Roles that also get `operator.config` (host-level methods); see [roles](#organisation-roles-and-group-mappings) |
+| Key                                | Default                    | Meaning                                                                                                                |
+| ---------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `publicUrl`                        | none                       | Required for SSO; `https://` (plain `http://` only on loopback for tests)                                              |
+| `providers[]`                      | none                       | Up to 10 OIDC or SAML providers; `id` appears in URLs (`a-z`, `0-9`, `-`; `scim` and `legacy` are reserved)            |
+| `session.lifetimeMinutes`          | 480 (max 1440)             | Absolute session length; a SAML `SessionNotOnOrAfter` shortens it                                                      |
+| `session.idleMinutes`              | 60                         | A session without requests for this long ends                                                                          |
+| `clockSkewSeconds`                 | 120 (max 300)              | Allowed clock difference for tokens and assertions                                                                     |
+| `defaultRole`                      | none                       | Role for a person with no assignment or mapped group; none = sign-in refused                                           |
+| `requireProvisioned`               | true with SCIM, else false | Only active SCIM-provisioned persons may sign in                                                                       |
+| `scim.enabled` / `scim.token`      | off                        | SCIM endpoints answer only when both are set                                                                           |
+| `ssoRequired`                      | false                      | See [SSO required and break-glass](#sso-required-and-break-glass)                                                      |
+| `breakGlass.localOnly`             | true                       | Break-glass logins only from the gateway host                                                                          |
+| `providers[].trustEmailForLinking` | false                      | See [Account linking](#account-linking)                                                                                |
+| `localPersons`                     | see below                  | See [Who counts as a person](#who-counts-as-a-person)                                                                  |
+| `configRoles`                      | none                       | Roles that also get `operator.config` (host-level methods); see [roles](#organisation-roles-and-group-mappings)        |
+| `deviceSignIn`                     | true                       | `kurahi login` (device authorization grant); see [Command line and desktop sign-in](#command-line-and-desktop-sign-in) |
+| `nativeClients[]`                  | Kurahi Desktop (loopback)  | Native apps that may sign people in; see [Command line and desktop sign-in](#command-line-and-desktop-sign-in)         |
 
 The gateway logs `identity: …` at startup for any provider it cannot use (for example a missing
 `publicUrl`).
@@ -155,6 +159,157 @@ OIDC: a confidential client with the redirect URI above, `issuer:
 "https://keycloak.example.com/realms/<realm>"`, and a **Group Membership** mapper named `groups`
 (full group path off). SAML: a SAML client with the ACS URL, "Sign assertions" on, signature
 algorithm RSA_SHA256, and a group list mapper named `groups`.
+
+## Passkeys and one-time codes
+
+An organisation without Entra ID, Okta or another IdP still gets strong sign-in: Kurahi is its
+own identity provider. People sign in with a **passkey** (WebAuthn: the device's fingerprint,
+face or PIN unlocks a key that never leaves it, and is bound to this site so it cannot be
+phished), and, as a fallback, with a **one-time code** from an authenticator app (TOTP). Built-in
+sign-in is free on every plan and can run alongside OIDC and SAML providers.
+
+```json5
+{
+  gateway: {
+    identity: {
+      publicUrl: "https://kurahi.example.co.jp",
+      passkeys: {
+        enabled: true,
+        // Defaults: rpId = host of publicUrl, origins = [origin of publicUrl], rpName "Kurahi"
+        // rpId: "example.co.jp",
+        // allowedOrigins: ["https://kurahi.example.co.jp"],
+        userVerification: "required", // or "preferred"
+        totp: true, // false: passkeys only
+      },
+    },
+  },
+}
+```
+
+| Key                         | Default               | Meaning                                                                                                  |
+| --------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `passkeys.enabled`          | false                 | Turn built-in sign-in on (provider id `passkey`, reserved).                                              |
+| `passkeys.rpId`             | host of `publicUrl`   | WebAuthn relying party id. Every origin must be this domain or below it; IP addresses are not accepted.  |
+| `passkeys.rpName`           | `Kurahi`              | Name the authenticator shows.                                                                            |
+| `passkeys.userVerification` | `required`            | `required`: PIN or biometrics every time. `preferred`: a touch is enough where the device cannot verify. |
+| `passkeys.allowedOrigins`   | origin of `publicUrl` | Exact origins the browser may sign in from (https; http only for localhost).                             |
+| `passkeys.totp`             | true                  | Offer one-time codes as a fallback.                                                                      |
+
+Passkeys count as configured identity: with only passkeys on, local person mode is off by default
+and `ssoRequired: true` is satisfied (people sign in with passkeys; the gateway token is
+break-glass only).
+
+### Who may enrol
+
+There is no self-registration. A passkey or authenticator app is added only by:
+
+1. **A person already in the directory** (provisioned by SCIM, created by an identity admin with
+   `identity.persons.create`, or created at an earlier SSO sign-in) **with a one-time enrollment
+   link** an identity admin issues with `identity.authenticators.enroll`. The link
+   (`<publicUrl>/#kurahi_enroll=kpe_…`) carries the code in the URL fragment, so it never reaches
+   server logs or a `Referer` header; the console takes it out of the address bar at once. A code
+   lives 60 minutes by default (`ttlMinutes`, at most 72 hours), works once, is kept only as a
+   SHA-256 hash, and can be revoked. At most five open codes per person.
+2. **A signed-in person adding another passkey** (Overview → **Add a passkey**), for a second
+   device or a security key. At most ten passkeys per person.
+
+An enrollment code only sets up a person's **first** authenticator: `identity.authenticators.enroll`
+refuses a person who already has a passkey or an authenticator app (`has_authenticators`), and a
+still-open code stops working once the person has one. Those people add devices themselves while
+signed in, and adding a passkey or enrolling an authenticator app from a session needs a fresh
+authentication (step-up `authenticatorChange`, below): a stolen session cannot add its own
+authenticator. **Replacing** an existing authenticator app also needs that fresh authentication
+to come from a code of the current app or a passkey (amr `otp`, `hwk` or `swk`), not only from
+the IdP. Every authenticator change, and every admin-issued code, writes an
+`identity.authenticators.notice` audit entry for the person and security admins (there is no
+in-app identity notification channel yet; forward it from the SIEM), naming the session that made
+the change. Sign-ins with an authenticator set up through an admin's code are marked
+`credentialSource: "admin"` in `identity.passkey.login` / `identity.totp.login`.
+
+A deactivated or deleted person can neither enrol nor sign in; deleting a person through SCIM also
+removes their passkeys, authenticator app and open codes. With `requireProvisioned` (the default
+when SCIM is on) only SCIM-provisioned persons may sign in, with passkeys as with any IdP.
+
+A first organisation without an IdP starts like this, with the gateway token as the bootstrap
+admin (until the first `org-admin` exists):
+
+```text
+identity.persons.create      { userName: "sato@example.co.jp", displayName: "Sato Hanako" }
+identity.roles.assign        { subject: "person:<id>", role: "org-admin" }
+identity.authenticators.enroll { personId: "<id>" }   → { code, link, expiresAt }
+```
+
+Send the link to the person by a channel you trust (it is a credential until used). Lost device
+or leaver: `identity.authenticators.remove { personId, passkeyId }` (or `totp: true`, or
+`enrollmentId` to revoke an open code), and `identity.sessions.revoke` to end live sessions.
+`identity.authenticators.list` shows each person's passkeys (label, created, last used, synced or
+device-bound), authenticator app and code states, never keys or secrets. Every change is audited
+and sealed in identity evidence.
+
+### What the gateway checks
+
+Registration and sign-in follow WebAuthn Level 2/3 (§7.1, §7.2), with no external library:
+
+- a **one-time challenge** per ceremony, kept server-side for 5 minutes and spent by the first
+  finish whatever the outcome; open ceremonies are bounded (20 per source, 2,000 in all), and
+  starts are rate-limited per source and gateway-wide like SSO sign-in starts;
+- `clientDataJSON` type, challenge and **origin** (exactly one of the passkey origins;
+  cross-origin iframes refused), and the **RP id hash** in authenticator data;
+- **user presence** always, **user verification** when `userVerification: "required"`;
+- the signature with the stored public key: **ES256** (P-256), **EdDSA** (Ed25519) or **RS256**
+  (RSA, 2048 bits or more, public exponent 65537); the COSE key is parsed by a strict CBOR decoder and stored as SPKI;
+- the **signature counter**: a counter that does not move forward (unless the authenticator never
+  counts) means a cloned authenticator, and the sign-in is refused and audited;
+- the user handle, when the authenticator returns one, must be the credential's own.
+
+Kurahi requests `attestation: "none"` and does not decide trust from the authenticator model: an
+empty `none` statement is checked; other formats some authenticators still send are accepted
+without verifying the statement. The key is trusted because the person proved who they are when
+enrolling, not because of the attestation.
+
+Sign-in is **usernameless**: the browser offers the passkeys it holds for this site (discoverable
+credentials are required at registration). The HTTP endpoints accept only JSON POSTs from a
+passkey origin (`Content-Type: application/json`, and the `Origin` header when the browser sends
+one), so another site cannot drive a ceremony. A successful sign-in returns the session token in
+the response body of the console's own request (no redirect, no code in the URL) and opens an
+ordinary SSO session with provider and protocol `passkey`, so roles, idle and absolute timeouts,
+revocation and evidence work as for OIDC and SAML.
+
+### How the session records the sign-in
+
+The session's authentication record (`auth`) carries RFC 8176 `amr` values:
+
+| Method                                   | `amr`                                                  |
+| ---------------------------------------- | ------------------------------------------------------ |
+| Device-bound passkey (security key, TPM) | `hwk`, plus `user` when the device verified the person |
+| Synced passkey (backup eligible)         | `swk`, plus `user` when the device verified the person |
+| One-time code                            | `otp`                                                  |
+
+**Step-up**: a signed-in person re-proves a passkey of their own
+(`POST /api/identity/passkey/stepup/begin|finish`, offering only that person's passkeys) or a
+one-time code (`POST /api/identity/passkey/totp/stepup`); the session's `auth` is replaced with
+the fresh time and methods. Another person's passkey never steps a session up. In code,
+`stepUpWithPasskey(service, { sessionId, ceremonyId, credential })` in
+`src/identity/passkeys.ts` does the same and returns `{ ok: true, auth }` or `{ ok: false, reason }`.
+
+### One-time codes (TOTP)
+
+RFC 6238 with SHA-1, 6 digits and 30-second steps (what every authenticator app supports); the
+previous and next step are accepted for clock drift. A code works **once**: the step used last is
+remembered per person, and that step or any earlier one is refused. Five wrong codes in five
+minutes pause one-time code sign-in for that user name (known or not, so the answer does not tell
+whether a name exists); passkeys keep working. Setting up an app is confirmed with a first code,
+which is then spent.
+
+The TOTP secret is encrypted at rest with AES-256-GCM, bound to the person, under a data key held
+in the Kurahi secrets store (`identity.authenticators.key`, created on first use;
+`kurahi secrets list` shows it). Authenticators live in
+`<KOLO_HOME>/identity/authenticators.json` (0600): passkey public keys, encrypted TOTP secrets
+and enrollment code hashes; no private key or plain secret is ever stored. With the file secrets
+backend, the data key is on the same machine, so the encryption protects copies of the identity
+directory (backups, support bundles) rather than a compromised host. Codes are a weaker factor
+than passkeys (they can be phished in real time); turn them off with `passkeys.totp: false` once
+everyone has a passkey.
 
 ## Account linking
 
@@ -270,6 +425,115 @@ the console's. The final `Location` header is checked again.
   sign-ins in progress (a new one replaces that source's oldest). When the gateway-wide store of
   sign-ins in progress is full, new starts are refused (`too_many_pending`) rather than evicting
   other people's sign-ins.
+
+## Step-up for decisions
+
+Every important approval is signed by a fresh authentication. For the decisions below, an SSO
+person whose last authentication (sign-in or step-up) is older than `maxAgeSeconds`, or did not
+use one of `requireMethods`, is asked to authenticate again before the gateway records anything:
+
+| Action                 | Methods                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `approvals`            | `workitems.decide` approve (all, or at/above an amount)                                                   |
+| `autopilotLevel`       | `autopilot.autonomy.accept` of a promotion                                                                |
+| `emergencyStopRelease` | `autopilot.startAll`, `policy.release`                                                                    |
+| `identityAdmin`        | `identity.*` directory changes (roles, units, mappings, links)                                            |
+| `authenticatorChange`  | adding a passkey or enrolling / replacing an authenticator app while signed in                            |
+| `governance`           | `governance.holds.release`, `export.create`, `dsr.execute`, `policy.set`, `retention.run` (not a preview) |
+
+Clearing a risk flag (`workitems.clearFlag`) counts as an approval whatever the amount; choosing
+the supplier (`workitems.selectSupplier`) as an approval of the item's amount; creating a standing
+approval (`autopilot.approvals.create`) as raising a routine's level.
+
+Stopping is never stepped up (`autopilot.stopAll`, `policy.kill`), nor are demotions, send back,
+cancel, revoking a standing approval, placing a legal hold or ending sessions
+(`identity.sessions.revoke`): protective actions stay immediate (their authentication is still
+recorded). Command-line and app sessions never inherit the approving browser's authentication:
+they have none recorded, so a covered decision from them always needs a step-up.
+Break-glass logins, local persons and agents are not SSO persons and are unchanged (break-glass
+still cannot decide; see [SSO required and break-glass](#sso-required-and-break-glass)).
+A session saved before Kurahi 2.5 has no recorded authentication and always needs a step-up for
+these actions.
+
+```json5
+{
+  gateway: {
+    identity: {
+      stepUp: {
+        enabled: true, // default: on when identity is configured
+        maxAgeSeconds: 300, // default 300 (30 to 3600)
+        requireMethods: ["hwk", "mfa"], // RFC 8176 amr values, any of; default none
+        actions: {
+          approvals: { amountAtLeast: 100000, amountField: "amount" }, // or true / false
+          autopilotLevel: true,
+          emergencyStopRelease: true,
+          identityAdmin: true,
+          authenticatorChange: true,
+          governance: true,
+        },
+      },
+    },
+  },
+}
+```
+
+`amountAtLeast` reads the item's form field (`amountField`, default `amount`) as routes do; an item
+without the field is below it, a value that is not a number is covered. With `requireMethods`, the
+IdP must report the method: OIDC `amr`, or for SAML the method implied by the
+`AuthnContextClassRef` (`mfa` for multi-factor classes, `hwk` for X.509 / smartcard, `pwd` for
+password). A passkey step-up (`protocol: "passkey"`) counts the same way.
+
+**The refusal.** A covered method that needs a step-up answers `INVALID_REQUEST` with:
+
+```json
+{
+  "code": "step_up_required",
+  "action": "approval",
+  "why": "stale",
+  "maxAgeSeconds": 300,
+  "requireMethods": [],
+  "authAt": "2026-10-30T01:02:03.000Z",
+  "stepUpPath": "/api/identity/sso/step-up"
+}
+```
+
+in `error.details` (`why`: `stale`, `method` or `no_auth`). Nothing is recorded. Refusals are
+audited as `identity.stepup.required`.
+
+**Re-authenticating.** `POST /api/identity/sso/step-up` (SSO session Bearer, body
+`{ "returnTo": "/business" }`, optional `provider` the person is linked to) returns `{ url }` and
+sets the binding cookie. Opening `url` re-authenticates at the session's IdP: OIDC with
+`max_age=0` and `prompt=login` (plus the provider's `stepUpAcrValues` as `acr_values`), SAML with
+`ForceAuthn="true"`. On return the gateway checks that the asserted provider link (issuer and
+subject) is the session's own person, never another one, and that the authentication happened
+after the step-up started, within 5 seconds of clock drift. OIDC step-ups must carry `auth_time`
+(the token's `iat` never counts), SAML step-ups an `AuthnInstant`; an IdP that leaves them out or
+ignores `prompt=login` is refused as `not_fresh`. It then
+records the new authentication on the same session: no new session, no new token, no
+`#sso_code`. The browser lands on `returnTo` with `#sso_stepup=ok`, or `#sso_error=<reason>`
+(`person_mismatch`, `not_fresh`, `session_ended`, …). Start and completion are audited
+(`identity.stepup.start`, `identity.stepup.complete`). Step-up starts share the sign-in start
+limits. `GET /api/identity/session` returns the session's `auth` (`at`, `methods`, `context`).
+The gate reads the session as it is at the moment of the request, so a retry right after a
+step-up (IdP, passkey or one-time code) succeeds on the same connection.
+
+**Evidence.** A covered decision records how its person authenticated, never tokens:
+
+```json
+"authn": { "authAt": "…", "methods": ["pwd", "mfa"], "context": "…", "protocol": "oidc", "stepUp": true }
+```
+
+`stepUp: true` means the policy covered the decision and the authentication was fresh enough;
+`false` means it was not covered (for example below `amountAtLeast`). It is in the work item's
+history, its sealed evidence bundle and the audit entry (also for clearing a flag and choosing a
+supplier); in the sealed autonomy change and its audit entry; on the standing approval and its
+audit entry; in the identity administration bundle and audit entry; in the sealed legal hold
+bundles and the governance audit entries; and in the `autopilot.startAll` and `policy.release`
+audit entries.
+
+**Console.** When an approval needs a step-up, the decision form stays open and its button
+becomes **Confirm it's you**. It opens the IdP in a popup and, once the person is back, submits
+the same form again. Without a popup it continues in the same window and returns to the item.
 
 ## SCIM 2.0
 
@@ -525,18 +789,178 @@ break-glass "from the gateway host only", the local agent exemption and the loca
 would apply to remote users. Behind a same-host proxy, make it send `X-Forwarded-For` and list it
 in `gateway.trustedProxies`.
 
+## Command line and desktop sign-in
+
+One sign-in, every surface: the same company account signs people in to the command line and to
+native apps (Kurahi Desktop; mobile later). The gateway is the OAuth 2.0 authorization server
+for its own sessions. The person always signs in through the normal SSO in a browser, so every
+provider works (OIDC, SAML, passkeys); no app holds an IdP secret, and none ever sees the
+browser's session. Each app gets a **new** `kss_` session of the same person: same provider,
+protocol, its own id, no recorded authentication (a fresh browser sign-in never lends its
+freshness to a long-lived client token: covered decisions need their own step-up), a client
+label, and an end
+no later than the browser sign-in it rests on (a SAML `SessionNotOnOrAfter` carries over).
+These sessions appear in `identity.sessions.list` with `client` (`flow`, `id`, `label`, for
+example `CLI: Kurahi CLI (alice@build-01)`), are revoked like any other
+(`identity.sessions.revoke`, logout), and end when SCIM deactivates or deletes the person. A
+person who is deactivated or loses every role between approval and token gets `access_denied`.
+
+```json5
+{
+  gateway: {
+    identity: {
+      deviceSignIn: true, // default
+      // Default: [{ id: "kurahi-desktop", name: "Kurahi Desktop", redirect: "loopback" }].
+      // A list replaces the default; [] turns native sign-in off.
+      nativeClients: [
+        { id: "kurahi-desktop", name: "Kurahi Desktop", redirect: "loopback" },
+        { id: "kurahi-mobile", name: "Kurahi Mobile", redirect: "com.kodasoken.kurahi" },
+      ],
+    },
+  },
+}
+```
+
+### Command line: `kurahi login`
+
+```bash
+kurahi login                  # prints a link and a code, opens the browser
+kurahi login --url https://kurahi.example.com --no-open --device-name build-01
+kurahi whoami                 # person, roles, scope, session end
+kurahi logout                 # ends the session at the gateway and forgets it
+```
+
+`login` uses the OAuth 2.0 Device Authorization Grant (RFC 8628), so it also works over SSH or
+on a machine without a browser: open the link on any device, sign in, check the code and
+approve. The token is stored in `<KOLO_HOME>/secrets/sessions/<id>.json` (0600, directory 0700) for that gateway's URL and is never printed. Gateway commands that talk over the
+WebSocket (`callGatewayFromCli`) then authenticate as the person, ahead of the shared gateway
+token, so they work under `ssoRequired` without break-glass; `kurahi logout` returns to the
+shared token. `kurahi api` and the other HTTP clients use the session only when no owner token
+or device credential is found. The commands are top-level (`login`, `logout`, `whoami`), like
+`gh auth login` or `az login`: `kurahi gateway` runs the service and `kurahi models auth` signs in
+to model providers.
+
+The protocol, for other command-line clients:
+
+1. `POST /api/identity/oauth/device` (form) with `client_id=kurahi-cli` and optionally
+   `device_name` (shown to the approver, marked as not verified) → `device_code` (32 random
+   bytes; the gateway keeps only its SHA-256), `user_code` (`XXXX-XXXX`, 20 consonants, no
+   vowels or look-alikes), `verification_uri`, `verification_uri_complete`, `expires_in` (600)
+   and `interval` (5).
+2. The person opens `verification_uri` (`/api/identity/device`), signs in with any provider
+   (with only built-in sign-in, the page offers a passkey and a one-time code itself), **types**
+   the code the command line shows (a code in the link is shown, never accepted silently), sees
+   "This will give <app> full access to Kurahi as <person>" with the request time and the address
+   it came from, what the device says it is, and approves or denies. The browser session made
+   for this page ends right after the decision.
+3. The client polls `POST /api/identity/oauth/token` with
+   `grant_type=urn:ietf:params:oauth:grant-type:device_code`, `device_code` and `client_id`:
+   `authorization_pending`; `slow_down` (with a new `interval`, 5 s more) when polled faster
+   than the interval; `access_denied` (denied, or the code was locked); `expired_token`; then
+   once `{access_token, token_type: "Bearer", expires_in, session_id}`. A device code works
+   once; afterwards it is `invalid_grant`.
+
+Limits: 10 device requests per minute per source and 100 for the gateway, at most 10 pending
+per source and 500 in all. Wrong user codes count per approving person (5 in 10 minutes) and per
+source address (20 in 10 minutes, for offices behind one address); over either, the page answers
+429 for that person or address, also for the right code. A wrong code never affects other
+people's pending codes, so nobody can lock someone else's sign-in by guessing. Audit events:
+`identity.device.authorize`, `identity.device.lookup` (wrong codes), `identity.device.approve`,
+`identity.device.deny`, `identity.device.token`.
+
+### Native apps (Kurahi Desktop)
+
+Native apps use the authorization code flow with PKCE for public clients and a loopback or
+private-use scheme redirect, as RFC 8252 recommends: the sign-in runs in the system browser
+(never an embedded web view), and the token travels only in the token response, never in a URL.
+The exact protocol the Desktop app follows:
+
+1. Start a loopback listener on `127.0.0.1` (or `[::1]`) on any free port, for example
+   `http://127.0.0.1:53682/callback`. `localhost` is refused (RFC 8252 8.3). Scheme clients use
+   `<their scheme>:/path` (one slash).
+2. Make a `code_verifier` (43–128 characters of `A-Z a-z 0-9 - . _ ~`, from 32 or more random
+   bytes), `code_challenge = BASE64URL(SHA-256(code_verifier))`, and a random `state`.
+3. Open in the system browser:
+   `GET <publicUrl>/api/identity/oauth/authorize?client_id=kurahi-desktop&redirect_uri=<uri>&response_type=code&code_challenge=<challenge>&code_challenge_method=S256&state=<state>`.
+   The port may differ every time (RFC 8252 7.3); host, scheme and the rest are checked. An
+   unknown client or a redirect URI the client may not use gets an error page, never a redirect.
+   A missing `state` gets an error page; a missing or non-S256 PKCE or another `response_type`
+   comes back to the redirect URI as `error=invalid_request` / `unsupported_response_type`.
+4. The gateway binds the request to that browser (cookie `kurahi_oauth_req`, path
+   `/api/identity/oauth`, 10 minutes), runs the normal sign-in (one provider: straight to it),
+   and asks the person to confirm "Sign in to Kurahi Desktop as …". Cancel sends
+   `error=access_denied`.
+5. The browser goes to `<redirect_uri>?code=<code>&state=<state>&iss=<publicUrl>`. Check that
+   `state` is yours and `iss` is the gateway you started with (RFC 9207), then answer the
+   browser with a short "you can close this window" page and close the listener.
+6. Within 60 seconds, `POST <publicUrl>/api/identity/oauth/token` (form):
+   `grant_type=authorization_code`, `client_id=kurahi-desktop`, `code`, the same `redirect_uri`
+   and `code_verifier` → `{access_token, token_type: "Bearer", expires_in, session_id}`. The code
+   works once; a wrong verifier, client or redirect URI is `invalid_grant` and spends it.
+7. Keep the `kss_` token in the OS credential store (Keychain, Credential Manager, Secret
+   Service), send it as `auth.token` on the WebSocket handshake or as `Authorization: Bearer`,
+   and sign in again when it ends (no refresh token: the session's lifetime and idle timeout
+   apply). `POST /api/identity/logout` with the token signs out.
+
+Limits: 30 authorization requests per minute per source and 300 for the gateway, at most 20
+pending per source and 500 in all; failed token requests count toward the per-source
+authentication attempt limit. Audit events: `identity.native.authorize`,
+`identity.native.approve`, `identity.native.deny`, `identity.native.token`.
+
 ## HTTP endpoints
 
-| Method and path                             | Auth        | Purpose                                     |
-| ------------------------------------------- | ----------- | ------------------------------------------- |
-| `GET /api/identity/sso`                     | none        | Providers to offer, whether SSO is required |
-| `GET /api/identity/sso/{provider}/login`    | none        | Start a sign-in                             |
-| `GET /api/identity/sso/{provider}/callback` | none        | OIDC redirect URI                           |
-| `POST /api/identity/sso/{provider}/acs`     | none        | SAML ACS                                    |
-| `GET /api/identity/sso/{provider}/metadata` | none        | SAML SP metadata                            |
-| `POST /api/identity/sso/exchange`           | none        | One-time code for the session token, once   |
-| `GET /api/identity/session`                 | SSO session | The signed-in person                        |
-| `POST /api/identity/logout`                 | SSO session | End the session                             |
+| Method and path                                 | Auth        | Purpose                                     |
+| ----------------------------------------------- | ----------- | ------------------------------------------- |
+| `GET /api/identity/sso`                         | none        | Providers to offer, whether SSO is required |
+| `GET /api/identity/sso/{provider}/login`        | none        | Start a sign-in                             |
+| `GET /api/identity/sso/{provider}/callback`     | none        | OIDC redirect URI                           |
+| `POST /api/identity/sso/{provider}/acs`         | none        | SAML ACS                                    |
+| `GET /api/identity/sso/{provider}/metadata`     | none        | SAML SP metadata                            |
+| `POST /api/identity/sso/exchange`               | none        | One-time code for the session token, once   |
+| `GET /api/identity/session`                     | SSO session | The signed-in person                        |
+| `POST /api/identity/sso/step-up`                | SSO session | Start a step-up re-authentication           |
+| `POST /api/identity/logout`                     | SSO session | End the session                             |
+| Method and path                                 | Auth        | Purpose                                     |
+| ---------------------------------------------   | ----------- | ------------------------------------------- |
+| `GET /api/identity/sso`                         | none        | Providers to offer, whether SSO is required |
+| `GET /api/identity/sso/{provider}/login`        | none        | Start a sign-in                             |
+| `GET /api/identity/sso/{provider}/callback`     | none        | OIDC redirect URI                           |
+| `POST /api/identity/sso/{provider}/acs`         | none        | SAML ACS                                    |
+| `GET /api/identity/sso/{provider}/metadata`     | none        | SAML SP metadata                            |
+| `POST /api/identity/sso/exchange`               | none        | One-time code for the session token, once   |
+| `GET /api/identity/session`                     | SSO session | The signed-in person                        |
+| `POST /api/identity/logout`                     | SSO session | End the session                             |
+| `POST /api/identity/oauth/device`               | none        | Command line: device and user code          |
+| `GET /api/identity/device`                      | none        | Command line: verification page             |
+| `POST /api/identity/device/lookup`              | SSO session | The page: what a user code asks for         |
+| `POST /api/identity/device/decision`            | SSO session | The page: approve or deny                   |
+| `GET /api/identity/oauth/authorize`             | none        | Native app: authorization request           |
+| `GET /api/identity/oauth/continue`              | none        | Native app: sign-in and confirmation page   |
+| `POST /api/identity/oauth/authorize/complete`   | SSO session | The page: confirm, redirect back to the app |
+| `POST /api/identity/oauth/token`                | none        | Token endpoint (both flows)                 |
+| Method and path                                 | Auth        | Purpose                                     |
+| ----------------------------------------------- | ----------- | ------------------------------------------- |
+| `GET /api/identity/sso`                         | none        | Providers to offer, whether SSO is required |
+| `GET /api/identity/sso/{provider}/login`        | none        | Start a sign-in                             |
+| `GET /api/identity/sso/{provider}/callback`     | none        | OIDC redirect URI                           |
+| `POST /api/identity/sso/{provider}/acs`         | none        | SAML ACS                                    |
+| `GET /api/identity/sso/{provider}/metadata`     | none        | SAML SP metadata                            |
+| `POST /api/identity/sso/exchange`               | none        | One-time code for the session token, once   |
+| `GET /api/identity/session`                     | SSO session | The signed-in person                        |
+| `POST /api/identity/logout`                     | SSO session | End the session                             |
+| `POST /api/identity/passkey/register/begin`     | none¹       | Start registering a passkey                 |
+| `POST /api/identity/passkey/register/finish`    | none¹       | Finish registering a passkey                |
+| `POST /api/identity/passkey/login/begin`        | none        | Start a passkey sign-in (usernameless)      |
+| `POST /api/identity/passkey/login/finish`       | none        | Finish it; returns the session token        |
+| `POST /api/identity/passkey/stepup/begin`       | SSO session | Start a passkey step-up                     |
+| `POST /api/identity/passkey/stepup/finish`      | SSO session | Finish it; refreshes the session's `auth`   |
+| `POST /api/identity/passkey/totp/enroll/begin`  | none¹       | Start setting up an authenticator app       |
+| `POST /api/identity/passkey/totp/enroll/finish` | none        | Confirm it with a first code                |
+| `POST /api/identity/passkey/totp/verify`        | none        | Sign in with a user name and a code         |
+| `POST /api/identity/passkey/totp/stepup`        | SSO session | Step up with a code                         |
+| `GET /api/identity/passkey/credentials`         | SSO session | The person's own passkeys and app           |
+
+¹ An enrollment code in the body, or a Bearer SSO session (a signed-in person adding a passkey).
 
 SSO session tokens are also accepted as `Authorization: Bearer` on the evidence and audit-chain
 routes; auditors may read those regardless of their observe scope. A person reads the evidence of
@@ -558,5 +982,8 @@ the per-source authentication attempt limit. The full schemas are in the
 ## Console
 
 When the gateway has SSO providers, the Overview page shows **Sign in with …** buttons; after
-sign-in it shows the person, roles and session end, and **Sign out**. The console must be served
+sign-in it shows the person, roles and session end, and **Sign out**. With passkeys on it also
+shows **Sign in with a passkey** and, when one-time codes are on, a code form; an enrollment link
+opens a panel to create a passkey or set up an authenticator app, and a signed-in person can
+**Add a passkey**. The console must be served
 by the gateway (the default) for the sign-in redirect to return to it.

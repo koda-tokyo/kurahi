@@ -2,11 +2,12 @@
 import type { KoLoConfig } from "../config/config.js";
 import type {
   GatewayIdentityConfig,
+  IdentityNativeClientConfig,
   IdentityOidcProviderConfig,
   IdentityProviderConfig,
   IdentitySamlProviderConfig,
 } from "../config/types.identity.js";
-import { RESERVED_PROVIDER_IDS } from "../config/zod-schema.identity.js";
+import { PASSKEY_PROVIDER_ID, RESERVED_PROVIDER_IDS } from "../config/zod-schema.identity.js";
 import { isOrgRole, type OrgRole } from "./types.js";
 
 export const DEFAULT_SESSION_LIFETIME_MIN = 480;
@@ -15,6 +16,42 @@ export const DEFAULT_IDLE_MIN = 60;
 export const DEFAULT_CLOCK_SKEW_SEC = 120;
 export const MAX_CLOCK_SKEW_SEC = 300;
 export const DEFAULT_SCIM_RATE_PER_MIN = 600;
+export const DEFAULT_STEP_UP_MAX_AGE_SEC = 300;
+export const MIN_STEP_UP_MAX_AGE_SEC = 30;
+export const MAX_STEP_UP_MAX_AGE_SEC = 3600;
+
+/** Normalised `gateway.identity.stepUp` (see step-up.ts). */
+export type StepUpSettings = {
+  enabled: boolean;
+  maxAgeSec: number;
+  /** Any-of RFC 8176 `amr` values; empty = any method. */
+  requireMethods: string[];
+  approvals: { enabled: boolean; amountAtLeast: number | null; amountField: string };
+  autopilotLevel: boolean;
+  emergencyStopRelease: boolean;
+  identityAdmin: boolean;
+  authenticatorChange: boolean;
+  governance: boolean;
+};
+
+/** Kurahi Desktop: the native client every gateway knows unless `nativeClients` is set. */
+export const DESKTOP_CLIENT_ID = "kurahi-desktop";
+export const DEFAULT_NATIVE_CLIENTS: readonly IdentityNativeClientConfig[] = [
+  { id: DESKTOP_CLIENT_ID, name: "Kurahi Desktop", redirect: "loopback" },
+];
+export { PASSKEY_PROVIDER_ID };
+
+/** Built-in passkey / one-time code sign-in, resolved. `enabled` only when usable. */
+export type PasskeySettings = {
+  enabled: boolean;
+  rpId: string | null;
+  rpName: string;
+  /** Exact origins (scheme://host[:port]) the browser may sign in from. */
+  origins: string[];
+  userVerification: "required" | "preferred";
+  /** One-time codes (TOTP) as a fallback; only while passkeys are enabled. */
+  totp: boolean;
+};
 
 export type IdentitySettings = {
   publicUrl: string | null;
@@ -43,6 +80,12 @@ export type IdentitySettings = {
     providerId: string | null;
   };
   requireProvisioned: boolean;
+  stepUp: StepUpSettings;
+  /** Native apps (RFC 8252) that may sign people in; ids are unique. */
+  nativeClients: IdentityNativeClientConfig[];
+  /** Command-line sign-in (device authorization grant). */
+  deviceSignIn: boolean;
+  passkeys: PasskeySettings;
   /** Why a configured feature cannot run (missing publicUrl, http publicUrl, …). */
   problems: string[];
 };
@@ -65,6 +108,53 @@ function httpsUrl(raw: string | undefined): string | null {
   }
 }
 
+function resolvePasskeys(
+  raw: GatewayIdentityConfig["passkeys"],
+  publicUrl: string | null,
+  problems: string[],
+): PasskeySettings {
+  const off: PasskeySettings = {
+    enabled: false,
+    rpId: null,
+    rpName: raw?.rpName ?? "Kurahi",
+    origins: [],
+    userVerification: raw?.userVerification ?? "required",
+    totp: false,
+  };
+  if (raw?.enabled !== true) {
+    return off;
+  }
+  const origins: string[] = [];
+  for (const o of raw.allowedOrigins ?? (publicUrl ? [publicUrl] : [])) {
+    const ok = httpsUrl(o);
+    if (!ok) {
+      problems.push(`passkeys: origin ${o} must be https (http only for localhost)`);
+      continue;
+    }
+    origins.push(new URL(ok).origin);
+  }
+  if (origins.length === 0) {
+    problems.push(
+      "passkeys: gateway.identity.publicUrl (https) or passkeys.allowedOrigins is required",
+    );
+    return off;
+  }
+  const rpId = (raw.rpId ?? new URL(publicUrl ?? origins[0]).hostname).toLowerCase();
+  // Browsers refuse IP addresses as an RP id; every origin must be the RP id or below it.
+  if (/^[\d.]+$/.test(rpId) || rpId.includes(":") || rpId.startsWith("[")) {
+    problems.push(`passkeys: rpId ${rpId} must be a domain name, not an IP address`);
+    return off;
+  }
+  for (const o of origins) {
+    const host = new URL(o).hostname.toLowerCase();
+    if (host !== rpId && !host.endsWith(`.${rpId}`)) {
+      problems.push(`passkeys: origin ${o} is not ${rpId} or a subdomain of it`);
+      return off;
+    }
+  }
+  return { ...off, enabled: true, rpId, origins: [...new Set(origins)], totp: raw.totp !== false };
+}
+
 export function resolveIdentitySettings(
   cfg: KoLoConfig | GatewayIdentityConfig | null | undefined,
 ): IdentitySettings {
@@ -74,7 +164,7 @@ export function resolveIdentitySettings(
   const publicUrl = httpsUrl(raw.publicUrl);
   const providers = (raw.providers ?? []).filter((p) => {
     if (RESERVED_PROVIDER_IDS.has(p.id)) {
-      problems.push(`provider ${p.id}: the id is reserved (scim, legacy)`);
+      problems.push(`provider ${p.id}: the id is reserved (scim, legacy, passkey)`);
       return false;
     }
     if (!publicUrl) {
@@ -99,7 +189,8 @@ export function resolveIdentitySettings(
     seen.add(p.id);
   }
   const ssoRequired = raw.ssoRequired === true;
-  if (ssoRequired && providers.length === 0) {
+  const passkeys = resolvePasskeys(raw.passkeys, publicUrl, problems);
+  if (ssoRequired && providers.length === 0 && !passkeys.enabled) {
     problems.push("ssoRequired is set but no SSO provider is usable: only break-glass logins work");
   }
   const lifetimeMin = Math.min(
@@ -128,11 +219,23 @@ export function resolveIdentitySettings(
       "scim.providerId is not set and several providers are configured: SCIM persons are not matched by externalId until an admin links them",
     );
   }
-  const configured = (raw.providers?.length ?? 0) > 0 || scimEnabled || ssoRequired;
+  const configured =
+    (raw.providers?.length ?? 0) > 0 ||
+    scimEnabled ||
+    ssoRequired ||
+    raw.passkeys?.enabled === true;
   if (ssoRequired && raw.localPersons === true) {
     problems.push("localPersons is ignored while ssoRequired is set: only SSO and break-glass");
   }
   const localPersons = !ssoRequired && (raw.localPersons ?? !configured);
+  const nativeClients: IdentityNativeClientConfig[] = [];
+  for (const c of raw.nativeClients ?? DEFAULT_NATIVE_CLIENTS) {
+    if (nativeClients.some((x) => x.id === c.id)) {
+      problems.push(`native client ${c.id}: listed twice (the first one is used)`);
+      continue;
+    }
+    nativeClients.push({ ...c });
+  }
   return {
     publicUrl,
     providers,
@@ -158,7 +261,47 @@ export function resolveIdentitySettings(
     // unless requireProvisioned is explicitly false. Also while the SCIM token is missing (SCIM
     // cannot run yet): the intent is a provisioned directory, so nobody is created just in time.
     requireProvisioned: raw.requireProvisioned ?? scimEnabled,
+    stepUp: resolveStepUp(raw.stepUp, configured),
+    nativeClients,
+    deviceSignIn: raw.deviceSignIn !== false,
+    passkeys,
     problems,
+  };
+}
+
+/** Safe defaults: on when identity is configured, every covered action on, 5 minutes. */
+export function resolveStepUp(
+  raw: GatewayIdentityConfig["stepUp"],
+  configured: boolean,
+): StepUpSettings {
+  const a = raw?.actions ?? {};
+  const approvals =
+    a.approvals === undefined || a.approvals === true
+      ? { enabled: true, amountAtLeast: null, amountField: "amount" }
+      : a.approvals === false
+        ? { enabled: false, amountAtLeast: null, amountField: "amount" }
+        : {
+            enabled: true,
+            amountAtLeast:
+              typeof a.approvals.amountAtLeast === "number" &&
+              Number.isFinite(a.approvals.amountAtLeast)
+                ? a.approvals.amountAtLeast
+                : null,
+            amountField: a.approvals.amountField ?? "amount",
+          };
+  return {
+    enabled: raw?.enabled ?? configured,
+    maxAgeSec: Math.min(
+      Math.max(raw?.maxAgeSeconds ?? DEFAULT_STEP_UP_MAX_AGE_SEC, MIN_STEP_UP_MAX_AGE_SEC),
+      MAX_STEP_UP_MAX_AGE_SEC,
+    ),
+    requireMethods: [...new Set((raw?.requireMethods ?? []).filter((m) => m.length > 0))],
+    approvals,
+    autopilotLevel: a.autopilotLevel !== false,
+    emergencyStopRelease: a.emergencyStopRelease !== false,
+    identityAdmin: a.identityAdmin !== false,
+    authenticatorChange: a.authenticatorChange !== false,
+    governance: a.governance !== false,
   };
 }
 
@@ -179,4 +322,11 @@ export function acsUrl(settings: IdentitySettings, providerId: string): string {
 
 export function spEntityId(settings: IdentitySettings, p: IdentitySamlProviderConfig): string {
   return p.spEntityId ?? `${settings.publicUrl ?? ""}/api/identity/sso/${p.id}/metadata`;
+}
+
+export function findNativeClient(
+  settings: IdentitySettings,
+  id: string,
+): IdentityNativeClientConfig | null {
+  return settings.nativeClients.find((c) => c.id === id) ?? null;
 }

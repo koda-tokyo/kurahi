@@ -42,6 +42,8 @@ export async function callGatewayFromCli(
         timeoutMs: Number(opts.timeout ?? 10_000),
         clientName: GATEWAY_CLIENT_NAMES.CLI,
         mode: GATEWAY_CLIENT_MODES.CLI,
+        // A person signed in with `kurahi login` acts as themselves.
+        useSignIn: true,
       }),
   );
 }

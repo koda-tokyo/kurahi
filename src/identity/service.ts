@@ -8,13 +8,24 @@
 // already linked elsewhere is never taken over. A person with no role is refused.
 import { isConfigLoadFailure, type KoLoConfig, loadConfig } from "../config/config.js";
 import { recordAuditEvent } from "../security/audit-log.js";
-import { type IdentitySettings, resolveIdentitySettings } from "./config.js";
+import { AuthenticatorStore } from "./authenticators.js";
+import { type IdentitySettings, PASSKEY_PROVIDER_ID, resolveIdentitySettings } from "./config.js";
 import { OidcClient, type OidcClientOptions } from "./oidc.js";
+import { PasskeyService } from "./passkeys.js";
 import { buildPersonPrincipal, projectGroupsFor, providerTrustsEmail } from "./rbac.js";
 import { SamlServiceProvider } from "./saml/sp.js";
 import { SessionStore } from "./sessions.js";
 import { IdentityStore } from "./store.js";
-import { PERSON_PRINCIPAL_PREFIX, type PersonPrincipal, type SignInClaims } from "./types.js";
+import {
+  type Person,
+  PERSON_PRINCIPAL_PREFIX,
+  type PersonPrincipal,
+  type SessionClient,
+  type SessionGrant,
+  type SignInAuth,
+  type SignInClaims,
+  type SsoSession,
+} from "./types.js";
 
 export type SignInResult =
   | { ok: true; token: string; principal: PersonPrincipal }
@@ -23,9 +34,21 @@ export type SignInResult =
       reason: "not_provisioned" | "inactive" | "no_role" | "link_conflict" | "deprovisioned";
     };
 
+/** How far before the step-up start an IdP's authentication time may be (clock drift only). */
+export const STEP_UP_START_SKEW_MS = 5_000;
+
+export type StepUpCompletion =
+  | { ok: true; principal: PersonPrincipal }
+  | { ok: false; reason: "session_ended" | "person_mismatch" | "not_fresh" };
+
+/** A step-up re-authentication the gateway started for one live session. */
+export type StepUpFlow = { sessionId: string; personId: string; startedAt: number };
+
 export type IdentityServiceOptions = {
   store?: IdentityStore;
   sessions?: SessionStore;
+  /** Passkeys, TOTP secrets and enrollment codes (default: the identity directory's file). */
+  authenticators?: AuthenticatorStore;
   oidc?: OidcClientOptions;
   now?: () => number;
 };
@@ -35,10 +58,15 @@ export class IdentityService {
   readonly sessions: SessionStore;
   readonly oidc: OidcClient;
   readonly saml: SamlServiceProvider;
+  /** Built-in passkey and one-time code sign-in (provider `passkey`). */
+  readonly passkeys: PasskeyService;
+  private authenticatorStore: AuthenticatorStore | null;
   private settingsValue: IdentitySettings;
+  private readonly now: () => number;
 
   constructor(settings: IdentitySettings, opts: IdentityServiceOptions = {}) {
     this.settingsValue = settings;
+    this.now = opts.now ?? Date.now;
     this.store = opts.store ?? new IdentityStore();
     this.sessions = opts.sessions ?? new SessionStore();
     this.oidc = new OidcClient({
@@ -47,6 +75,14 @@ export class IdentityService {
       ...opts.oidc,
     });
     this.saml = new SamlServiceProvider({ clockSkewSec: settings.clockSkewSec, now: opts.now });
+    this.authenticatorStore = opts.authenticators ?? null;
+    this.passkeys = new PasskeyService(this, { now: opts.now });
+  }
+
+  /** The authenticator store, opened on first use (most gateways never touch it). */
+  get authenticators(): AuthenticatorStore {
+    this.authenticatorStore ??= new AuthenticatorStore();
+    return this.authenticatorStore;
   }
 
   get settings(): IdentitySettings {
@@ -151,19 +187,155 @@ export class IdentityService {
         : {}),
       displayName: person.displayName ?? claims.displayName,
     });
-    const { token, session } = this.sessions.create({
-      personId: person.id,
+    return this.openSession(person, {
       providerId: claims.providerId,
       protocol: claims.protocol,
-      lifetimeMs: s.lifetimeMs,
-      idleMs: s.idleMs,
       idTokenHint: claims.idTokenHint,
+      auth: claims.auth,
       notAfterMs: extra.notAfterMs ?? null,
     });
-    const built = buildPersonPrincipal(store, s, session);
+  }
+
+  /**
+   * Built-in sign-in: the person proved a passkey or one-time code of their own (verified by
+   * PasskeyService). Opens a session with provider and protocol `passkey`. The same rules as an
+   * IdP sign-in apply: active, provisioned when `requireProvisioned`, and holding a role.
+   */
+  signInPerson(personId: string, auth: SignInAuth): SignInResult {
+    const s = this.settingsValue;
+    const found = this.store.getPerson(personId);
+    if (!found) {
+      return { ok: false, reason: "deprovisioned" };
+    }
+    if (!found.active) {
+      return { ok: false, reason: "inactive" };
+    }
+    if (s.requireProvisioned && found.source !== "scim") {
+      return { ok: false, reason: "not_provisioned" };
+    }
+    const person = this.store.updatePerson(found.id, { lastLoginAt: new Date().toISOString() });
+    return this.openSession(person, {
+      providerId: PASSKEY_PROVIDER_ID,
+      protocol: "passkey",
+      idTokenHint: null,
+      auth,
+      notAfterMs: null,
+    });
+  }
+
+  private openSession(
+    person: Person,
+    opts: {
+      providerId: string;
+      protocol: SsoSession["protocol"];
+      idTokenHint: string | null;
+      auth: SignInAuth;
+      notAfterMs: number | null;
+    },
+  ): SignInResult {
+    const s = this.settingsValue;
+    const { token, session } = this.sessions.create({
+      personId: person.id,
+      providerId: opts.providerId,
+      protocol: opts.protocol,
+      lifetimeMs: s.lifetimeMs,
+      idleMs: s.idleMs,
+      idTokenHint: opts.idTokenHint,
+      auth: opts.auth,
+      notAfterMs: opts.notAfterMs,
+    });
+    const built = buildPersonPrincipal(this.store, s, session);
     if (!built.ok) {
       this.sessions.revoke(session.id, built.reason);
       return { ok: false, reason: built.reason === "no_role" ? "no_role" : "inactive" };
+    }
+    return { ok: true, token, principal: built.principal };
+  }
+
+  /**
+   * Finish a step-up: the IdP re-authenticated someone; record it on the session only when it is
+   * the session's own person (same provider link: issuer + subject) and the authentication
+   * happened after the step-up started. Never opens a session or switches persons. Audited.
+   */
+  completeStepUp(claims: SignInClaims, flow: StepUpFlow): StepUpCompletion {
+    const skewMs = this.settingsValue.clockSkewSec * 1000;
+    const session = this.sessions.get(flow.sessionId);
+    const linked = this.store.findByLink(claims.providerId, claims.issuer, claims.subject);
+    const at = Date.parse(claims.auth.at);
+    const now = this.now();
+    let result: StepUpCompletion;
+    if (!session || session.personId !== flow.personId) {
+      result = { ok: false, reason: "session_ended" };
+    } else if (!linked || linked.id !== session.personId) {
+      result = { ok: false, reason: "person_mismatch" };
+    } else if (
+      !Number.isFinite(at) ||
+      at < flow.startedAt - STEP_UP_START_SKEW_MS ||
+      at > now + skewMs
+    ) {
+      result = { ok: false, reason: "not_fresh" };
+    } else if (!this.sessions.refreshAuth(session.id, claims.auth)) {
+      result = { ok: false, reason: "session_ended" };
+    } else {
+      const built = this.principalForSession(session.id);
+      result = built.ok
+        ? { ok: true, principal: built.principal }
+        : { ok: false, reason: "session_ended" };
+    }
+    recordAuditEvent({
+      action: "identity.stepup.complete",
+      outcome: result.ok ? "allowed" : "denied",
+      source: "gateway.identity",
+      identity: `${PERSON_PRINCIPAL_PREFIX}${flow.personId}`,
+      detail: {
+        provider: claims.providerId,
+        protocol: claims.protocol,
+        session: flow.sessionId,
+        reason: result.ok ? null : result.reason,
+        authAt: claims.auth.at,
+        methods: claims.auth.methods,
+        context: claims.auth.context,
+      },
+    });
+    return result;
+  }
+
+  /**
+   * A new session for a command-line or native app, for the person a browser sign-in approved
+   * (`grant`). Distinct from the browser session, so it is listed and revoked on its own. Refused
+   * when the person is no longer active, lost every role, or the provider is gone.
+   */
+  issueClientSession(
+    grant: SessionGrant,
+    client: SessionClient,
+  ): { ok: true; token: string; principal: PersonPrincipal } | { ok: false; reason: string } {
+    const s = this.settingsValue;
+    const end = Math.min(Date.now() + s.lifetimeMs, grant.notAfterMs);
+    // Check the person as of now before a token exists.
+    const precheck = buildPersonPrincipal(this.store, s, {
+      id: "",
+      personId: grant.personId,
+      providerId: grant.providerId,
+      expiresAt: new Date(end).toISOString(),
+      auth: grant.auth ?? undefined,
+    });
+    if (!precheck.ok) {
+      return precheck;
+    }
+    const { token, session } = this.sessions.create({
+      personId: grant.personId,
+      providerId: grant.providerId,
+      protocol: grant.protocol,
+      lifetimeMs: s.lifetimeMs,
+      idleMs: s.idleMs,
+      auth: grant.auth ?? undefined,
+      notAfterMs: grant.notAfterMs,
+      client,
+    });
+    const built = buildPersonPrincipal(this.store, s, session);
+    if (!built.ok) {
+      this.sessions.revoke(session.id, built.reason);
+      return built;
     }
     return { ok: true, token, principal: built.principal };
   }

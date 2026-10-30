@@ -76,7 +76,7 @@ export function createStandingApproval(
   project: Pick<Project, "id" | "folder" | "templateId" | "archived">,
   input: CreateApprovalInput,
   actor: ApprovalActor,
-  opts: { now?: Date; home?: string } = {},
+  opts: { now?: Date; home?: string; authn?: Record<string, unknown> | null } = {},
 ): StandingApproval {
   personOnly(actor, "create");
   if (project.archived) {
@@ -149,6 +149,7 @@ export function createStandingApproval(
     revokedAt: null,
     revokedBy: null,
     revokeReason: null,
+    ...(opts.authn ? { authn: opts.authn } : {}),
   };
   mutateApprovals(project.id, (all) => all.push(approval), opts.home);
   void auditSafe({
@@ -166,6 +167,7 @@ export function createStandingApproval(
       addresses: scope.addresses.length,
       domains: scope.domains,
       templates: scope.templates,
+      ...(opts.authn ? { authn: opts.authn } : {}),
     },
   });
   return approval;
@@ -176,7 +178,7 @@ export function revokeStandingApproval(
   id: string,
   reason: unknown,
   actor: ApprovalActor,
-  opts: { now?: Date; home?: string } = {},
+  opts: { now?: Date; home?: string; authn?: Record<string, unknown> | null } = {},
 ): StandingApproval {
   personOnly(actor, "revoke");
   const why = cleanReason(reason);
@@ -194,6 +196,9 @@ export function revokeStandingApproval(
       a.revokedAt = now.toISOString();
       a.revokedBy = actor.id;
       a.revokeReason = why;
+      if (opts.authn) {
+        a.revokeAuthn = opts.authn;
+      }
       return { ...a };
     },
     opts.home,
@@ -204,7 +209,12 @@ export function revokeStandingApproval(
     action: "autopilot.approval.revoke",
     outcome: "ok",
     source: "gateway.autopilot",
-    detail: { id, routineId: out.routineId, action: out.action },
+    detail: {
+      id,
+      routineId: out.routineId,
+      action: out.action,
+      ...(opts.authn ? { authn: opts.authn } : {}),
+    },
   });
   return out;
 }

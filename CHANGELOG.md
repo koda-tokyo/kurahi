@@ -2,6 +2,36 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
+## 2.5.0 — 2026-10-30
+
+Kurahi 2.5 brings Super SSO: one company sign-in for every surface, passkeys built in, and a fresh
+authentication for every important decision, recorded in the signed evidence.
+
+### Identity
+- **Passkeys and one-time codes built in (`gateway.identity.passkeys`):** a company without an
+  external identity provider signs in with passkeys (WebAuthn: ES256, RS256, EdDSA; user
+  verification required by default) or an authenticator app (TOTP, encrypted at rest). Free in
+  every plan. People are enrolled by an identity admin's one-time link (only for a first
+  authenticator) and add further devices themselves after a step-up. No new dependency.
+- **Step-up for decisions (`gateway.identity.stepUp`, on by default when identity is configured):**
+  approvals, raising autopilot levels and creating standing approvals, lifting the emergency stop,
+  identity administration, authenticator changes and data governance actions need an
+  authentication no older than `maxAgeSeconds` (300 s by default), optionally with given methods
+  (`requireMethods`, RFC 8176). The re-authentication runs at the identity provider (OIDC
+  `max_age=0` + `prompt=login` with `auth_time` required; SAML `ForceAuthn`) or with a passkey or
+  one-time code, and never switches persons. Protective actions (stop, demote, revoke, send back,
+  cancel) stay immediate. Each covered decision records `authn` (time, methods, context, protocol)
+  in the work item, its sealed evidence and the audit log. The console asks "Confirm it's you" and
+  retries.
+- **Sessions record how and when the person authenticated:** OIDC `auth_time`, `amr`, `acr`; SAML
+  `AuthnInstant` and `AuthnContextClassRef`.
+- **Command line and desktop sign-in:** `kurahi login`, `kurahi logout` and `kurahi whoami` use the
+  device authorization grant (RFC 8628): the person types the code on a page that names the app,
+  the time and the address, and signs in with any provider, passkeys included. Native apps such as
+  Kurahi Desktop sign in through the system browser with loopback redirects and PKCE (RFC 8252).
+  Each device gets its own session, listed and revoked on its own, and never inherits the
+  browser's authentication. Wrong-code limits count per person and per address.
+
 ## 2.4.0 — 2026-10-30
 
 Kurahi 2.4 adds Kurahi Guardian to Kurahi Core, so every edition has it: the ransomware shield

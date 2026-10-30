@@ -38,10 +38,12 @@ import {
 import { auditDirOf, evidenceRootOf } from "../../governance/store.js";
 import { runRetentionSweep } from "../../governance/sweeper.js";
 import { SSO_PERSON_DECISIONS } from "../../identity/connect.js";
+import { type AuthnEvidence, personAuthn } from "../../identity/step-up.js";
 import { getProject } from "../../projects/store.js";
 import { governanceValidators, type GovernanceMethod } from "../protocol/governance-validators.js";
 import { ErrorCodes, errorShape, formatValidationErrors } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
+import { requireStepUp } from "./step-up.js";
 import { nonPersonOrigin } from "./workitems-shared.js";
 
 export const GOVERNANCE_EVENT = "governance.changed";
@@ -138,11 +140,32 @@ function audit(
   client: GatewayClient | null | undefined,
   action: string,
   detail: Record<string, unknown>,
+  authn: AuthnEvidence | null = null,
 ) {
   void auditSafe(
-    { identity: actorOf(client), action, outcome: "ok", source: "gateway.governance", detail },
+    {
+      identity: actorOf(client),
+      action,
+      outcome: "ok",
+      source: "gateway.governance",
+      detail: authn ? { ...detail, authn } : detail,
+    },
     { dir: auditDirOf(home()) },
   );
+}
+
+/**
+ * Step-up (`governance`) for the decisions that release data or protection: releasing a hold,
+ * exports, executing a data subject request, a real retention run and policy changes. Null after
+ * refusing; otherwise how the person authenticated (recorded with the decision).
+ */
+function stepUp(
+  method: string,
+  client: GatewayClient | null | undefined,
+  respond: RespondFn,
+): { authn: AuthnEvidence | null } | null {
+  const r = requireStepUp(client, "governance", respond, { method });
+  return r ? { authn: r.evidence } : null;
 }
 
 function emit(context: GatewayRequestContext | undefined, kind: string, id: string | null) {
@@ -154,7 +177,12 @@ function emit(context: GatewayRequestContext | undefined, kind: string, id: stri
 }
 
 /** Seal a hold change as a small evidence bundle (`gov-hold-<id>-<action>`). */
-function sealHoldEvidence(hold: LegalHold, action: "create" | "release", by: string) {
+function sealHoldEvidence(
+  hold: LegalHold,
+  action: "create" | "release",
+  by: string,
+  authn: AuthnEvidence | null = null,
+) {
   const h = home();
   const ts = new Date().toISOString();
   const jobId = `gov-${hold.id}-${action}`;
@@ -181,6 +209,7 @@ function sealHoldEvidence(hold: LegalHold, action: "create" | "release", by: str
           matterId: hold.matterId,
           reason: action === "create" ? hold.reason : (hold.releaseReason ?? ""),
           scope: hold.scope,
+          ...(authn ? { authn } : {}),
         },
       },
       { type: "job.end", ts, data: { status: hold.status } },
@@ -249,6 +278,10 @@ export const governanceHandlers: GatewayRequestHandlers = {
     ) {
       return;
     }
+    const gate = stepUp("governance.policy.set", client, respond);
+    if (!gate) {
+      return;
+    }
     const p = params as P;
     try {
       const projectId = p.projectId as string;
@@ -262,12 +295,17 @@ export const governanceHandlers: GatewayRequestHandlers = {
         { retention: p.retention as never, personalData: p.personalData as never },
         actorOf(client),
       );
-      audit(client, "governance.policy.set", {
-        projectId,
-        retention: stored.retention,
-        personalData: stored.personalData,
-        reason: p.reason,
-      });
+      audit(
+        client,
+        "governance.policy.set",
+        {
+          projectId,
+          retention: stored.retention,
+          personalData: stored.personalData,
+          reason: p.reason,
+        },
+        gate.authn,
+      );
       emit(context, "policy", projectId);
       respond(true, policyView(projectId));
     } catch (err) {
@@ -283,6 +321,14 @@ export const governanceHandlers: GatewayRequestHandlers = {
       return;
     }
     const p = params as P;
+    // A preview deletes nothing: only a real run needs a step-up.
+    const gate =
+      p.dryRun === false
+        ? stepUp("governance.retention.run", client, respond)
+        : { authn: personAuthn(client?.person) };
+    if (!gate) {
+      return;
+    }
     try {
       const dryRun = p.dryRun !== false;
       const result = await runRetentionSweep({
@@ -293,8 +339,14 @@ export const governanceHandlers: GatewayRequestHandlers = {
         classes: p.classes as never,
       });
       if (dryRun) {
-        audit(client, "governance.retention.preview", { reason: p.reason });
+        audit(client, "governance.retention.preview", { reason: p.reason }, gate.authn);
       } else {
+        audit(
+          client,
+          "governance.retention.run",
+          { manifestId: result.manifestId, reason: p.reason },
+          gate.authn,
+        );
         emit(context, "retention", result.manifestId);
       }
       respond(true, {
@@ -333,13 +385,15 @@ export const governanceHandlers: GatewayRequestHandlers = {
         { matterId: p.matterId, reason: p.reason, scope: p.scope },
         by,
       );
-      const evidence = sealHoldEvidence(hold, "create", by);
-      audit(client, "governance.holds.create", {
-        holdId: hold.id,
-        matterId: hold.matterId,
-        scope: hold.scope,
-        evidence,
-      });
+      // Placing a hold protects data: no step-up, but the authentication is recorded.
+      const authn = personAuthn(client?.person);
+      const evidence = sealHoldEvidence(hold, "create", by, authn);
+      audit(
+        client,
+        "governance.holds.create",
+        { holdId: hold.id, matterId: hold.matterId, scope: hold.scope, evidence },
+        authn,
+      );
       emit(context, "hold", hold.id);
       respond(true, { hold });
     } catch (err) {
@@ -366,16 +420,21 @@ export const governanceHandlers: GatewayRequestHandlers = {
     ) {
       return;
     }
+    const gate = stepUp("governance.holds.release", client, respond);
+    if (!gate) {
+      return;
+    }
     const p = params as P;
     try {
       const by = actorOf(client);
       const hold = releaseHold(home(), p.id, p.reason, by);
-      const evidence = sealHoldEvidence(hold, "release", by);
-      audit(client, "governance.holds.release", {
-        holdId: hold.id,
-        matterId: hold.matterId,
-        evidence,
-      });
+      const evidence = sealHoldEvidence(hold, "release", by, gate.authn);
+      audit(
+        client,
+        "governance.holds.release",
+        { holdId: hold.id, matterId: hold.matterId, evidence },
+        gate.authn,
+      );
       emit(context, "hold", hold.id);
       respond(true, { hold });
     } catch (err) {
@@ -388,6 +447,10 @@ export const governanceHandlers: GatewayRequestHandlers = {
       !personGate("governance.export.create", client, respond) ||
       !valid("governance.export.create", params, respond)
     ) {
+      return;
+    }
+    const gate = stepUp("governance.export.create", client, respond);
+    if (!gate) {
       return;
     }
     const p = params as P;
@@ -416,15 +479,20 @@ export const governanceHandlers: GatewayRequestHandlers = {
           emit(context, "export", s.id);
         },
       });
-      audit(client, "governance.export.create", {
-        exportId: status.id,
-        matterId: status.matterId,
-        scope: status.scope,
-        classes: status.classes,
-        attachmentFiles: status.attachmentFiles,
-        redacted: status.redacted,
-        reason: status.reason,
-      });
+      audit(
+        client,
+        "governance.export.create",
+        {
+          exportId: status.id,
+          matterId: status.matterId,
+          scope: status.scope,
+          classes: status.classes,
+          attachmentFiles: status.attachmentFiles,
+          redacted: status.redacted,
+          reason: status.reason,
+        },
+        gate.authn,
+      );
       emit(context, "export", status.id);
       respond(true, { export: exportView(status) });
     } catch (err) {
@@ -466,7 +534,12 @@ export const governanceHandlers: GatewayRequestHandlers = {
     }
     try {
       const report = findSubjectData(home(), params as P as never, actorOf(client));
-      audit(client, "governance.dsr.find", { ...dsrAuditDetail(report), reason: report.reason });
+      audit(
+        client,
+        "governance.dsr.find",
+        { ...dsrAuditDetail(report), reason: report.reason },
+        personAuthn(client?.person),
+      );
       emit(context, "dsr", report.id);
       respond(true, { report });
     } catch (err) {
@@ -481,13 +554,22 @@ export const governanceHandlers: GatewayRequestHandlers = {
     ) {
       return;
     }
+    const gate = stepUp("governance.dsr.execute", client, respond);
+    if (!gate) {
+      return;
+    }
     try {
       const report = await executeSubjectRequest(home(), params as P as never, actorOf(client));
-      audit(client, "governance.dsr.execute", {
-        ...dsrAuditDetail(report),
-        executed: report.executed,
-        reason: (params as P).reason,
-      });
+      audit(
+        client,
+        "governance.dsr.execute",
+        {
+          ...dsrAuditDetail(report),
+          executed: report.executed,
+          reason: (params as P).reason,
+        },
+        gate.authn,
+      );
       emit(context, "dsr", report.id);
       respond(true, { report });
     } catch (err) {

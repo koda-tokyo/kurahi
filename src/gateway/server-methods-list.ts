@@ -21,6 +21,10 @@ export const BASE_GATEWAY_METHODS: readonly string[] = [
   "identity.persons.link",
   "identity.persons.unlink",
   "identity.persons.restore",
+  "identity.persons.create",
+  "identity.authenticators.enroll",
+  "identity.authenticators.list",
+  "identity.authenticators.remove",
   // Kurahi v0.3: projects, uploads, artifacts, chat history
   "projects.templates",
   "projects.list",

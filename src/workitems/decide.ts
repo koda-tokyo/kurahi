@@ -40,6 +40,17 @@ export type DecideInput = {
 export const DecisionRefused = WorkItemRefused;
 export type DecisionRefused = WorkItemRefused;
 
+/**
+ * Step-up for an approve (gateway.identity.stepUp): called with the item as it is now, inside the
+ * transition. A refusal stops the approval; otherwise its evidence block (how the person
+ * authenticated; never tokens) is recorded in the evidence, history and audit as `authn`.
+ */
+export type ApproveAuthn = (
+  item: WorkItem,
+) =>
+  | { ok: true; evidence: Record<string, unknown> | null }
+  | { ok: false; message: string; details: Record<string, unknown> };
+
 function cleanComment(raw: unknown): string | null {
   return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 2000) : null;
 }
@@ -50,7 +61,7 @@ export function decideWorkItem(
   input: DecideInput,
   actor: Actor,
   expectedRevision: number | undefined,
-  opts: LifecycleOpts = {},
+  opts: LifecycleOpts & { authn?: ApproveAuthn } = {},
 ): WorkItem {
   if (actor.kind !== "person") {
     throw new DecisionRefused("not_a_person", "only a person may decide on a work item");
@@ -186,6 +197,11 @@ export function decideWorkItem(
           { documents: changed },
         );
       }
+      // Step-up: an approval this policy covers needs a fresh authentication of the person.
+      const authn = opts.authn?.(cur) ?? { ok: true as const, evidence: null };
+      if (!authn.ok) {
+        throw new DecisionRefused("step_up_required", authn.message, authn.details);
+      }
       recheck(project, cur, now, home);
       const failingChecks = blockingFailures(cur.checks);
       const failing = failingChecks.map((c) => c.policyId);
@@ -261,6 +277,7 @@ export function decideWorkItem(
                 }
               : null,
             ...(out.override ? { override: out.override } : {}),
+            ...(authn.evidence ? { authn: authn.evidence } : {}),
           },
         },
       };

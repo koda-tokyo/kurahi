@@ -294,6 +294,25 @@ describe("SSO HTTP endpoints", () => {
     expect(flow.location.startsWith("/ui/#sso_code=")).toBe(true);
   });
 
+  it("the command-line and native sign-in pages are return targets, with their parameter only", async () => {
+    const { idp, svc, h } = setup();
+    svc.store.setMapping(
+      { source: "corp", group: "g-finance", roles: ["member"], units: [] },
+      "test",
+    );
+    const device = await signInFlow(h, idp, "/api/identity/device?user_code=bcdf-ghjk");
+    expect(device.location).toMatch(
+      /^\/api\/identity\/device\?user_code=BCDF-GHJK#sso_code=[A-Za-z0-9_-]{43}$/,
+    );
+    const id = "R".repeat(43);
+    const native = await signInFlow(h, idp, `/api/identity/oauth/continue?request=${id}`);
+    expect(native.location.startsWith(`/api/identity/oauth/continue?request=${id}#sso_code=`)).toBe(
+      true,
+    );
+    const other = await signInFlow(h, idp, "/api/identity/device/lookup");
+    expect(other.location).toMatch(/^\/#sso_code=/);
+  });
+
   it("rate-limits sign-in starts per source", async () => {
     const { svc } = setup();
     const h = createSsoHttpHandlers({
@@ -395,6 +414,7 @@ describe("SSO HTTP endpoints", () => {
       familyName: null,
       groups: [],
       idTokenHint: null,
+      auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
     });
     if (!r.ok) {
       throw new Error(r.reason);

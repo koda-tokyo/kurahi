@@ -3,6 +3,7 @@ import type { MessageId } from "./en";
 import { autopilotJa } from "./autopilot";
 import { businessJa } from "./business";
 import { businessNotificationsJa } from "./business-notifications";
+import { identityJa } from "./identity";
 import { industrialJa } from "./industrial";
 import { terminalJa } from "./terminal";
 import { voiceJa } from "./voice";
@@ -11,6 +12,7 @@ export const ja: Partial<Record<MessageId, string>> = {
   ...autopilotJa,
   ...businessJa,
   ...businessNotificationsJa,
+  ...identityJa,
   ...terminalJa,
   ...voiceJa,
   "brand.maker": "KODA SōKEN",

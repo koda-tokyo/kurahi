@@ -14,6 +14,10 @@
 //            -> a paired device credential <home>/secrets/devices/<fingerprint>.json (M3a):
 //               its access token when still valid; `device` describes it either way so the
 //               caller can refresh an expired one.
+//            -> a person session from `kurahi login` <home>/secrets/sessions/*.json for this
+//               base URL, while it lasts: last, and only without a device credential, so it
+//               never replaces an owner or device credential (a `kss_` session authenticates
+//               WebSocket calls and sso-session routes).
 // Node modules are imported lazily so the main entry stays usable in a browser.
 import { DEFAULT_PORT } from "./generated/operations.js";
 
@@ -30,7 +34,7 @@ export type DiscoveredGateway = {
   port: number;
   portSource: "url" | "env" | "lock" | "config" | "default";
   token?: string;
-  tokenSource: "env" | "file" | "password" | "device" | "none";
+  tokenSource: "env" | "file" | "password" | "device" | "sso" | "none";
   /** Path the token was read from (never the token itself). */
   tokenFile?: string;
   /** Paired device credential for this gateway, when one exists (M3a). */
@@ -182,6 +186,15 @@ export async function discover(options: DiscoverOptions = {}): Promise<Discovere
     tokenFile = device.file;
   }
 
+  if (!token && !device) {
+    const sso = findSsoSession(home, baseUrl, deps);
+    if (sso) {
+      token = sso.token;
+      tokenSource = "sso";
+      tokenFile = sso.file;
+    }
+  }
+
   return {
     home,
     baseUrl,
@@ -217,6 +230,36 @@ type FoundDevice = {
   expired: boolean;
   updatedAt: string;
 };
+
+/** A live `kurahi login` session for this gateway (matched on base URL). */
+function findSsoSession(
+  home: string,
+  baseUrl: string,
+  deps: NodeDeps,
+): { file: string; token: string } | undefined {
+  const dir = deps.path.join(home, "secrets", "sessions");
+  let names: string[];
+  try {
+    names = deps.fs.readdirSync(dir).filter((n) => n.endsWith(".json"));
+  } catch {
+    return undefined;
+  }
+  const wanted = baseUrl.replace(/\/+$/, "");
+  for (const name of names) {
+    const file = deps.path.join(dir, name);
+    const raw = readJson(file, deps) as Record<string, unknown> | undefined;
+    if (
+      raw?.version === 1 &&
+      raw.gateway === wanted &&
+      typeof raw.token === "string" &&
+      raw.token.startsWith("kss_") &&
+      Date.parse(typeof raw.expiresAt === "string" ? raw.expiresAt : "") > Date.now()
+    ) {
+      return { file, token: raw.token };
+    }
+  }
+  return undefined;
+}
 
 /** Newest device credential file issued by this gateway (matched on base URL). */
 function findDeviceCredential(

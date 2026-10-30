@@ -68,6 +68,7 @@ type BusinessViewState = Pick<
   | "beginBusinessDecision"
   | "editBusinessDecision"
   | "cancelBusinessDecision"
+  | "confirmBusinessStepUp"
   | "submitBusinessDecision"
 > &
   BusinessChatEntryState;
@@ -231,7 +232,11 @@ function renderDecision(item: WorkItem, state: BusinessViewState, enabled: boole
       }
       <div class="business-decision__actions">
         <button type="button" class="business-decision__secondary" ?disabled=${state.business.decisionPending} @click=${() => state.cancelBusinessDecision()}>${label("business.decision.back")}</button>
-        <button type="submit" class="business-decision__primary" ?disabled=${submitDisabled}>${state.business.decisionPending ? label("business.decision.submitting") : label(`business.decision.confirm.${sameItem.decision}`)}</button>
+        ${
+          state.business.decisionStepUp
+            ? html`<button type="button" class="business-decision__primary" data-business-stepup ?disabled=${state.business.decisionPending} @click=${() => void state.confirmBusinessStepUp()}>${label("business.decision.stepUp.confirm")}</button>`
+            : html`<button type="submit" class="business-decision__primary" ?disabled=${submitDisabled}>${state.business.decisionPending ? label("business.decision.submitting") : label(`business.decision.confirm.${sameItem.decision}`)}</button>`
+        }
       </div>
     </form>`
         : html`<div class="business-decision__actions">

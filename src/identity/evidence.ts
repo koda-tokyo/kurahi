@@ -23,6 +23,8 @@ export type IdentityChange = {
   authority: string;
   outcome: "ok" | "denied";
   detail: Record<string, unknown>;
+  /** How the deciding person authenticated (step-up evidence; never tokens). */
+  authn?: Record<string, unknown> | null;
 };
 
 /** Audit + sealed evidence for one administrative change. Evidence failures never throw. */
@@ -36,7 +38,7 @@ export function recordIdentityChange(
     action: change.action,
     outcome: change.outcome,
     source: "gateway.identity",
-    detail: change.detail,
+    detail: change.authn ? { ...change.detail, authn: change.authn } : change.detail,
   });
   if (change.outcome !== "ok") {
     return null;
@@ -61,7 +63,12 @@ export function recordIdentityChange(
         {
           type: "audit",
           ts,
-          data: { action: change.action, actor: change.actor, ...change.detail },
+          data: {
+            action: change.action,
+            actor: change.actor,
+            ...change.detail,
+            ...(change.authn ? { authn: change.authn } : {}),
+          },
         },
         { type: "job.end", ts, data: { status: "ok" } },
       ],

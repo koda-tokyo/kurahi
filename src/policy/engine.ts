@@ -540,7 +540,9 @@ export class PolicyEngine {
     return { jobsAborted };
   }
 
-  release(params: { agent?: string | null; by: string }): { released: boolean } {
+  release(params: { agent?: string | null; by: string; authn?: Record<string, unknown> | null }): {
+    released: boolean;
+  } {
     this.ensureLoaded();
     const agent = params.agent?.trim() || null;
     let released = false;
@@ -557,7 +559,11 @@ export class PolicyEngine {
       writeKillState(this.loc.killStatePath, this.killState);
     }
     const at = this.now().toISOString();
-    this.audit(params.by, null, "policy.release", "ok", { agent, released });
+    this.audit(params.by, null, "policy.release", "ok", {
+      agent,
+      released,
+      ...(params.authn ? { authn: params.authn } : {}),
+    });
     this.emit({ type: "release", agent, by: params.by, at });
     return { released };
   }

@@ -5,7 +5,7 @@ import type { OperationSpec } from "../operation-spec.js";
 import type * as T from "./types.js";
 
 /** info.version of the spec this client was generated from. */
-export const SPEC_VERSION = "2.4.0";
+export const SPEC_VERSION = "2.5.0";
 /** OpenAPI version of the source document. */
 export const OPENAPI_VERSION = "3.1.0";
 /** Default gateway port (servers[0].variables.port.default). */
@@ -38,10 +38,30 @@ export const operations = {
   runFactoryCard: {"operationId":"runFactoryCard","method":"POST","path":"/api/factory/cards/{id}/run","summary":"Run a card on the KIP engine","tags":["factory"],"security":[["gatewayToken"],["pairToken"],["adminSession"]],"params":[{"name":"id","in":"path","required":true}],"body":{"contentType":"application/json","required":true},"response":"json"},
   downloadGovernanceExport: {"operationId":"downloadGovernanceExport","method":"GET","path":"/api/governance/exports/{id}/download","summary":"Download a finished eDiscovery export (signed zip)","tags":["governance"],"security":[["gatewayToken"],["pairToken"],["adminSession"],["ssoSession"]],"params":[{"name":"id","in":"path","required":true}],"body":null,"response":"binary"},
   getBuildHealth: {"operationId":"getBuildHealth","method":"GET","path":"/api/health","summary":"Lightweight build probe","tags":["health"],"security":[],"params":[],"body":null,"response":"json"},
+  getDeviceVerificationPage: {"operationId":"getDeviceVerificationPage","method":"GET","path":"/api/identity/device","summary":"Command-line sign-in: the verification page","tags":["identity"],"security":[],"params":[{"name":"user_code","in":"query","required":false}],"body":null,"response":"text"},
+  decideDeviceCode: {"operationId":"decideDeviceCode","method":"POST","path":"/api/identity/device/decision","summary":"Command-line sign-in: approve or deny (audited)","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  lookupDeviceCode: {"operationId":"lookupDeviceCode","method":"POST","path":"/api/identity/device/lookup","summary":"Command-line sign-in: what a user code asks for","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
   logoutIdentity: {"operationId":"logoutIdentity","method":"POST","path":"/api/identity/logout","summary":"End the SSO session (and get the IdP logout URL for OIDC)","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
+  authorizeNativeApp: {"operationId":"authorizeNativeApp","method":"GET","path":"/api/identity/oauth/authorize","summary":"Native app sign-in: authorization request (RFC 8252, PKCE S256)","tags":["identity"],"security":[],"params":[{"name":"client_id","in":"query","required":true},{"name":"redirect_uri","in":"query","required":true},{"name":"response_type","in":"query","required":true},{"name":"code_challenge","in":"query","required":true},{"name":"code_challenge_method","in":"query","required":true},{"name":"state","in":"query","required":true}],"body":null,"response":"json"},
+  completeNativeAuthorization: {"operationId":"completeNativeAuthorization","method":"POST","path":"/api/identity/oauth/authorize/complete","summary":"Native app sign-in: confirm or cancel; returns the redirect to the app","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  getNativeSignInPage: {"operationId":"getNativeSignInPage","method":"GET","path":"/api/identity/oauth/continue","summary":"Native app sign-in: sign-in and confirmation page","tags":["identity"],"security":[],"params":[{"name":"request","in":"query","required":true}],"body":null,"response":"text"},
+  startDeviceAuthorization: {"operationId":"startDeviceAuthorization","method":"POST","path":"/api/identity/oauth/device","summary":"Command-line sign-in: device authorization request (RFC 8628)","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/x-www-form-urlencoded","required":true},"response":"json"},
+  issueSignInToken: {"operationId":"issueSignInToken","method":"POST","path":"/api/identity/oauth/token","summary":"Token endpoint for command-line and native app sign-in","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/x-www-form-urlencoded","required":true},"response":"json"},
+  listOwnAuthenticators: {"operationId":"listOwnAuthenticators","method":"GET","path":"/api/identity/passkey/credentials","summary":"The signed-in person's passkeys and authenticator app","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
+  beginPasskeyLogin: {"operationId":"beginPasskeyLogin","method":"POST","path":"/api/identity/passkey/login/begin","summary":"Start a passkey sign-in (usernameless)","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  finishPasskeyLogin: {"operationId":"finishPasskeyLogin","method":"POST","path":"/api/identity/passkey/login/finish","summary":"Finish a passkey sign-in; returns the session token","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  beginPasskeyRegistration: {"operationId":"beginPasskeyRegistration","method":"POST","path":"/api/identity/passkey/register/begin","summary":"Start registering a passkey (enrollment code, or signed in)","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  finishPasskeyRegistration: {"operationId":"finishPasskeyRegistration","method":"POST","path":"/api/identity/passkey/register/finish","summary":"Finish registering a passkey","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  beginPasskeyStepUp: {"operationId":"beginPasskeyStepUp","method":"POST","path":"/api/identity/passkey/stepup/begin","summary":"Start a passkey step-up of the current session","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  finishPasskeyStepUp: {"operationId":"finishPasskeyStepUp","method":"POST","path":"/api/identity/passkey/stepup/finish","summary":"Finish a passkey step-up (records a fresh authentication on the session)","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  beginTotpEnrollment: {"operationId":"beginTotpEnrollment","method":"POST","path":"/api/identity/passkey/totp/enroll/begin","summary":"Start setting up an authenticator app (enrollment code, or signed in)","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  finishTotpEnrollment: {"operationId":"finishTotpEnrollment","method":"POST","path":"/api/identity/passkey/totp/enroll/finish","summary":"Confirm the authenticator app with a first code","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  stepUpTotp: {"operationId":"stepUpTotp","method":"POST","path":"/api/identity/passkey/totp/stepup","summary":"Step up the current session with a one-time code","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  verifyTotp: {"operationId":"verifyTotp","method":"POST","path":"/api/identity/passkey/totp/verify","summary":"Sign in with a user name and a one-time code; returns the session token","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
   getIdentitySession: {"operationId":"getIdentitySession","method":"GET","path":"/api/identity/session","summary":"The signed-in person, roles and session expiry","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":null,"response":"json"},
   getSsoConfig: {"operationId":"getSsoConfig","method":"GET","path":"/api/identity/sso","summary":"SSO providers the console offers, and whether SSO is required","tags":["identity"],"security":[],"params":[],"body":null,"response":"json"},
   exchangeSsoCode: {"operationId":"exchangeSsoCode","method":"POST","path":"/api/identity/sso/exchange","summary":"Exchange the sign-in's one-time code for the session token","tags":["identity"],"security":[],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
+  startIdentityStepUp: {"operationId":"startIdentityStepUp","method":"POST","path":"/api/identity/sso/step-up","summary":"Start a step-up re-authentication for the current session","tags":["identity"],"security":[["ssoSession"]],"params":[],"body":{"contentType":"application/json","required":true},"response":"json"},
   samlAcs: {"operationId":"samlAcs","method":"POST","path":"/api/identity/sso/{provider}/acs","summary":"SAML assertion consumer service (HTTP-POST binding)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true}],"body":{"contentType":"application/x-www-form-urlencoded","required":true},"response":"json"},
   ssoCallback: {"operationId":"ssoCallback","method":"GET","path":"/api/identity/sso/{provider}/callback","summary":"OIDC redirect URI (authorization code callback)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true},{"name":"code","in":"query","required":false},{"name":"state","in":"query","required":false},{"name":"error","in":"query","required":false}],"body":null,"response":"json"},
   startSsoLogin: {"operationId":"startSsoLogin","method":"GET","path":"/api/identity/sso/{provider}/login","summary":"Start a sign-in (redirect to the identity provider)","tags":["identity"],"security":[],"params":[{"name":"provider","in":"path","required":true},{"name":"returnTo","in":"query","required":false}],"body":null,"response":"json"},
@@ -263,11 +283,125 @@ export interface OperationTypes {
     response: T.GetBuildHealthResponse;
     error: T.GetBuildHealthErrorBody;
   };
+  getDeviceVerificationPage: {
+    params: T.GetDeviceVerificationPageParams;
+    body: T.GetDeviceVerificationPageBody;
+    response: T.GetDeviceVerificationPageResponse;
+    error: T.GetDeviceVerificationPageErrorBody;
+  };
+  decideDeviceCode: {
+    params: T.DecideDeviceCodeParams;
+    body: T.DecideDeviceCodeBody;
+    response: T.DecideDeviceCodeResponse;
+    error: T.DecideDeviceCodeErrorBody;
+  };
+  lookupDeviceCode: {
+    params: T.LookupDeviceCodeParams;
+    body: T.LookupDeviceCodeBody;
+    response: T.LookupDeviceCodeResponse;
+    error: T.LookupDeviceCodeErrorBody;
+  };
   logoutIdentity: {
     params: T.LogoutIdentityParams;
     body: T.LogoutIdentityBody;
     response: T.LogoutIdentityResponse;
     error: T.LogoutIdentityErrorBody;
+  };
+  authorizeNativeApp: {
+    params: T.AuthorizeNativeAppParams;
+    body: T.AuthorizeNativeAppBody;
+    response: T.AuthorizeNativeAppResponse;
+    error: T.AuthorizeNativeAppErrorBody;
+  };
+  completeNativeAuthorization: {
+    params: T.CompleteNativeAuthorizationParams;
+    body: T.CompleteNativeAuthorizationBody;
+    response: T.CompleteNativeAuthorizationResponse;
+    error: T.CompleteNativeAuthorizationErrorBody;
+  };
+  getNativeSignInPage: {
+    params: T.GetNativeSignInPageParams;
+    body: T.GetNativeSignInPageBody;
+    response: T.GetNativeSignInPageResponse;
+    error: T.GetNativeSignInPageErrorBody;
+  };
+  startDeviceAuthorization: {
+    params: T.StartDeviceAuthorizationParams;
+    body: T.StartDeviceAuthorizationBody;
+    response: T.StartDeviceAuthorizationResponse;
+    error: T.StartDeviceAuthorizationErrorBody;
+  };
+  issueSignInToken: {
+    params: T.IssueSignInTokenParams;
+    body: T.IssueSignInTokenBody;
+    response: T.IssueSignInTokenResponse;
+    error: T.IssueSignInTokenErrorBody;
+  };
+  listOwnAuthenticators: {
+    params: T.ListOwnAuthenticatorsParams;
+    body: T.ListOwnAuthenticatorsBody;
+    response: T.ListOwnAuthenticatorsResponse;
+    error: T.ListOwnAuthenticatorsErrorBody;
+  };
+  beginPasskeyLogin: {
+    params: T.BeginPasskeyLoginParams;
+    body: T.BeginPasskeyLoginBody;
+    response: T.BeginPasskeyLoginResponse;
+    error: T.BeginPasskeyLoginErrorBody;
+  };
+  finishPasskeyLogin: {
+    params: T.FinishPasskeyLoginParams;
+    body: T.FinishPasskeyLoginBody;
+    response: T.FinishPasskeyLoginResponse;
+    error: T.FinishPasskeyLoginErrorBody;
+  };
+  beginPasskeyRegistration: {
+    params: T.BeginPasskeyRegistrationParams;
+    body: T.BeginPasskeyRegistrationBody;
+    response: T.BeginPasskeyRegistrationResponse;
+    error: T.BeginPasskeyRegistrationErrorBody;
+  };
+  finishPasskeyRegistration: {
+    params: T.FinishPasskeyRegistrationParams;
+    body: T.FinishPasskeyRegistrationBody;
+    response: T.FinishPasskeyRegistrationResponse;
+    error: T.FinishPasskeyRegistrationErrorBody;
+  };
+  beginPasskeyStepUp: {
+    params: T.BeginPasskeyStepUpParams;
+    body: T.BeginPasskeyStepUpBody;
+    response: T.BeginPasskeyStepUpResponse;
+    error: T.BeginPasskeyStepUpErrorBody;
+  };
+  finishPasskeyStepUp: {
+    params: T.FinishPasskeyStepUpParams;
+    body: T.FinishPasskeyStepUpBody;
+    response: T.FinishPasskeyStepUpResponse;
+    error: T.FinishPasskeyStepUpErrorBody;
+  };
+  beginTotpEnrollment: {
+    params: T.BeginTotpEnrollmentParams;
+    body: T.BeginTotpEnrollmentBody;
+    response: T.BeginTotpEnrollmentResponse;
+    error: T.BeginTotpEnrollmentErrorBody;
+  };
+  finishTotpEnrollment: {
+    params: T.FinishTotpEnrollmentParams;
+    body: T.FinishTotpEnrollmentBody;
+    response: T.FinishTotpEnrollmentResponse;
+    error: T.FinishTotpEnrollmentErrorBody;
+  };
+  stepUpTotp: {
+    params: T.StepUpTotpParams;
+    body: T.StepUpTotpBody;
+    response: T.StepUpTotpResponse;
+    error: T.StepUpTotpErrorBody;
+  };
+  verifyTotp: {
+    params: T.VerifyTotpParams;
+    body: T.VerifyTotpBody;
+    response: T.VerifyTotpResponse;
+    error: T.VerifyTotpErrorBody;
   };
   getIdentitySession: {
     params: T.GetIdentitySessionParams;
@@ -286,6 +420,12 @@ export interface OperationTypes {
     body: T.ExchangeSsoCodeBody;
     response: T.ExchangeSsoCodeResponse;
     error: T.ExchangeSsoCodeErrorBody;
+  };
+  startIdentityStepUp: {
+    params: T.StartIdentityStepUpParams;
+    body: T.StartIdentityStepUpBody;
+    response: T.StartIdentityStepUpResponse;
+    error: T.StartIdentityStepUpErrorBody;
   };
   samlAcs: {
     params: T.SamlAcsParams;

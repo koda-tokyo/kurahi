@@ -325,7 +325,11 @@ export class KoloClientBase {
     // KOLO_BREAK_GLASS like the WebSocket client (percent-encoded: header values are ASCII).
     const breakGlass = (options.discover?.env ?? process.env).KOLO_BREAK_GLASS?.trim();
     const headers =
-      breakGlass && token && token === found.token && found.tokenSource !== "device"
+      breakGlass &&
+      token &&
+      token === found.token &&
+      found.tokenSource !== "device" &&
+      found.tokenSource !== "sso"
         ? { "X-KoLo-Break-Glass": encodeURIComponent(breakGlass.slice(0, 500)), ...rest.headers }
         : rest.headers;
     const client = new this({

@@ -49,6 +49,30 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "login",
+    description: "Sign in with your company account (SSO) for this command line",
+    register: async (program) => {
+      const mod = await import("../login-cli.js");
+      mod.registerLoginCommand(program);
+    },
+  },
+  {
+    name: "logout",
+    description: "End this command line's SSO session",
+    register: async (program) => {
+      const mod = await import("../login-cli.js");
+      mod.registerLogoutCommand(program);
+    },
+  },
+  {
+    name: "whoami",
+    description: "Show the person this command line is signed in as",
+    register: async (program) => {
+      const mod = await import("../login-cli.js");
+      mod.registerWhoamiCommand(program);
+    },
+  },
+  {
     name: "pair",
     description: "Scoped device pairing (invitations, device credentials)",
     register: async (program) => {

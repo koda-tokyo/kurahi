@@ -215,11 +215,163 @@ export class KoloClient extends KoloClientBase {
   }
 
   /**
+   * GET /api/identity/device — Command-line sign-in: the verification page
+   * Auth: none.
+   */
+  getDeviceVerificationPage(params?: T.GetDeviceVerificationPageParams, options?: RequestOptions): Promise<T.GetDeviceVerificationPageResponse> {
+    return this.request("getDeviceVerificationPage", { params, ...options });
+  }
+
+  /**
+   * POST /api/identity/device/decision — Command-line sign-in: approve or deny (audited)
+   * Auth: ssoSession.
+   */
+  decideDeviceCode(body: T.DecideDeviceCodeBody, options?: RequestOptions): Promise<T.DecideDeviceCodeResponse> {
+    return this.request("decideDeviceCode", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/device/lookup — Command-line sign-in: what a user code asks for
+   * Auth: ssoSession.
+   */
+  lookupDeviceCode(body: T.LookupDeviceCodeBody, options?: RequestOptions): Promise<T.LookupDeviceCodeResponse> {
+    return this.request("lookupDeviceCode", { body, ...options });
+  }
+
+  /**
    * POST /api/identity/logout — End the SSO session (and get the IdP logout URL for OIDC)
    * Auth: ssoSession.
    */
   logoutIdentity(options?: RequestOptions): Promise<T.LogoutIdentityResponse> {
     return this.request("logoutIdentity", { ...options });
+  }
+
+  /**
+   * GET /api/identity/oauth/authorize — Native app sign-in: authorization request (RFC 8252, PKCE S256)
+   * Auth: none.
+   */
+  authorizeNativeApp(params: T.AuthorizeNativeAppParams, options?: RequestOptions): Promise<T.AuthorizeNativeAppResponse> {
+    return this.request("authorizeNativeApp", { params, ...options });
+  }
+
+  /**
+   * POST /api/identity/oauth/authorize/complete — Native app sign-in: confirm or cancel; returns the redirect to the app
+   * Auth: ssoSession.
+   */
+  completeNativeAuthorization(body: T.CompleteNativeAuthorizationBody, options?: RequestOptions): Promise<T.CompleteNativeAuthorizationResponse> {
+    return this.request("completeNativeAuthorization", { body, ...options });
+  }
+
+  /**
+   * GET /api/identity/oauth/continue — Native app sign-in: sign-in and confirmation page
+   * Auth: none.
+   */
+  getNativeSignInPage(params: T.GetNativeSignInPageParams, options?: RequestOptions): Promise<T.GetNativeSignInPageResponse> {
+    return this.request("getNativeSignInPage", { params, ...options });
+  }
+
+  /**
+   * POST /api/identity/oauth/device — Command-line sign-in: device authorization request (RFC 8628)
+   * Auth: none.
+   */
+  startDeviceAuthorization(body: T.StartDeviceAuthorizationBody, options?: RequestOptions): Promise<T.StartDeviceAuthorizationResponse> {
+    return this.request("startDeviceAuthorization", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/oauth/token — Token endpoint for command-line and native app sign-in
+   * Auth: none.
+   */
+  issueSignInToken(body: T.IssueSignInTokenBody, options?: RequestOptions): Promise<T.IssueSignInTokenResponse> {
+    return this.request("issueSignInToken", { body, ...options });
+  }
+
+  /**
+   * GET /api/identity/passkey/credentials — The signed-in person's passkeys and authenticator app
+   * Auth: ssoSession.
+   */
+  listOwnAuthenticators(options?: RequestOptions): Promise<T.ListOwnAuthenticatorsResponse> {
+    return this.request("listOwnAuthenticators", { ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/login/begin — Start a passkey sign-in (usernameless)
+   * Auth: none.
+   */
+  beginPasskeyLogin(body: T.BeginPasskeyLoginBody, options?: RequestOptions): Promise<T.BeginPasskeyLoginResponse> {
+    return this.request("beginPasskeyLogin", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/login/finish — Finish a passkey sign-in; returns the session token
+   * Auth: none.
+   */
+  finishPasskeyLogin(body: T.FinishPasskeyLoginBody, options?: RequestOptions): Promise<T.FinishPasskeyLoginResponse> {
+    return this.request("finishPasskeyLogin", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/register/begin — Start registering a passkey (enrollment code, or signed in)
+   * Auth: none.
+   */
+  beginPasskeyRegistration(body: T.BeginPasskeyRegistrationBody, options?: RequestOptions): Promise<T.BeginPasskeyRegistrationResponse> {
+    return this.request("beginPasskeyRegistration", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/register/finish — Finish registering a passkey
+   * Auth: none.
+   */
+  finishPasskeyRegistration(body: T.FinishPasskeyRegistrationBody, options?: RequestOptions): Promise<T.FinishPasskeyRegistrationResponse> {
+    return this.request("finishPasskeyRegistration", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/stepup/begin — Start a passkey step-up of the current session
+   * Auth: ssoSession.
+   */
+  beginPasskeyStepUp(body: T.BeginPasskeyStepUpBody, options?: RequestOptions): Promise<T.BeginPasskeyStepUpResponse> {
+    return this.request("beginPasskeyStepUp", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/stepup/finish — Finish a passkey step-up (records a fresh authentication on the session)
+   * Auth: ssoSession.
+   */
+  finishPasskeyStepUp(body: T.FinishPasskeyStepUpBody, options?: RequestOptions): Promise<T.FinishPasskeyStepUpResponse> {
+    return this.request("finishPasskeyStepUp", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/totp/enroll/begin — Start setting up an authenticator app (enrollment code, or signed in)
+   * Auth: none.
+   */
+  beginTotpEnrollment(body: T.BeginTotpEnrollmentBody, options?: RequestOptions): Promise<T.BeginTotpEnrollmentResponse> {
+    return this.request("beginTotpEnrollment", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/totp/enroll/finish — Confirm the authenticator app with a first code
+   * Auth: none.
+   */
+  finishTotpEnrollment(body: T.FinishTotpEnrollmentBody, options?: RequestOptions): Promise<T.FinishTotpEnrollmentResponse> {
+    return this.request("finishTotpEnrollment", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/totp/stepup — Step up the current session with a one-time code
+   * Auth: ssoSession.
+   */
+  stepUpTotp(body: T.StepUpTotpBody, options?: RequestOptions): Promise<T.StepUpTotpResponse> {
+    return this.request("stepUpTotp", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/passkey/totp/verify — Sign in with a user name and a one-time code; returns the session token
+   * Auth: none.
+   */
+  verifyTotp(body: T.VerifyTotpBody, options?: RequestOptions): Promise<T.VerifyTotpResponse> {
+    return this.request("verifyTotp", { body, ...options });
   }
 
   /**
@@ -244,6 +396,14 @@ export class KoloClient extends KoloClientBase {
    */
   exchangeSsoCode(body: T.ExchangeSsoCodeBody, options?: RequestOptions): Promise<T.ExchangeSsoCodeResponse> {
     return this.request("exchangeSsoCode", { body, ...options });
+  }
+
+  /**
+   * POST /api/identity/sso/step-up — Start a step-up re-authentication for the current session
+   * Auth: ssoSession.
+   */
+  startIdentityStepUp(body: T.StartIdentityStepUpBody, options?: RequestOptions): Promise<T.StartIdentityStepUpResponse> {
+    return this.request("startIdentityStepUp", { body, ...options });
   }
 
   /**

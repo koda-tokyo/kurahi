@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/imessage",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Kurahi iMessage channel plugin",
   "type": "module",
   "devDependencies": {

@@ -2,6 +2,7 @@ import { generateKeyPairSync } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { IdentitySamlProviderConfig } from "../../config/types.identity.js";
 import {
@@ -14,7 +15,7 @@ import {
 } from "../test-helpers.js";
 import { canonicalizeExclusive } from "./c14n.js";
 import { SignatureError, verifyEnvelopedSignature } from "./signature.js";
-import { importIdpKeys, SamlError, SamlServiceProvider, spMetadataXml } from "./sp.js";
+import { importIdpKeys, SamlError, SamlServiceProvider, samlMethods, spMetadataXml } from "./sp.js";
 import { childElements, parseXml, XmlError } from "./xml.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -500,5 +501,90 @@ describe("SAML service provider", () => {
     expect(reason(() => s.complete(`<saml:Assertion xmlns:saml="${SAML}"/>`))).toBe(
       "not_a_response",
     );
+  });
+});
+
+describe("SAML authentication context", () => {
+  it("maps AuthnContextClassRef to RFC 8176 methods", () => {
+    const ns = "urn:oasis:names:tc:SAML:2.0:ac:classes:";
+    expect(samlMethods(`${ns}PasswordProtectedTransport`)).toEqual(["pwd"]);
+    expect(samlMethods(`${ns}X509`)).toEqual(["hwk"]);
+    expect(samlMethods("http://schemas.microsoft.com/claims/multipleauthn")).toEqual(["mfa"]);
+    expect(samlMethods(`${ns}unspecified`)).toEqual([]);
+    expect(samlMethods(null)).toEqual([]);
+  });
+});
+
+describe("SAML step-up (ForceAuthn)", () => {
+  const requestXml = (url: string) =>
+    inflateRawSync(
+      Buffer.from(new URL(url).searchParams.get("SAMLRequest") ?? "", "base64"),
+    ).toString("utf8");
+
+  it("a step-up AuthnRequest forces authentication; a sign-in does not", () => {
+    const sp = new SamlServiceProvider({ clockSkewSec: 60 });
+    const plain = sp.begin(provider(), { spEntityId: SP, acsUrl: ACS, returnTo: "/" });
+    expect(requestXml(plain.url)).not.toContain("ForceAuthn");
+    const stepUp = sp.begin(provider(), {
+      spEntityId: SP,
+      acsUrl: ACS,
+      returnTo: "/",
+      stepUp: { sessionId: "s1", personId: "p1" },
+    });
+    const xml = requestXml(stepUp.url);
+    expect(xml).toContain('ForceAuthn="true"');
+    expect(parseXml(xml).local).toBe("AuthnRequest");
+  });
+
+  it("the response hands the step-up flow back with its start time", () => {
+    const t = Date.now();
+    const sp = new SamlServiceProvider({ now: () => t, clockSkewSec: 60 });
+    const p = provider();
+    const begun = sp.begin(p, {
+      spEntityId: SP,
+      acsUrl: ACS,
+      returnTo: "/business",
+      stepUp: { sessionId: "s1", personId: "p1" },
+    });
+    const s = {
+      requestId: begun.requestId,
+      now: () => t,
+    } as unknown as ReturnType<typeof setup>;
+    const done = sp.complete(
+      p,
+      {
+        SAMLResponse: b64(signedResponse(s)),
+        RelayState: new URL(begun.url).searchParams.get("RelayState"),
+      },
+      { spEntityId: SP, acsUrl: ACS },
+    );
+    expect(done.stepUp).toEqual({ sessionId: "s1", personId: "p1", startedAt: t });
+    expect(done.returnTo).toBe("/business");
+  });
+
+  it("a step-up response without AuthnInstant is not fresh; a sign-in still falls back", () => {
+    const t = Date.now();
+    const sp = new SamlServiceProvider({ now: () => t, clockSkewSec: 60 });
+    const p = provider();
+    const run = (stepUp: boolean, id: string) => {
+      const begun = sp.begin(p, {
+        spEntityId: SP,
+        acsUrl: ACS,
+        returnTo: "/",
+        ...(stepUp ? { stepUp: { sessionId: "s1", personId: "p1" } } : {}),
+      });
+      const s = { requestId: begun.requestId, now: () => t } as unknown as ReturnType<typeof setup>;
+      return () =>
+        sp.complete(
+          p,
+          {
+            SAMLResponse: b64(signedResponse(s, { omitAuthnInstant: true, assertionId: id })),
+            RelayState: new URL(begun.url).searchParams.get("RelayState"),
+          },
+          { spEntityId: SP, acsUrl: ACS },
+        );
+    };
+    expect(reason(run(true, "_su1"))).toBe("not_fresh");
+    expect(run(false, "_su2")().claims.auth.at).toBe(new Date(t).toISOString());
   });
 });

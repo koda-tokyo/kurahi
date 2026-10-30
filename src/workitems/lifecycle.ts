@@ -37,7 +37,16 @@ import {
   WORK_ITEM_TYPES,
 } from "./types.js";
 
-export type LifecycleOpts = { home?: string; now?: Date; env?: NodeJS.ProcessEnv };
+export type LifecycleOpts = {
+  home?: string;
+  now?: Date;
+  env?: NodeJS.ProcessEnv;
+  /**
+   * How the deciding person authenticated (step-up evidence, never tokens): recorded as
+   * `authn` in the transition's evidence, history and audit unless the transition sets its own.
+   */
+  authnEvidence?: Record<string, unknown> | null;
+};
 
 // ---- transitions ----
 
@@ -67,6 +76,9 @@ export function applyTransition(
     (cur) => {
       before = structuredClone(cur);
       const { next, spec } = build(cur, now);
+      if (opts.authnEvidence && spec.detail?.authn === undefined) {
+        spec.detail = { ...spec.detail, authn: opts.authnEvidence };
+      }
       const from = cur.status;
       next.status = spec.to ?? cur.status;
       const evidence = writeTransitionEvidence(

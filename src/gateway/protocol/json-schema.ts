@@ -68,6 +68,8 @@ const METHOD_SCHEMA_ALIASES: Record<string, { params?: string; result?: string }
   "identity.persons.link": { result: "IdentityAdminResult" },
   "identity.persons.unlink": { result: "IdentityAdminResult" },
   "identity.persons.restore": { result: "IdentityAdminResult" },
+  "identity.persons.create": { result: "IdentityAdminResult" },
+  "identity.authenticators.remove": { result: "IdentityAdminResult" },
 };
 
 // Events whose payload schema name does not follow `<Pascal(event)>Event`.

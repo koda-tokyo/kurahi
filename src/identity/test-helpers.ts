@@ -191,6 +191,8 @@ export type AssertionOptions = {
   notOnOrAfterMs?: number;
   attributes?: Record<string, string[]>;
   omitAuthnStatement?: boolean;
+  /** Leave AuthnInstant out of the AuthnStatement (it is required; step-up refuses without). */
+  omitAuthnInstant?: boolean;
   /** Extra elements inside saml:Conditions (after the AudienceRestriction). */
   extraConditions?: string;
 };
@@ -219,7 +221,7 @@ export function assertionXml(o: AssertionOptions): string {
     `<saml:AudienceRestriction><saml:Audience>${o.audience}</saml:Audience></saml:AudienceRestriction>${o.extraConditions ?? ""}</saml:Conditions>` +
     (o.omitAuthnStatement
       ? ""
-      : `<saml:AuthnStatement AuthnInstant="${iso(o.now)}" SessionNotOnOrAfter="${iso(o.now + 3600_000)}"/>`) +
+      : `<saml:AuthnStatement${o.omitAuthnInstant ? "" : ` AuthnInstant="${iso(o.now)}"`} SessionNotOnOrAfter="${iso(o.now + 3600_000)}"/>`) +
     `<saml:AttributeStatement>${attrs}</saml:AttributeStatement>` +
     `</saml:Assertion>`
   );

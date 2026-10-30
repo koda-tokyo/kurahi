@@ -161,6 +161,7 @@ describe("SCIM 2.0 Users", () => {
       familyName: null,
       groups: [],
       idTokenHint: null,
+      auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
     });
     if (!signed.ok) {
       throw new Error("sign-in failed");
@@ -194,6 +195,7 @@ describe("SCIM 2.0 Users", () => {
       familyName: null,
       groups: [],
       idTokenHint: null,
+      auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
     });
     expect(again.ok).toBe(true);
     expect((await call("DELETE", `/Users/${id}`)).status).toBe(204);
@@ -217,6 +219,7 @@ describe("SCIM deprovisioning fails closed", () => {
       familyName: null,
       groups: [],
       idTokenHint: null,
+      auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
     });
 
   it("a URN-prefixed active path deprovisions; unknown paths and ops are 400", async () => {

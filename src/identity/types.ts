@@ -90,7 +90,8 @@ export type Person = {
   claimGroups: string[];
   /** Provider that asserted `claimGroups` (absent in older directories: then they match nothing). */
   claimGroupsFrom?: string | null;
-  source: "scim" | "sso";
+  /** Who created the person: SCIM, a sign-in (just in time), or an identity admin. */
+  source: "scim" | "sso" | "admin";
   createdAt: string;
   updatedAt: string;
   lastLoginAt: string | null;
@@ -118,12 +119,50 @@ export type ScimGroup = {
   updatedAt: string;
 };
 
+/**
+ * How and when the person authenticated for a session (step-up and evidence read it).
+ * `methods` are RFC 8176 `amr` values (`pwd`, `otp`, `hwk`, `swk`, `user`, `mfa`, …);
+ * `context` is the OIDC `acr` or the SAML AuthnContextClassRef.
+ */
+export type SignInAuth = { at: string; methods: string[]; context: string | null };
+
+export type SignInProtocol = "oidc" | "saml" | "passkey";
+
+/**
+ * The app a session was issued to when it is not the web console: the command line (device
+ * authorization grant, RFC 8628) or a native app (authorization code + PKCE, RFC 8252).
+ */
+export type SessionClient = {
+  flow: "device" | "native";
+  /** Registered client id (`kurahi-cli`, `kurahi-desktop`, …). */
+  id: string;
+  /** Registered client name. */
+  name: string;
+  /** Shown in session listings, e.g. `CLI: Kurahi CLI (alice@build-01)`. */
+  label: string;
+};
+
+/**
+ * What a person's browser sign-in hands to a command-line or native session: the same person,
+ * provider and protocol, the authentication it rests on, and the end of the browser session's
+ * possible lifetime (an IdP session limit carries over).
+ */
+export type SessionGrant = {
+  personId: string;
+  providerId: string;
+  protocol: SignInProtocol;
+  auth: SignInAuth | null;
+  notAfterMs: number;
+  /** The approving browser session (audit). */
+  fromSession: string;
+};
+
 export type SsoSession = {
   id: string;
   tokenHash: string;
   personId: string;
   providerId: string;
-  protocol: "oidc" | "saml";
+  protocol: SignInProtocol;
   createdAt: string;
   lastSeenAt: string;
   /** Absolute end of the session. */
@@ -133,6 +172,10 @@ export type SsoSession = {
   idTokenHint: string | null;
   revokedAt: string | null;
   revokedReason: string | null;
+  /** The last authentication (sign-in or step-up); absent on sessions saved before 2.5. */
+  auth?: SignInAuth;
+  /** Command-line or native app session; absent for the web console. */
+  client?: SessionClient;
 };
 
 /** The person's grants as resolved now: direct assignments plus group mappings. */
@@ -173,12 +216,14 @@ export type PersonPrincipal = {
   /** Eligible for approval-type methods (operator.approvals); the stage rules still decide. */
   approvals: boolean;
   expiresAt: string;
+  /** The session's last authentication; null for sessions saved before 2.5. */
+  auth: SignInAuth | null;
 };
 
 /** Identity claims an IdP asserted for one sign-in (OIDC ID token or SAML assertion). */
 export type SignInClaims = {
   providerId: string;
-  protocol: "oidc" | "saml";
+  protocol: SignInProtocol;
   issuer: string;
   subject: string;
   email: string | null;
@@ -193,6 +238,7 @@ export type SignInClaims = {
   familyName: string | null;
   groups: string[];
   idTokenHint: string | null;
+  auth: SignInAuth;
 };
 
 export const PERSON_PRINCIPAL_PREFIX = "person:";

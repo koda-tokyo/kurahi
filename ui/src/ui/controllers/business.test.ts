@@ -12,6 +12,7 @@ import {
   submitBusinessReport,
   businessEvent,
   beginBusinessDecision,
+  confirmBusinessStepUp,
   editBusinessDecision,
   emptyBusiness,
   loadBusiness,
@@ -897,5 +898,73 @@ describe("Supplier selection", () => {
     h.projects = { ...h.projects, selectedId: "p2" };
     await submitSupplier(h);
     expect(request).not.toHaveBeenCalled();
+  });
+});
+
+describe("Business step-up (confirm it's you)", () => {
+  const stepUpError = {
+    details: {
+      code: "step_up_required",
+      action: "approval",
+      why: "stale",
+      maxAgeSeconds: 300,
+      requireMethods: [],
+      stepUpPath: "/api/identity/sso/step-up",
+    },
+  };
+  it("keeps the form, asks for a fresh sign-in, then submits the same form once more", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    editBusinessDecision(h, { comment: "OK" });
+    let calls = 0;
+    request.mockImplementation(async (method: string) => {
+      if (method === "workitems.decide") {
+        calls += 1;
+        if (calls === 1) {
+          throw stepUpError;
+        }
+        return decided("a", "p1", "approved");
+      }
+      return method === "workitems.config" ? config : method === "workitems.get" ? item("a") : list;
+    });
+    await submitBusinessDecision(h);
+    expect(h.business.decisionStepUp).toBe(true);
+    expect(h.business.decisionForm).not.toBeNull();
+    expect(h.business.decisionNotice).toContain("fresh sign-in");
+    // Nothing was recorded: no read-back yet.
+    expect(request.mock.calls.filter(([m]) => m === "workitems.list")).toHaveLength(1);
+
+    const run = vi.fn().mockResolvedValue({ ok: true });
+    await confirmBusinessStepUp(h, run);
+    expect(run).toHaveBeenCalledTimes(1);
+    const decides = request.mock.calls.filter(([m]) => m === "workitems.decide");
+    expect(decides).toHaveLength(2);
+    expect(decides[1][1]).toEqual(decides[0][1]);
+    expect(h.business.decisionStepUp).toBe(false);
+    expect(h.business.decisionNotice).toContain("Decision recorded");
+  });
+
+  it("a failed re-authentication does not submit", async () => {
+    const { h, request } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    request.mockImplementation(async (method: string) => {
+      if (method === "workitems.decide") {
+        throw stepUpError;
+      }
+      return method === "workitems.config" ? config : method === "workitems.get" ? item("a") : list;
+    });
+    await submitBusinessDecision(h);
+    await confirmBusinessStepUp(h, async () => ({ ok: false, reason: "person_mismatch" }));
+    expect(request.mock.calls.filter(([m]) => m === "workitems.decide")).toHaveLength(1);
+    expect(h.business.decisionStepUp).toBe(true);
+    expect(h.business.decisionNotice).toContain("not confirmed");
+  });
+
+  it("does nothing unless the gateway asked for a step-up", async () => {
+    const { h } = await reviewHost();
+    beginBusinessDecision(h, "approve");
+    const run = vi.fn();
+    await confirmBusinessStepUp(h, run);
+    expect(run).not.toHaveBeenCalled();
   });
 });

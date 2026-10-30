@@ -240,6 +240,11 @@ export const businessEn = {
   "business.decision.refusal.already_approved": "You have already approved this item.",
   "business.decision.refusal.separation_of_duties": "Separation of duties prevents this decision.",
   "business.decision.refusal.checks_failed": "Required checks prevent this decision.",
+  "business.decision.stepUp.required":
+    "This decision needs a fresh sign-in. Confirm it's you, then it is recorded.",
+  "business.decision.stepUp.confirm": "Confirm it's you",
+  "business.decision.stepUp.failed": "Your identity was not confirmed. Try again.",
+  "business.decision.stepUp.redirected": "Continue signing in, then repeat the decision.",
   "business.disconnected": "The service is disconnected. Reconnect to load this project’s queue.",
   "business.loadError": "The work queue could not be loaded. Try again.",
   "business.detailError": "The selected item could not be loaded. Select it again to retry.",
@@ -589,6 +594,11 @@ export const businessJa = {
   "business.decision.refusal.already_approved": "この項目はすでに承認済みです。",
   "business.decision.refusal.separation_of_duties": "職務分掌の要件により、この判断はできません。",
   "business.decision.refusal.checks_failed": "必須チェックにより、この判断はできません。",
+  "business.decision.stepUp.required":
+    "この判断には再認証が必要です。本人確認を行うと判断が記録されます。",
+  "business.decision.stepUp.confirm": "本人確認",
+  "business.decision.stepUp.failed": "本人確認ができませんでした。もう一度お試しください。",
+  "business.decision.stepUp.redirected": "サインインを続け、その後もう一度判断してください。",
   "business.disconnected":
     "サービスに接続されていません。このプロジェクトのキューを読み込むには再接続してください。",
   "business.loadError": "業務キューを読み込めませんでした。もう一度お試しください。",

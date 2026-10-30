@@ -56,6 +56,7 @@ function signIn(svc: IdentityService) {
     familyName: null,
     groups: [],
     idTokenHint: null,
+    auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
   });
   if (!r.ok) {
     throw new Error(r.reason);

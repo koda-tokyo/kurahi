@@ -181,6 +181,7 @@ function mount(overrides: Record<string, unknown> = {}) {
     editBusinessDecision: vi.fn(),
     cancelBusinessDecision: vi.fn(),
     submitBusinessDecision: vi.fn(),
+    confirmBusinessStepUp: vi.fn(),
     ...overrides,
   } as unknown as AppViewState;
   render(renderBusiness(state, project), root);
@@ -570,6 +571,32 @@ describe("Business queue review", () => {
     });
     expect(policyErrorRoot.textContent).toContain("Queue policy configuration could not be loaded");
     expect(policyErrorRoot.textContent).not.toContain("private policy error");
+  });
+});
+
+describe("Business decision step-up", () => {
+  it("offers 'Confirm it's you' in place of the submit button when the gateway asks", () => {
+    const { root, state } = mount();
+    state.business = {
+      ...state.business,
+      decisionForm: {
+        id: item.id,
+        revision: item.revision,
+        decision: "approve",
+        comment: "OK",
+        overrideReason: "",
+        override: false,
+      },
+      decisionStepUp: true,
+      decisionNotice: "This decision needs a fresh sign-in.",
+    };
+    render(renderBusiness(state, project), root);
+    expect(root.querySelector('.business-decision__form button[type="submit"]')).toBeNull();
+    const confirm = root.querySelector<HTMLButtonElement>("[data-business-stepup]")!;
+    expect(confirm.textContent?.trim()).toBe("Confirm it's you");
+    confirm.click();
+    expect(state.confirmBusinessStepUp).toHaveBeenCalledTimes(1);
+    expect(root.querySelector(".business-decision__notice")?.getAttribute("role")).toBe("alert");
   });
 });
 

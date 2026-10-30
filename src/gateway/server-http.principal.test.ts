@@ -77,6 +77,7 @@ describe("HTTP principal after a refused shared secret", () => {
       familyName: null,
       groups: [],
       idTokenHint: null,
+      auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
     });
     if (!r.ok) {
       throw new Error(r.reason);

@@ -5,6 +5,7 @@ import type { GatewayRequestHandlers } from "./types.js";
 import { getPolicyEngine } from "../../policy/engine.js";
 import { parseKillBody } from "../policy-http.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
+import { requireStepUp } from "./step-up.js";
 
 export const policyHandlers: GatewayRequestHandlers = {
   "policy.status": ({ respond }) => {
@@ -66,6 +67,13 @@ function flip(
     respond(true, { agent, jobsAborted: result.jobsAborted, status: engine.status() });
     return;
   }
-  const result = engine.release({ agent, by });
+  // Releasing the kill switch needs a fresh authentication of a person (step-up).
+  const stepUp = requireStepUp(client, "emergencyStopRelease", respond, {
+    method: "policy.release",
+  });
+  if (!stepUp) {
+    return;
+  }
+  const result = engine.release({ agent, by, authn: stepUp.evidence });
   respond(true, { agent, released: result.released, status: engine.status() });
 }

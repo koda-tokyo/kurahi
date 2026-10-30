@@ -229,6 +229,7 @@ const WS_OBSERVE = new Set([
   "identity.whoami",
   "identity.org.get",
   "identity.sessions.list",
+  "identity.authenticators.list",
   ...PROJECT_OBSERVE,
 ]);
 

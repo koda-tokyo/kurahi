@@ -15,10 +15,11 @@ import { AuthAttemptLimiter, authAttemptLimiter } from "../gateway/rate-limiter.
 import { type PairScope, scopeSatisfies } from "../gateway/scopes.js";
 import { recordAuditEvent } from "../security/audit-log.js";
 import { acsUrl, callbackUrl, findProvider, spEntityId } from "./config.js";
+import { signInPageReturnTo } from "./native.js";
 import { OidcError } from "./oidc.js";
 import { hasRole } from "./rbac.js";
 import { SamlError, spMetadataXml } from "./saml/sp.js";
-import { getIdentityService, type IdentityService } from "./service.js";
+import { getIdentityService, type IdentityService, type StepUpCompletion } from "./service.js";
 import { isSsoSessionToken } from "./sessions.js";
 
 const persons = new WeakMap<IncomingMessage, PersonPrincipal>();
@@ -41,7 +42,7 @@ export const AUDITOR_READ_OPERATIONS = new Set([
   "exportJobEvidence",
 ]);
 
-function bearer(req: IncomingMessage): string | undefined {
+export function bearer(req: IncomingMessage): string | undefined {
   const raw = req.headers.authorization;
   const value = typeof raw === "string" ? raw.trim() : "";
   return value.toLowerCase().startsWith("bearer ") ? value.slice(7).trim() : undefined;
@@ -152,13 +153,13 @@ export const LOGIN_STARTS_PER_MINUTE = 30;
  */
 export const LOGIN_STARTS_GLOBAL_PER_MINUTE = 300;
 
-function noStore(res: ServerResponse) {
+export function noStore(res: ServerResponse) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Referrer-Policy", "no-referrer");
 }
 
-function json(res: ServerResponse, status: number, body: unknown) {
+export function json(res: ServerResponse, status: number, body: unknown) {
   noStore(res);
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -246,7 +247,7 @@ export function readBindingCookie(req: IncomingMessage): string | null {
   return null;
 }
 
-async function readBody(req: IncomingMessage, maxBytes: number): Promise<string | null> {
+export async function readBody(req: IncomingMessage, maxBytes: number): Promise<string | null> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
@@ -281,7 +282,9 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
     deps.globalLoginStartLimiter ?? new AuthAttemptLimiter(LOGIN_STARTS_GLOBAL_PER_MINUTE, 60_000);
   const now = deps.now ?? Date.now;
   const consoleHome = `${(deps.consoleBasePath ?? "").replace(/\/+$/, "")}/`;
+  // The command-line and native app sign-in pages finish a sign-in themselves.
   const returnTarget = (raw: string | null) =>
+    signInPageReturnTo(raw) ??
     consoleReturnTo(raw, { basePath: deps.consoleBasePath, isGatewayPath: deps.isGatewayPath });
 
   // One-time codes waiting for the console's exchange. A code that expires unredeemed (or is
@@ -369,11 +372,49 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
     redirect(res, `${localLocation(outcome.returnTo)}#sso_code=${code}`, status);
   };
 
+  /** Step-up came back: the session's auth is refreshed (or not); no code, no new session. */
+  const finishStepUp = (
+    req: IncomingMessage,
+    res: ServerResponse,
+    returnTo: string,
+    result: StepUpCompletion,
+    status = 302,
+  ) => {
+    const secure = (svc().settings.publicUrl ?? "").startsWith("https://");
+    res.setHeader("Set-Cookie", bindingCookie("", secure, 0));
+    if (!result.ok) {
+      const key = deps.attemptKey(req);
+      if (key) {
+        authAttemptLimiter.record(key);
+      }
+      redirect(
+        res,
+        `${localLocation(returnTo)}#sso_error=${encodeURIComponent(result.reason)}`,
+        status,
+      );
+      return;
+    }
+    redirect(res, `${localLocation(returnTo)}#sso_stepup=ok`, status);
+  };
+
+  /** Shared start budget for sign-ins and step-ups (per source, then gateway-wide). */
+  const startAllowed = (req: IncomingMessage, res: ServerResponse): string | null => {
+    const source = deps.attemptKey(req) ?? "local";
+    const perSource = starts.consume(source);
+    const start = perSource.allowed ? allStarts.consume("*") : perSource;
+    if (!start.allowed) {
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil(start.retryAfterMs / 1000))));
+      json(res, 429, { error: { message: "too many sign-in starts", type: "rate_limited" } });
+      return null;
+    }
+    return source;
+  };
+
   return {
     getSsoConfig: (_req: IncomingMessage, res: ServerResponse) => {
       const s = svc().settings;
       json(res, 200, {
-        enabled: s.providers.length > 0,
+        enabled: s.providers.length > 0 || s.passkeys.enabled,
         required: s.ssoRequired,
         providers: s.providers.map((p) => ({
           id: p.id,
@@ -381,6 +422,8 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
           label: p.label ?? p.id,
           loginPath: `/api/identity/sso/${p.id}/login`,
         })),
+        // Built-in sign-in (passkeys first, one-time codes as the fallback).
+        passkeys: { enabled: s.passkeys.enabled, totp: s.passkeys.enabled && s.passkeys.totp },
       });
     },
 
@@ -392,14 +435,10 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
       if (limited(req, res)) {
         return;
       }
-      // Every start holds a pending sign-in: starts are rate-limited per source as well.
-      const source = deps.attemptKey(req) ?? "local";
-      const perSource = starts.consume(source);
-      // The gateway-wide budget is spent only by starts the per-source limit let through.
-      const start = perSource.allowed ? allStarts.consume("*") : perSource;
-      if (!start.allowed) {
-        res.setHeader("Retry-After", String(Math.max(1, Math.ceil(start.retryAfterMs / 1000))));
-        json(res, 429, { error: { message: "too many sign-in starts", type: "rate_limited" } });
+      // Every start holds a pending sign-in: starts are rate-limited per source as well. The
+      // gateway-wide budget is spent only by starts the per-source limit let through.
+      const source = startAllowed(req, res);
+      if (source === null) {
         return;
       }
       const s = svc();
@@ -463,6 +502,10 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
           { redirectUri: callbackUrl(s.settings, p.id), binding: readBindingCookie(req) },
         );
         returnTo = done.returnTo;
+        if (done.stepUp) {
+          finishStepUp(req, res, returnTo, s.completeStepUp(done.claims, done.stepUp));
+          return;
+        }
         const signed = s.signIn(done.claims);
         finish(
           req,
@@ -508,6 +551,10 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
             binding: readBindingCookie(req),
           },
         );
+        if (done.stepUp) {
+          finishStepUp(req, res, done.returnTo, s.completeStepUp(done.claims, done.stepUp), 303);
+          return;
+        }
         const signed = s.signIn(done.claims, { notAfterMs: done.sessionNotOnOrAfter });
         // 303: the browser follows a POST with a GET.
         finish(
@@ -531,6 +578,100 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
           },
           303,
         );
+      }
+    },
+
+    /**
+     * Step-up: re-authenticate the person of the presenting session at the IdP (OIDC
+     * `max_age=0` + `prompt=login`, SAML `ForceAuthn`). Returns the IdP URL for the console to
+     * open (popup or same window); the callback records the fresh authentication on this
+     * session only. The provider is the session's own unless the body names another provider
+     * the person is linked to.
+     */
+    startStepUp: async (req: IncomingMessage, res: ServerResponse) => {
+      const person = getHttpPerson(req);
+      if (!person) {
+        json(res, 401, { error: { message: "Unauthorized", type: "unauthorized" } });
+        return;
+      }
+      if (limited(req, res)) {
+        return;
+      }
+      const raw = await readBody(req, 4096);
+      let body: { returnTo?: unknown; provider?: unknown } = {};
+      try {
+        const parsed: unknown = raw ? JSON.parse(raw) : {};
+        body = parsed && typeof parsed === "object" ? (parsed as typeof body) : {};
+      } catch {
+        json(res, 400, { error: { message: "invalid JSON", type: "invalid_request_error" } });
+        return;
+      }
+      const source = startAllowed(req, res);
+      if (source === null) {
+        return;
+      }
+      const s = svc();
+      const session = s.sessions.get(person.sessionId);
+      const providerId = typeof body.provider === "string" ? body.provider : person.providerId;
+      const p = findProvider(s.settings, providerId);
+      const linked = s.store
+        .getPerson(person.personId)
+        ?.links.some((l) => l.providerId === providerId);
+      const refuse = (status: number, type: string, message: string) => {
+        recordAuditEvent({
+          action: "identity.stepup.start",
+          outcome: "denied",
+          source: "gateway.http",
+          identity: person.principal,
+          detail: { provider: providerId, session: person.sessionId, reason: type },
+        });
+        json(res, status, { error: { message, type } });
+      };
+      if (!session) {
+        refuse(401, "unauthorized", "Unauthorized");
+        return;
+      }
+      if (!p || !linked) {
+        refuse(400, "no_provider", "no sign-in provider linked to this person for a step-up");
+        return;
+      }
+      const returnTo = returnTarget(typeof body.returnTo === "string" ? body.returnTo : null);
+      const binding = randomBytes(24).toString("base64url");
+      const secure = (s.settings.publicUrl ?? "").startsWith("https://");
+      const stepUp = { sessionId: session.id, personId: person.personId };
+      try {
+        const { url } =
+          p.kind === "oidc"
+            ? await s.oidc.begin(p, {
+                redirectUri: callbackUrl(s.settings, p.id),
+                returnTo,
+                binding,
+                source,
+                stepUp,
+              })
+            : s.saml.begin(p, {
+                spEntityId: spEntityId(s.settings, p),
+                acsUrl: acsUrl(s.settings, p.id),
+                returnTo,
+                binding,
+                source,
+                stepUp,
+              });
+        res.setHeader("Set-Cookie", bindingCookie(binding, secure, 600));
+        recordAuditEvent({
+          action: "identity.stepup.start",
+          outcome: "allowed",
+          source: "gateway.http",
+          identity: person.principal,
+          detail: { provider: p.id, protocol: p.kind, session: session.id },
+        });
+        json(res, 200, { ok: true, url, provider: p.id });
+      } catch (err) {
+        const reason =
+          err instanceof OidcError || err instanceof SamlError
+            ? err.reason
+            : "provider_unavailable";
+        refuse(502, reason, "the sign-in provider could not start a step-up");
       }
     },
 
@@ -619,6 +760,8 @@ export function createSsoHttpHandlers(deps: SsoHttpDeps) {
         scope: p.scope,
         approvals: p.approvals,
         session: { id: p.sessionId, expiresAt: p.expiresAt },
+        // When and how the person last authenticated (sign-in or step-up); null for old sessions.
+        auth: p.auth,
       });
     },
 

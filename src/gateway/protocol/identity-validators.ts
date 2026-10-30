@@ -1,6 +1,9 @@
 // Compiled validators for the identity methods (kept apart from protocol/index.ts).
 import AjvPkg, { type ValidateFunction } from "ajv";
 import {
+  IdentityAuthenticatorsEnrollParamsSchema,
+  IdentityAuthenticatorsListParamsSchema,
+  IdentityAuthenticatorsRemoveParamsSchema,
   IdentityGroupMappingsRemoveParamsSchema,
   IdentityGroupMappingsSetParamsSchema,
   IdentityOrgGetParamsSchema,
@@ -12,6 +15,7 @@ import {
   IdentityPersonsLinkParamsSchema,
   IdentityPersonsUnlinkParamsSchema,
   IdentityPersonsRestoreParamsSchema,
+  IdentityPersonsCreateParamsSchema,
   IdentityUnitsRemoveParamsSchema,
   IdentityUnitsUpsertParamsSchema,
   IdentityWhoamiParamsSchema,
@@ -51,6 +55,10 @@ export const identityValidators = {
   "identity.persons.link": lazyCompile(IdentityPersonsLinkParamsSchema),
   "identity.persons.unlink": lazyCompile(IdentityPersonsUnlinkParamsSchema),
   "identity.persons.restore": lazyCompile(IdentityPersonsRestoreParamsSchema),
+  "identity.persons.create": lazyCompile(IdentityPersonsCreateParamsSchema),
+  "identity.authenticators.enroll": lazyCompile(IdentityAuthenticatorsEnrollParamsSchema),
+  "identity.authenticators.list": lazyCompile(IdentityAuthenticatorsListParamsSchema),
+  "identity.authenticators.remove": lazyCompile(IdentityAuthenticatorsRemoveParamsSchema),
 } as const;
 
 export type IdentityMethod = keyof typeof identityValidators;

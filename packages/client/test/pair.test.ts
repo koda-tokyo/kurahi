@@ -311,3 +311,39 @@ describe("@kodasoken/kurahi-client pairing helpers (M3a)", () => {
     expect((await readDeviceCredential(paired.file))?.generation).toBe(1);
   });
 });
+
+describe("discover: kurahi login session", () => {
+  it("offers a live person session for the gateway only as the last resort", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "kolo-sso-discover-"));
+    try {
+      const dir = path.join(home, "secrets", "sessions");
+      fs.mkdirSync(dir, { recursive: true });
+      const write = (name: string, over: Record<string, unknown>) =>
+        fs.writeFileSync(
+          path.join(dir, name),
+          JSON.stringify({
+            version: 1,
+            gateway: "http://127.0.0.1:4321",
+            token: "kss_person",
+            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+            ...over,
+          }),
+        );
+      write("a.json", {});
+      const env = { KOLO_GATEWAY_PORT: "4321" };
+      const found = await discover({ home, env });
+      expect(found.tokenSource).toBe("sso");
+      expect(found.token).toBe("kss_person");
+      expect(
+        (await discover({ home, env: { ...env, KOLO_GATEWAY_TOKEN: "owner" } })).tokenSource,
+      ).toBe("env");
+      expect((await discover({ home, env: { KOLO_GATEWAY_PORT: "9999" } })).tokenSource).toBe(
+        "none",
+      );
+      write("a.json", { expiresAt: new Date(Date.now() - 1000).toISOString() });
+      expect((await discover({ home, env })).tokenSource).toBe("none");
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});

@@ -248,6 +248,8 @@ export type AutonomyChange = {
   itemId: string | null;
   /** accept: the proposal the person saw (recomputed and matched). */
   proposal: { kind: "promote" | "demote"; proposed: AutonomyLevel } | null;
+  /** accept: how the person authenticated (step-up evidence; never tokens). */
+  authn?: Record<string, unknown>;
   evidence: { bundle: string; root: string } | null;
 };
 
@@ -264,6 +266,10 @@ export type StandingApproval = {
   revokedAt: string | null;
   revokedBy: string | null;
   revokeReason: string | null;
+  /** How the creating person authenticated (step-up evidence; never tokens). */
+  authn?: Record<string, unknown>;
+  /** How the revoking person authenticated. */
+  revokeAuthn?: Record<string, unknown>;
 };
 
 export type ApprovalState = "active" | "expired" | "revoked";

@@ -7,6 +7,8 @@ import type { WorkItem } from "../../workitems/types.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { auditSafe } from "../../audit/audit-log.js";
 import { agentCommand } from "../../commands/agent.js";
+import { getIdentityService } from "../../identity/service.js";
+import { stepUpGate } from "../../identity/step-up.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
 import {
   accessConfigured,
@@ -16,7 +18,7 @@ import {
   rolesOf,
   viewerFilter,
 } from "../../workitems/access.js";
-import { DecisionRefused, decideWorkItem } from "../../workitems/decide.js";
+import { type ApproveAuthn, DecisionRefused, decideWorkItem } from "../../workitems/decide.js";
 import { assignAgent, type DraftRunner } from "../../workitems/drafting.js";
 import { escalateIfDue } from "../../workitems/escalation.js";
 import { verifyWorkItemEvidenceChain } from "../../workitems/evidence.js";
@@ -26,6 +28,7 @@ import { listWorkItems, readWorkItem } from "../../workitems/store.js";
 import { DEPARTMENT_IDS, type DepartmentFilter } from "../../workitems/types.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
+import { itemAmount } from "./step-up.js";
 import { workitemsIntakeHandlers } from "./workitems-intake.js";
 import { workitemsLinksHandlers } from "./workitems-links.js";
 import { workitemsNotificationsHandlers } from "./workitems-notifications.js";
@@ -108,6 +111,26 @@ function draftRunner(context: GatewayRequestContext | undefined): DraftRunner {
       .filter(Boolean)
       .join("\n\n");
     return { text };
+  };
+}
+
+/**
+ * Step-up for an approve by an SSO person: the item's amount (gateway.identity.stepUp
+ * approvals.amountField, default `amount`) decides whether a threshold covers it.
+ */
+function approveAuthn(client: Parameters<typeof actorFor>[0]): ApproveAuthn {
+  return (item) => {
+    const person = client?.person;
+    const field = getIdentityService().settings.stepUp.approvals.amountField;
+    const gate = stepUpGate(
+      person,
+      "approval",
+      { amount: itemAmount(item.source.fields[field]) },
+      { method: "workitems.decide" },
+    );
+    return gate.ok
+      ? { ok: true, evidence: gate.evidence }
+      : { ok: false, message: gate.message, details: gate.details };
   };
 }
 
@@ -381,6 +404,7 @@ export const workitemsHandlers: GatewayRequestHandlers = {
         { decision: p.decision, comment: p.comment, override: p.override ?? null },
         actorFor(client),
         p.expectedRevision,
+        { authn: approveAuthn(client) },
       );
       emit(context, item);
       respond(true, { item });

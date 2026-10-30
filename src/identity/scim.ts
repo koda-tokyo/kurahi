@@ -400,10 +400,13 @@ export function createScimHandler(opts: { service?: () => IdentityService; now?:
           });
           return send(res, 204);
         }
+        // Passkeys, the authenticator-app secret and open enrollment codes go with the person.
+        const authenticators = s.authenticators.removePerson(person.id);
         audit("identity.scim.user.delete", {
           person: person.id,
           sessions: n,
           assignments: deleted.assignments,
+          authenticators,
         });
         return send(res, 204);
       }

@@ -195,6 +195,80 @@ export const IdentityPersonsRestoreParamsSchema = strict({
   tombstoneId: Uuid,
 });
 
+// Built-in sign-in (passkeys, one-time codes): persons created by an identity admin, one-time
+// enrollment codes, and the authenticators a person holds (never keys or secrets).
+export const IdentityPersonsCreateParamsSchema = strict({
+  userName: Type.String({
+    minLength: 1,
+    maxLength: 256,
+    description: "Unique sign-in name (often the e-mail); used for one-time code sign-in.",
+  }),
+  email: Type.Optional(Type.String({ minLength: 3, maxLength: 320 })),
+  displayName: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
+});
+export const IdentityAuthenticatorsEnrollParamsSchema = strict({
+  personId: Uuid,
+  ttlMinutes: Type.Optional(
+    Type.Integer({ minimum: 1, maximum: 4320, description: "Default 60, at most 72 hours." }),
+  ),
+});
+export const IdentityAuthenticatorsEnrollResultSchema = Type.Object({
+  ok: Type.Literal(true),
+  enrollment: Type.Object({
+    id: Type.String(),
+    personId: Type.String(),
+    expiresAt: Type.String(),
+  }),
+  code: Type.String({ description: "The one-time enrollment code (shown once, never stored)." }),
+  link: Nullable(
+    Type.String({ description: "Console link that opens enrollment (`#kurahi_enroll=…`)." }),
+  ),
+  evidence: Evidence,
+});
+export const IdentityAuthenticatorsListParamsSchema = strict({
+  personId: Type.Optional(Uuid),
+});
+export const IdentityAuthenticatorsListResultSchema = Type.Object({
+  persons: Type.Array(
+    Type.Object({
+      personId: Type.String(),
+      passkeys: Type.Array(
+        Type.Object({
+          id: Type.String(),
+          label: Type.String(),
+          createdAt: Type.String(),
+          lastUsedAt: Nullable(Type.String()),
+          synced: Type.Boolean(),
+          transports: Type.Array(Type.String()),
+        }),
+      ),
+      totp: Nullable(
+        Type.Object({
+          label: Type.String(),
+          createdAt: Type.String(),
+          lastUsedAt: Nullable(Type.String()),
+        }),
+      ),
+      enrollments: Type.Array(
+        Type.Object({
+          id: Type.String(),
+          state: lit(["pending", "used", "revoked", "expired"] as const),
+          createdAt: Type.String(),
+          createdBy: Type.String(),
+          expiresAt: Type.String(),
+          usedFor: Nullable(Type.String()),
+        }),
+      ),
+    }),
+  ),
+});
+export const IdentityAuthenticatorsRemoveParamsSchema = strict({
+  personId: Uuid,
+  passkeyId: Type.Optional(Type.String({ minLength: 1, maxLength: 1400 })),
+  totp: Type.Optional(Type.Literal(true)),
+  enrollmentId: Type.Optional(Uuid),
+});
+
 export const IdentityAdminResultSchema = Type.Object({
   ok: Type.Literal(true),
   unit: Type.Optional(OrgUnitSchema),

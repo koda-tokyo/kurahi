@@ -10,6 +10,7 @@ import { WorkItemRefused } from "../../workitems/errors.js";
 import { intakeEmailForCaller, type IntakeEmailInput } from "../../workitems/intake.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
+import { requireStepUp } from "./step-up.js";
 import { actorFor, emit, fail, nonPersonOrigin, projectOf, valid } from "./workitems-shared.js";
 
 type P = Record<string, unknown> & { projectId: string; id: string; expectedRevision?: number };
@@ -58,6 +59,14 @@ export const workitemsIntakeHandlers: GatewayRequestHandlers = {
     if (!valid("workitems.clearFlag", params, respond)) {
       return;
     }
+    // Clearing a risk flag (e.g. suspected fraud) is a decision: step-up whatever the amount.
+    const stepUp = requireStepUp(client, "approval", respond, {
+      method: "workitems.clearFlag",
+      context: { always: true },
+    });
+    if (!stepUp) {
+      return;
+    }
     const p = params as P;
     try {
       const project = projectOf(p.projectId);
@@ -67,6 +76,7 @@ export const workitemsIntakeHandlers: GatewayRequestHandlers = {
         { flag: p.flag, reason: p.reason },
         actorFor(client),
         p.expectedRevision,
+        { authnEvidence: stepUp.evidence },
       );
       emit(context, item);
       respond(true, { item });

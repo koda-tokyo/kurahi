@@ -1,3 +1,5 @@
+import type { IdentitySettings } from "./config.js";
+import type { GroupMemberships, IdentityStore } from "./store.js";
 // Roles → gateway scopes and project access.
 //
 //   role                gateway scope   approvals   notes
@@ -17,8 +19,7 @@
 // A role never makes an agent a person, and approval eligibility never decides a stage: work
 // item stages still check their own approvers (`access.members` / `access.groups` of the Project,
 // which can name the groups exported below).
-import type { IdentitySettings } from "./config.js";
-import type { GroupMemberships, IdentityStore } from "./store.js";
+import { PASSKEY_PROVIDER_ID } from "../config/zod-schema.identity.js";
 import {
   type AdminArea,
   type GroupMapping,
@@ -250,15 +251,22 @@ export function resolveGrants(
 /** The principal a verified session gives, or null when the person may not act at all. */
 export function buildPersonPrincipal(
   store: IdentityStore,
-  settings: Pick<IdentitySettings, "defaultRole" | "providers" | "configRoles">,
-  session: Pick<SsoSession, "id" | "personId" | "providerId" | "expiresAt">,
+  settings: Pick<IdentitySettings, "defaultRole" | "providers" | "configRoles"> &
+    Partial<Pick<IdentitySettings, "passkeys">>,
+  session: Pick<SsoSession, "id" | "personId" | "providerId" | "expiresAt" | "auth">,
 ): { ok: true; principal: PersonPrincipal } | { ok: false; reason: string } {
   const person = store.getPerson(session.personId);
   if (!person) {
     return { ok: false, reason: "person_deleted" };
   }
-  // A session opened through a provider that is no longer configured (or no longer usable) ends.
-  if (session.providerId && !settings.providers.some((p) => p.id === session.providerId)) {
+  // A session opened through a provider that is no longer configured (or no longer usable) ends:
+  // the built-in passkey provider counts while passkeys are enabled.
+  const builtIn = session.providerId === PASSKEY_PROVIDER_ID && settings.passkeys?.enabled === true;
+  if (
+    session.providerId &&
+    !builtIn &&
+    !settings.providers.some((p) => p.id === session.providerId)
+  ) {
     return { ok: false, reason: "provider_removed" };
   }
   if (!person.active) {
@@ -303,6 +311,7 @@ export function buildPersonPrincipal(
       adminAreas: adminAreasForRoles(roles, settings),
       approvals: approvalsForRoles(roles),
       expiresAt: session.expiresAt,
+      auth: session.auth ?? null,
     },
   };
 }

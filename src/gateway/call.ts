@@ -18,6 +18,7 @@ import {
 import { GatewayClient } from "./client.js";
 import { formatLoopbackUrlHost, resolveClientLoopbackHost } from "./net.js";
 import { PROTOCOL_VERSION } from "./protocol/index.js";
+import { gatewayBaseUrl, readSsoSession } from "./sso-session-file.js";
 import { resolveGatewayTokenWithSource } from "./token-file.js";
 
 export type CallGatewayOptions = {
@@ -43,6 +44,11 @@ export type CallGatewayOptions = {
    * Does not affect config loading; callers still control auth via opts.token/password/env/config.
    */
   configPath?: string;
+  /**
+   * Command line only: authenticate as the person signed in with `kurahi login` for this
+   * gateway (a live stored session) ahead of the shared token. Never set by in-process callers.
+   */
+  useSignIn?: boolean;
 };
 
 export type GatewayConnectionDetails = {
@@ -174,10 +180,21 @@ export async function withGatewaySession<T>(
     overrideTlsFingerprint ||
     remoteTlsFingerprint ||
     (tlsRuntime?.enabled ? tlsRuntime.fingerprintSha256 : undefined);
+  const signedIn = () => {
+    if (!opts.useSignIn) {
+      return undefined;
+    }
+    try {
+      return readSsoSession(gatewayBaseUrl(url))?.token;
+    } catch {
+      return undefined;
+    }
+  };
   const token =
     (typeof opts.token === "string" && opts.token.trim().length > 0
       ? opts.token.trim()
       : undefined) ||
+    signedIn() ||
     (isRemoteMode
       ? typeof remote?.token === "string" && remote.token.trim().length > 0
         ? remote.token.trim()

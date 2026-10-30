@@ -11,6 +11,7 @@ import type { Project, ProjectsState } from "./projects";
 import { WORK_ITEM_DECISION_REFUSALS } from "../../../../packages/client/src/workitems";
 import { getBusinessDepartment } from "../business-departments";
 import { t, type MessageId } from "../i18n";
+import { loadSsoToken, runStepUp, stepUpRequired, type StepUpOutcome } from "../sso";
 import { canDeclineAutonomy } from "./autopilot";
 import {
   loadBusinessLinkedCase,
@@ -102,6 +103,8 @@ export type BusinessState = {
   decisionForm: BusinessDecisionForm | null;
   decisionPending: boolean;
   decisionNotice: string | null;
+  /** The gateway asked for a fresh sign-in (step-up) before it records this decision. */
+  decisionStepUp?: boolean;
   expenseForm: ExpenseForm | null;
   expensePending: boolean;
   expenseNotice: string | null;
@@ -140,6 +143,7 @@ export const emptyBusiness = (): BusinessState => ({
   decisionForm: null,
   decisionPending: false,
   decisionNotice: null,
+  decisionStepUp: false,
   expenseForm: null,
   expensePending: false,
   expenseNotice: null,
@@ -491,7 +495,11 @@ export async function loadBusinessItem(host: BusinessHost, id: string, backgroun
         ? { reportForm: null, reportNotice: t("business.report.changed" as MessageId) }
         : {}),
       ...(changed
-        ? { decisionForm: null, decisionNotice: t("business.decision.changed" as MessageId) }
+        ? {
+            decisionForm: null,
+            decisionNotice: t("business.decision.changed" as MessageId),
+            decisionStepUp: false,
+          }
         : {}),
     });
     void loadBusinessLinkedCase(host, item);
@@ -525,6 +533,7 @@ function clearDecision(host: BusinessHost) {
     decisionForm: null,
     decisionPending: inFlightDecisions.has(host),
     decisionNotice: null,
+    decisionStepUp: false,
   });
 }
 export function canDecide(host: BusinessHost) {
@@ -567,6 +576,7 @@ export function beginBusinessDecision(
   }
   patch(host, {
     decisionNotice: null,
+    decisionStepUp: false,
     decisionForm: {
       id: item.id,
       revision: item.revision,
@@ -649,6 +659,7 @@ export async function submitBusinessDecision(host: BusinessHost) {
   patch(host, { decisionPending: true, decisionNotice: null });
   try {
     let notice: string;
+    let stepUp = false;
     try {
       const result = await client.request<WorkitemsDecideResult>("workitems.decide", {
         projectId,
@@ -663,19 +674,70 @@ export async function submitBusinessDecision(host: BusinessHost) {
       }
       notice = t("business.decision.saved" as MessageId);
     } catch (error) {
-      notice = decisionFailure(error);
+      stepUp = stepUpRequired(error) !== null;
+      notice = stepUp
+        ? t("business.decision.stepUp.required" as MessageId)
+        : decisionFailure(error);
     }
     if (!stillCurrent()) {
       return;
     }
+    if (stepUp) {
+      // Nothing was recorded: keep the form so the person confirms it's them and submits it.
+      patch(host, { decisionNotice: notice, decisionStepUp: true });
+      return;
+    }
     // Read back on both success and uncertain failure. Never optimistically mark an item approved.
-    patch(host, { decisionForm: null, decisionNotice: notice });
+    patch(host, { decisionForm: null, decisionNotice: notice, decisionStepUp: false });
     await loadBusiness(host, false, true);
   } finally {
     // The transport owns this lock: navigation and refresh cannot release an unresolved write.
     inFlightDecisions.delete(host);
     patch(host, { decisionPending: false });
   }
+}
+
+/**
+ * "Confirm it's you": re-authenticate at the IdP (popup), then submit the same, unchanged form
+ * once more. The person asked for it on this form; the gateway re-checks everything. Call it from
+ * the click so the popup is not blocked.
+ */
+export async function confirmBusinessStepUp(
+  host: BusinessHost,
+  run: () => Promise<StepUpOutcome> = () =>
+    runStepUp({
+      origin: window.location.origin,
+      token: loadSsoToken() ?? "",
+      returnTo: `${window.location.pathname}${window.location.search}`,
+    }),
+) {
+  const form = host.business.decisionForm;
+  if (!form || !host.business.decisionStepUp || host.business.decisionPending) {
+    return;
+  }
+  patch(host, { decisionPending: true });
+  let outcome: StepUpOutcome;
+  try {
+    outcome = await run();
+  } finally {
+    patch(host, { decisionPending: inFlightDecisions.has(host) });
+  }
+  if (host.business.decisionForm !== form) {
+    return;
+  }
+  if (!outcome.ok && outcome.reason !== "closed") {
+    patch(host, {
+      decisionNotice: t(
+        (outcome.reason === "redirected"
+          ? "business.decision.stepUp.redirected"
+          : "business.decision.stepUp.failed") as MessageId,
+      ),
+    });
+    return;
+  }
+  // Confirmed (or the popup was closed: the gateway decides whether it is fresh now).
+  patch(host, { decisionStepUp: false, decisionNotice: null });
+  await submitBusinessDecision(host);
 }
 
 /** The gateway rechecks person identity and item visibility; this is only a UI capability. */

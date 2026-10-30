@@ -117,6 +117,7 @@ import {
   beginBusinessDecision as beginBusinessDecisionInternal,
   editBusinessDecision as editBusinessDecisionInternal,
   cancelBusinessDecision as cancelBusinessDecisionInternal,
+  confirmBusinessStepUp as confirmBusinessStepUpInternal,
   submitBusinessDecision as submitBusinessDecisionInternal,
   type BusinessDecisionForm,
   emptyBusiness,
@@ -236,11 +237,22 @@ import { getLocale, osLocales, resolveLocale, setLocale, t } from "./i18n";
 import { audienceFromAuth, type Audience } from "./navigation";
 import {
   clearSsoToken,
+  describePasskeyError,
+  type EnrollAs,
   loadSsoToken,
+  passkeyEnroll,
+  passkeySignIn,
+  passkeyStepUp,
+  runStepUp,
+  saveSsoToken,
   ssoLoginHref,
   ssoLogout,
   type SsoConfig,
   type SsoProvider,
+  totpEnrollBegin,
+  totpEnrollFinish,
+  type TotpSetup,
+  totpSignIn,
   type WhoAmI,
 } from "./sso";
 import { loadSettings, type UiSettings } from "./storage";
@@ -281,6 +293,11 @@ export class KoLoApp extends LitElement {
   /** Organisation sign-in (enterprise identity): providers offered, and who is connected. */
   @state() ssoConfig: SsoConfig | null = null;
   @state() identity: WhoAmI | null = null;
+  /** Built-in sign-in: an admin's enrollment link (undefined: none opened; null: malformed). */
+  @state() passkeyEnrollCode: string | null | undefined = undefined;
+  @state() passkeyBusy = false;
+  @state() passkeyNotice: string | null = null;
+  @state() totpSetup: TotpSetup | null = null;
   @state() eventLog: EventLogEntry[] = [];
   private eventLogBuffer: EventLogEntry[] = [];
   private toolStreamSyncTimer: number | null = null;
@@ -502,6 +519,133 @@ export class KoLoApp extends LitElement {
   ssoSignIn(provider: SsoProvider) {
     const returnTo = `${window.location.pathname}${window.location.search}`;
     window.location.assign(ssoLoginHref(window.location.origin, provider, returnTo));
+  }
+
+  /** Store a session token from built-in sign-in and connect with it. */
+  private useSsoToken(token: string) {
+    saveSsoToken(token);
+    this.passkeyNotice = null;
+    this.connect();
+  }
+
+  private async passkeyStep<T>(fn: () => Promise<T>): Promise<T> {
+    this.passkeyBusy = true;
+    this.passkeyNotice = null;
+    try {
+      return await fn();
+    } finally {
+      this.passkeyBusy = false;
+    }
+  }
+
+  async passkeySignIn() {
+    const out = await this.passkeyStep(() => passkeySignIn(window.location.origin));
+    if ("token" in out) {
+      this.useSsoToken(out.token);
+    } else {
+      this.passkeyNotice = describePasskeyError(out.error);
+    }
+  }
+
+  async totpSignIn(userName: string, code: string) {
+    const out = await this.passkeyStep(() => totpSignIn(window.location.origin, userName, code));
+    if ("token" in out) {
+      this.useSsoToken(out.token);
+    } else {
+      this.passkeyNotice = describePasskeyError(out.error);
+    }
+  }
+
+  /** Who enrols: the enrollment link's code, else the signed-in session. */
+  private enrollAs(): EnrollAs | null {
+    if (this.passkeyEnrollCode) {
+      return { enrollmentCode: this.passkeyEnrollCode };
+    }
+    const token = loadSsoToken();
+    return token ? { token } : null;
+  }
+
+  /**
+   * Changing authenticators while signed in needs a fresh authentication: confirm it's you
+   * (a passkey for built-in sign-in, else the organisation's IdP in a popup), once.
+   */
+  private async confirmIdentity(token: string): Promise<boolean> {
+    if (this.identity?.person?.providerId === "passkey") {
+      const out = await passkeyStepUp(window.location.origin, token);
+      return "ok" in out;
+    }
+    const out = await runStepUp({
+      origin: window.location.origin,
+      token,
+      returnTo: `${window.location.pathname}${window.location.search}`,
+    });
+    return out.ok || out.reason === "closed";
+  }
+
+  /** Run an enrollment start; on step_up_required confirm it's the person and try once more. */
+  private async withStepUp<T extends object>(
+    as: EnrollAs,
+    run: () => Promise<T | { error: string }>,
+  ): Promise<T | { error: string }> {
+    const first = await this.passkeyStep(run);
+    if (!("error" in first) || first.error !== "step_up_required" || !("token" in as)) {
+      return first;
+    }
+    if (!(await this.passkeyStep(() => this.confirmIdentity(as.token)))) {
+      return first;
+    }
+    return this.passkeyStep(run);
+  }
+
+  async passkeyEnroll(label: string) {
+    const as = this.enrollAs();
+    if (!as) {
+      this.passkeyNotice = describePasskeyError("enrollment_invalid");
+      return;
+    }
+    const out = await this.withStepUp(as, () => passkeyEnroll(window.location.origin, as, label));
+    if ("error" in out) {
+      this.passkeyNotice = describePasskeyError(out.error);
+      return;
+    }
+    const viaLink = "enrollmentCode" in as;
+    this.passkeyEnrollCode = undefined;
+    this.totpSetup = null;
+    this.passkeyNotice = viaLink ? t("identity.enroll.done") : t("identity.passkey.added");
+  }
+
+  async totpEnrollBegin() {
+    const as = this.enrollAs();
+    if (!as) {
+      this.passkeyNotice = describePasskeyError("enrollment_invalid");
+      return;
+    }
+    const out = await this.withStepUp(as, () => totpEnrollBegin(window.location.origin, as));
+    if ("error" in out) {
+      this.passkeyNotice = describePasskeyError(out.error);
+    } else {
+      this.totpSetup = out;
+    }
+  }
+
+  async totpEnrollFinish(code: string) {
+    const setup = this.totpSetup;
+    if (!setup) {
+      return;
+    }
+    const out = await this.passkeyStep(() =>
+      totpEnrollFinish(window.location.origin, setup.ceremonyId, code),
+    );
+    if ("error" in out) {
+      this.passkeyNotice = describePasskeyError(out.error);
+      if (out.error === "ceremony_unknown") {
+        this.totpSetup = null;
+      }
+      return;
+    }
+    this.totpSetup = null;
+    this.passkeyEnrollCode = undefined;
+    this.passkeyNotice = t("identity.enroll.done");
   }
 
   async ssoSignOut() {
@@ -993,6 +1137,9 @@ export class KoLoApp extends LitElement {
   }
   async submitBusinessLinkedCreate() {
     await submitBusinessLinkedCreate(this, this.locale === "ja" ? "ja" : "en");
+  }
+  async confirmBusinessStepUp() {
+    await confirmBusinessStepUpInternal(this);
   }
   async submitBusinessDecision() {
     await submitBusinessDecisionInternal(this);

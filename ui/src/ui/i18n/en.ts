@@ -2,6 +2,7 @@ import { autopilotEn } from "./autopilot";
 import { businessEn } from "./business";
 import { businessNotificationsEn } from "./business-notifications";
 // English catalogue: the reference set of message IDs. Every other locale is Partial<> of this.
+import { identityEn } from "./identity";
 import { industrialEn } from "./industrial";
 import { terminalEn } from "./terminal";
 import { voiceEn } from "./voice";
@@ -10,6 +11,7 @@ export const en = {
   ...autopilotEn,
   ...businessEn,
   ...businessNotificationsEn,
+  ...identityEn,
   ...terminalEn,
   ...voiceEn,
   "brand.maker": "KODA SōKEN",

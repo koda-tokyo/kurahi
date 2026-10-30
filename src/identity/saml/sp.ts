@@ -83,7 +83,8 @@ export type SamlFailure =
   | "no_authn_statement"
   | "unsupported_condition"
   | "too_many_pending"
-  | "nameid_format";
+  | "nameid_format"
+  | "not_fresh";
 
 /** NameID formats a provider accepts unless it names others (`nameIdFormats`). */
 export const DEFAULT_NAMEID_FORMATS = [
@@ -105,12 +106,36 @@ type PendingRequest = {
   createdAt: number;
   relayState: string;
   binding: string | null;
+  /** A step-up re-authentication for this live session (ForceAuthn), not a sign-in. */
+  stepUp: { sessionId: string; personId: string } | null;
+};
+
+export type SamlCompletion = {
+  claims: SignInClaims;
+  returnTo: string;
+  sessionNotOnOrAfter: number | null;
+  stepUp: { sessionId: string; personId: string; startedAt: number } | null;
 };
 
 const REQUEST_TTL_MS = 10 * 60_000;
 const MAX_PENDING = 2_000;
 const MAX_REPLAY = 20_000;
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+
+/** RFC 8176 `amr` values implied by a SAML AuthnContextClassRef (empty when it says nothing). */
+export function samlMethods(classRef: string | null): string[] {
+  const c = classRef ?? "";
+  if (/multipleauthn|MultiFactor|:mfa\b/i.test(c)) {
+    return ["mfa"];
+  }
+  if (/X509|Smartcard|TLSClient/i.test(c)) {
+    return ["hwk"];
+  }
+  if (/Password/i.test(c)) {
+    return ["pwd"];
+  }
+  return [];
+}
 
 function time(el: XmlElement, name: string): number | null {
   const v = attr(el, name);
@@ -195,6 +220,8 @@ export class SamlServiceProvider {
       returnTo: string;
       binding?: string | null;
       source?: string | null;
+      /** Step-up for a live session: `ForceAuthn="true"`; complete() hands the flow back. */
+      stepUp?: { sessionId: string; personId: string } | null;
     },
   ): { url: string; requestId: string } {
     this.prune();
@@ -207,6 +234,7 @@ export class SamlServiceProvider {
       createdAt: this.now(),
       relayState,
       binding: opts.binding ?? null,
+      stepUp: opts.stepUp ?? null,
     });
     if (!added) {
       throw new SamlError("too_many_pending");
@@ -216,7 +244,8 @@ export class SamlServiceProvider {
       `<samlp:AuthnRequest xmlns:samlp="${SAMLP_NS}" xmlns:saml="${SAML_NS}" ` +
       `ID="${requestId}" Version="2.0" IssueInstant="${new Date(this.now()).toISOString()}" ` +
       `Destination="${escapeXml(p.idpSsoUrl)}" AssertionConsumerServiceURL="${escapeXml(opts.acsUrl)}" ` +
-      `ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST">` +
+      `ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"` +
+      `${opts.stepUp ? ' ForceAuthn="true"' : ""}>` +
       `<saml:Issuer>${escapeXml(opts.spEntityId)}</saml:Issuer>` +
       `<samlp:NameIDPolicy AllowCreate="true"/>` +
       `</samlp:AuthnRequest>`;
@@ -234,7 +263,7 @@ export class SamlServiceProvider {
     p: IdentitySamlProviderConfig,
     form: { SAMLResponse?: string | null; RelayState?: string | null },
     opts: { spEntityId: string; acsUrl: string; binding?: string | null },
-  ): { claims: SignInClaims; returnTo: string; sessionNotOnOrAfter: number | null } {
+  ): SamlCompletion {
     const b64 = (form.SAMLResponse ?? "").replace(/\s+/g, "");
     if (!b64 || b64.length > 700_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) {
       throw new SamlError("malformed");
@@ -263,7 +292,7 @@ export class SamlServiceProvider {
     root: XmlElement,
     relayState: string | null,
     opts: { spEntityId: string; acsUrl: string; binding?: string | null },
-  ): { claims: SignInClaims; returnTo: string; sessionNotOnOrAfter: number | null } {
+  ): SamlCompletion {
     if (root.ns !== SAMLP_NS || root.local !== "Response" || attr(root, "Version") !== "2.0") {
       throw new SamlError("not_a_response");
     }
@@ -467,6 +496,14 @@ export class SamlServiceProvider {
       throw new SamlError("no_authn_statement");
     }
     const sessionNotOnOrAfter = time(authn, "SessionNotOnOrAfter");
+    const authnInstant = time(authn, "AuthnInstant");
+    // Step-up: the IdP must say when it authenticated; never assume "now".
+    if (pending.stepUp && authnInstant === null) {
+      throw new SamlError("not_fresh");
+    }
+    const ctx = childElements(authn, SAML_NS, "AuthnContext")[0];
+    const classRef = ctx ? childElements(ctx, SAML_NS, "AuthnContextClassRef")[0] : undefined;
+    const context = classRef ? textOf(classRef).trim().slice(0, 256) || null : null;
     return {
       claims: {
         providerId: p.id,
@@ -480,9 +517,15 @@ export class SamlServiceProvider {
         familyName: pick(a.familyName, DEFAULT_ATTRS.familyName)[0] ?? null,
         groups: pick(a.groups, DEFAULT_ATTRS.groups).slice(0, 500),
         idTokenHint: null,
+        auth: {
+          at: new Date(authnInstant ?? this.now()).toISOString(),
+          methods: samlMethods(context),
+          context,
+        },
       },
       returnTo: pending.returnTo,
       sessionNotOnOrAfter,
+      stepUp: pending.stepUp ? { ...pending.stepUp, startedAt: pending.createdAt } : null,
     };
   }
 

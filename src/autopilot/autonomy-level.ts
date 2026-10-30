@@ -103,6 +103,7 @@ function writeChangeEvidence(change: AutonomyChange, opts: Opts): { bundle: stri
           runId: change.runId,
           itemId: change.itemId,
           proposal: change.proposal,
+          ...(change.authn ? { authn: change.authn } : {}),
         },
       },
       { type: "job.end", ts: change.at, data: { status: "ok" } },
@@ -136,6 +137,7 @@ function auditChange(change: AutonomyChange): void {
       runId: change.runId,
       itemId: change.itemId,
       ...(change.cause === "reported_error" ? { reportedBy: change.by } : {}),
+      ...(change.authn ? { authn: change.authn } : {}),
     },
   });
 }
@@ -234,7 +236,11 @@ export function acceptAutonomyProposal(
   project: Pick<Project, "id" | "folder" | "templateId" | "archived">,
   input: AcceptAutonomyInput,
   actor: ApprovalActor,
-  opts: Opts & { policy?: AutonomyPolicy } = {},
+  opts: Opts & {
+    policy?: AutonomyPolicy;
+    /** Step-up evidence for the deciding person (recorded in the sealed change and audit). */
+    authn?: Record<string, unknown> | null;
+  } = {},
 ): { proposal: AutonomyProposalView; change: AutonomyChange; effectiveLevel: AutonomyLevel } {
   if (actor.kind !== "person") {
     throw new AutopilotRefused("not_a_person", "only a person may accept an autonomy proposal");
@@ -312,6 +318,7 @@ export function acceptAutonomyProposal(
           runId: null,
           itemId: null,
           proposal: { kind: current.kind as "promote" | "demote", proposed: current.proposed },
+          ...(opts.authn ? { authn: opts.authn } : {}),
           evidence: null,
         },
         opts,

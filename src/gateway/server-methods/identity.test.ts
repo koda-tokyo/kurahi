@@ -55,6 +55,7 @@ function signInAs(
     familyName: null,
     groups: [],
     idTokenHint: null,
+    auth: { at: new Date().toISOString(), methods: ["pwd"], context: null },
   });
   if (!r.ok) {
     throw new Error(`sign-in refused: ${r.reason}`);

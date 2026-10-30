@@ -2891,6 +2891,66 @@ export type IdentityAdminResult = {
   } | null;
 };
 
+export type IdentityAuthenticatorsEnrollParams = {
+  personId: string;
+  /** Default 60, at most 72 hours. */
+  ttlMinutes?: number;
+};
+
+export type IdentityAuthenticatorsEnrollResult = {
+  ok: true;
+  enrollment: {
+    id: string;
+    personId: string;
+    expiresAt: string;
+  };
+  /** The one-time enrollment code (shown once, never stored). */
+  code: string;
+  link: string | null;
+  evidence: {
+    bundle: string;
+    root: string;
+  } | null;
+};
+
+export type IdentityAuthenticatorsListParams = {
+  personId?: string;
+};
+
+export type IdentityAuthenticatorsListResult = {
+  persons: {
+    personId: string;
+    passkeys: {
+      id: string;
+      label: string;
+      createdAt: string;
+      lastUsedAt: string | null;
+      synced: boolean;
+      transports: string[];
+    }[];
+    totp: {
+      label: string;
+      createdAt: string;
+      lastUsedAt: string | null;
+    } | null;
+    enrollments: {
+      id: string;
+      state: "pending" | "used" | "revoked" | "expired";
+      createdAt: string;
+      createdBy: string;
+      expiresAt: string;
+      usedFor: string | null;
+    }[];
+  }[];
+};
+
+export type IdentityAuthenticatorsRemoveParams = {
+  personId: string;
+  passkeyId?: string;
+  totp?: true;
+  enrollmentId?: string;
+};
+
 export type IdentityGroupMappingsRemoveParams = {
   /** `scim` (SCIM groups) or a provider id (groups that provider asserts). */
   source: string;
@@ -2959,6 +3019,13 @@ export type IdentityOrgGetResult = {
 
 export type IdentityOrgUpdateParams = {
   name: string | null;
+};
+
+export type IdentityPersonsCreateParams = {
+  /** Unique sign-in name (often the e-mail); used for one-time code sign-in. */
+  userName: string;
+  email?: string;
+  displayName?: string;
 };
 
 export type IdentityPersonsLinkParams = {
@@ -8069,6 +8136,59 @@ export type GetBuildHealthResponse = {
 };
 export type GetBuildHealthErrorBody = string | RateLimitError;
 
+// getDeviceVerificationPage: GET /api/identity/device
+export type GetDeviceVerificationPageParams = {
+  /** query parameter */
+  user_code?: string;
+};
+export type GetDeviceVerificationPageBody = never;
+export type GetDeviceVerificationPageResponse = string;
+export type GetDeviceVerificationPageErrorBody = string | RateLimitError;
+
+// decideDeviceCode: POST /api/identity/device/decision
+export type DecideDeviceCodeParams = Record<string, never>;
+export type DecideDeviceCodeBody = {
+  user_code: string;
+  approve: boolean;
+};
+export type DecideDeviceCodeResponse = {
+  ok: true;
+  approved: boolean;
+};
+export type DecideDeviceCodeErrorBody = {
+  error: {
+    message: string;
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// lookupDeviceCode: POST /api/identity/device/lookup
+export type LookupDeviceCodeParams = Record<string, never>;
+export type LookupDeviceCodeBody = {
+  user_code: string;
+};
+export type LookupDeviceCodeResponse = {
+  request: {
+    userCode: string;
+    clientId: string;
+    clientName: string;
+    deviceName: string | null;
+    ip: string | null;
+    requestedAt: string;
+    expiresAt: string;
+  };
+};
+export type LookupDeviceCodeErrorBody = GatewayError | {
+  error: {
+    message: string;
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
 // logoutIdentity: POST /api/identity/logout
 export type LogoutIdentityParams = Record<string, never>;
 export type LogoutIdentityBody = never;
@@ -8078,6 +8198,368 @@ export type LogoutIdentityResponse = {
   endSessionUrl: string | null;
 };
 export type LogoutIdentityErrorBody = GatewayError | RateLimitError;
+
+// authorizeNativeApp: GET /api/identity/oauth/authorize
+export type AuthorizeNativeAppParams = {
+  /** query parameter */
+  client_id: string;
+  /** query parameter */
+  redirect_uri: string;
+  /** query parameter */
+  response_type: "code";
+  /** query parameter */
+  code_challenge: string;
+  /** query parameter */
+  code_challenge_method: "S256";
+  /** query parameter */
+  state: string;
+};
+export type AuthorizeNativeAppBody = never;
+export type AuthorizeNativeAppResponse = never;
+export type AuthorizeNativeAppErrorBody = string | RateLimitError;
+
+// completeNativeAuthorization: POST /api/identity/oauth/authorize/complete
+export type CompleteNativeAuthorizationParams = Record<string, never>;
+export type CompleteNativeAuthorizationBody = {
+  request: string;
+  approve: boolean;
+};
+export type CompleteNativeAuthorizationResponse = {
+  redirect: string;
+};
+export type CompleteNativeAuthorizationErrorBody = {
+  error: {
+    message: string;
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
+
+// getNativeSignInPage: GET /api/identity/oauth/continue
+export type GetNativeSignInPageParams = {
+  /** query parameter */
+  request: string;
+};
+export type GetNativeSignInPageBody = never;
+export type GetNativeSignInPageResponse = string;
+export type GetNativeSignInPageErrorBody = string | RateLimitError;
+
+// startDeviceAuthorization: POST /api/identity/oauth/device
+export type StartDeviceAuthorizationParams = Record<string, never>;
+export type StartDeviceAuthorizationBody = {
+  client_id: string;
+  /** Shown to the approver (not verified) */
+  device_name?: string;
+};
+export type StartDeviceAuthorizationResponse = {
+  device_code: string;
+  /** XXXX-XXXX */
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete: string;
+  expires_in: number;
+  interval: number;
+};
+export type StartDeviceAuthorizationErrorBody = {
+  error: string;
+  error_description?: string;
+  interval?: number;
+  [key: string]: unknown;
+} | RateLimitError;
+
+// issueSignInToken: POST /api/identity/oauth/token
+export type IssueSignInTokenParams = Record<string, never>;
+export type IssueSignInTokenBody = {
+  grant_type: string;
+  client_id: string;
+  device_code?: string;
+  code?: string;
+  redirect_uri?: string;
+  code_verifier?: string;
+};
+export type IssueSignInTokenResponse = {
+  access_token: string;
+  token_type: "Bearer";
+  expires_in: number;
+  session_id: string;
+};
+export type IssueSignInTokenErrorBody = {
+  error: string;
+  error_description?: string;
+  interval?: number;
+  [key: string]: unknown;
+} | RateLimitError;
+
+// listOwnAuthenticators: GET /api/identity/passkey/credentials
+export type ListOwnAuthenticatorsParams = Record<string, never>;
+export type ListOwnAuthenticatorsBody = never;
+export type ListOwnAuthenticatorsResponse = {
+  passkeys: {
+    id: string;
+    label: string;
+    [key: string]: unknown;
+  }[];
+  totp: {
+    label: string;
+    [key: string]: unknown;
+  } | null;
+};
+export type ListOwnAuthenticatorsErrorBody = GatewayError | RateLimitError;
+
+// beginPasskeyLogin: POST /api/identity/passkey/login/begin
+export type BeginPasskeyLoginParams = Record<string, never>;
+export type BeginPasskeyLoginBody = Record<string, unknown>;
+export type BeginPasskeyLoginResponse = {
+  ceremonyId: string;
+  publicKey: {
+    challenge: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+export type BeginPasskeyLoginErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// finishPasskeyLogin: POST /api/identity/passkey/login/finish
+export type FinishPasskeyLoginParams = Record<string, never>;
+export type FinishPasskeyLoginBody = {
+  ceremonyId: string;
+  /** PublicKeyCredential.toJSON() (binary fields base64url). */
+  credential: {
+    id: string;
+    rawId: string;
+    type: string;
+    response: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+};
+export type FinishPasskeyLoginResponse = {
+  /** The SSO session token (`kss_…`). */
+  token: string;
+  principal: string;
+  session: {
+    id: string;
+    expiresAt: string;
+  };
+  /** RFC 8176 amr values. */
+  methods: string[];
+};
+export type FinishPasskeyLoginErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// beginPasskeyRegistration: POST /api/identity/passkey/register/begin
+export type BeginPasskeyRegistrationParams = Record<string, never>;
+export type BeginPasskeyRegistrationBody = {
+  /** One-time code from an identity admin; omit when signed in (Bearer). */
+  enrollmentCode?: string;
+};
+export type BeginPasskeyRegistrationResponse = {
+  ceremonyId: string;
+  publicKey: {
+    challenge: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+export type BeginPasskeyRegistrationErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// finishPasskeyRegistration: POST /api/identity/passkey/register/finish
+export type FinishPasskeyRegistrationParams = Record<string, never>;
+export type FinishPasskeyRegistrationBody = {
+  ceremonyId: string;
+  /** PublicKeyCredential.toJSON() (binary fields base64url). */
+  credential: {
+    id: string;
+    rawId: string;
+    type: string;
+    response: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  label?: string;
+};
+export type FinishPasskeyRegistrationResponse = {
+  ok: true;
+  passkey: {
+    id: string;
+    [key: string]: unknown;
+  };
+};
+export type FinishPasskeyRegistrationErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// beginPasskeyStepUp: POST /api/identity/passkey/stepup/begin
+export type BeginPasskeyStepUpParams = Record<string, never>;
+export type BeginPasskeyStepUpBody = Record<string, unknown>;
+export type BeginPasskeyStepUpResponse = {
+  ceremonyId: string;
+  publicKey: {
+    challenge: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+export type BeginPasskeyStepUpErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// finishPasskeyStepUp: POST /api/identity/passkey/stepup/finish
+export type FinishPasskeyStepUpParams = Record<string, never>;
+export type FinishPasskeyStepUpBody = {
+  ceremonyId: string;
+  /** PublicKeyCredential.toJSON() (binary fields base64url). */
+  credential: {
+    id: string;
+    rawId: string;
+    type: string;
+    response: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+};
+export type FinishPasskeyStepUpResponse = {
+  ok: true;
+  auth: {
+    at: string;
+    methods: string[];
+    context: string | null;
+  };
+};
+export type FinishPasskeyStepUpErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// beginTotpEnrollment: POST /api/identity/passkey/totp/enroll/begin
+export type BeginTotpEnrollmentParams = Record<string, never>;
+export type BeginTotpEnrollmentBody = {
+  /** One-time code from an identity admin; omit when signed in (Bearer). */
+  enrollmentCode?: string;
+};
+export type BeginTotpEnrollmentResponse = {
+  ceremonyId: string;
+  secret: string;
+  otpauthUri: string;
+};
+export type BeginTotpEnrollmentErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// finishTotpEnrollment: POST /api/identity/passkey/totp/enroll/finish
+export type FinishTotpEnrollmentParams = Record<string, never>;
+export type FinishTotpEnrollmentBody = {
+  ceremonyId: string;
+  code: string;
+  label?: string;
+};
+export type FinishTotpEnrollmentResponse = {
+  ok: true;
+  label: string;
+};
+export type FinishTotpEnrollmentErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// stepUpTotp: POST /api/identity/passkey/totp/stepup
+export type StepUpTotpParams = Record<string, never>;
+export type StepUpTotpBody = {
+  code: string;
+};
+export type StepUpTotpResponse = {
+  ok: true;
+  auth: {
+    at: string;
+    methods: string[];
+    context: string | null;
+  };
+};
+export type StepUpTotpErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
+
+// verifyTotp: POST /api/identity/passkey/totp/verify
+export type VerifyTotpParams = Record<string, never>;
+export type VerifyTotpBody = {
+  userName: string;
+  code: string;
+};
+export type VerifyTotpResponse = {
+  /** The SSO session token (`kss_…`). */
+  token: string;
+  principal: string;
+  session: {
+    id: string;
+    expiresAt: string;
+  };
+  /** RFC 8176 amr values. */
+  methods: string[];
+};
+export type VerifyTotpErrorBody = {
+  error: {
+    message: string;
+    /** Refusal reason. */
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | RateLimitError;
 
 // getIdentitySession: GET /api/identity/session
 export type GetIdentitySessionParams = Record<string, never>;
@@ -8102,6 +8584,12 @@ export type GetIdentitySessionResponse = {
     id: string;
     expiresAt: string;
   };
+  /** The last authentication (sign-in or step-up); null for old sessions. */
+  auth: {
+    at: string;
+    methods: string[];
+    context: string | null;
+  } | null;
 };
 export type GetIdentitySessionErrorBody = GatewayError | RateLimitError;
 
@@ -8117,6 +8605,12 @@ export type GetSsoConfigResponse = {
     label: string;
     loginPath: string;
   }[];
+  passkeys: {
+    /** Built-in passkey sign-in is on. */
+    enabled: boolean;
+    /** One-time codes (TOTP) are offered as a fallback. */
+    totp: boolean;
+  };
 };
 export type GetSsoConfigErrorBody = RateLimitError;
 
@@ -8136,6 +8630,27 @@ export type ExchangeSsoCodeErrorBody = {
   };
   [key: string]: unknown;
 } | RateLimitError;
+
+// startIdentityStepUp: POST /api/identity/sso/step-up
+export type StartIdentityStepUpParams = Record<string, never>;
+export type StartIdentityStepUpBody = {
+  returnTo?: string;
+  /** Provider id */
+  provider?: string;
+};
+export type StartIdentityStepUpResponse = {
+  ok: true;
+  url: string;
+  provider: string;
+};
+export type StartIdentityStepUpErrorBody = {
+  error: {
+    message: string;
+    type: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+} | GatewayError | RateLimitError;
 
 // samlAcs: POST /api/identity/sso/{provider}/acs
 export type SamlAcsParams = {

@@ -16,6 +16,8 @@ import { auditHttpAuthFailure } from "../audit/http.js";
 import { handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import { type KoLoConfig, loadConfig } from "../config/config.js";
 import { authorizeSsoSession, createSsoHttpHandlers, getHttpPerson } from "../identity/http.js";
+import { createNativeSignInHandlers } from "../identity/native-http.js";
+import { createPasskeyHttpHandlers } from "../identity/passkey-http.js";
 import { createScimHandler } from "../identity/scim.js";
 import { getIdentityService } from "../identity/service.js";
 import { getPolicyEngine } from "../policy/engine.js";
@@ -459,12 +461,20 @@ export function createGatewayHttpServer(opts: {
       (opts.listPluginHttpRoutes?.() ?? []).some((r) => under(r.path))
     );
   };
-  const ssoHandlers = createSsoHttpHandlers({
+  const ssoDeps = {
     service: () => getIdentityService(configSnapshot()),
-    attemptKey: (req) =>
+    attemptKey: (req: IncomingMessage) =>
       isLocalDirectRequest(req, trustedProxies()) ? null : resolveAttemptKey(req, trustedProxies()),
     consoleBasePath: controlUiBasePath,
     isGatewayPath,
+  };
+  const ssoHandlers = createSsoHttpHandlers(ssoDeps);
+  const passkeyHandlers = createPasskeyHttpHandlers(ssoDeps);
+  const nativeSignIn = createNativeSignInHandlers({
+    service: () => getIdentityService(configSnapshot()),
+    attemptKey: (req) =>
+      isLocalDirectRequest(req, trustedProxies()) ? null : resolveAttemptKey(req, trustedProxies()),
+    clientIp: (req) => resolveAttemptKey(req, trustedProxies()),
   });
   const scim = createScimHandler({ service: () => getIdentityService(configSnapshot()) });
   const scimHandlers = Object.fromEntries(
@@ -582,6 +592,16 @@ export function createGatewayHttpServer(opts: {
         exchangeSsoCode: ssoHandlers.exchangeSsoCode,
         getIdentitySession: ssoHandlers.getIdentitySession,
         logoutIdentity: ssoHandlers.logoutIdentity,
+        startIdentityStepUp: ssoHandlers.startStepUp,
+        startDeviceAuthorization: nativeSignIn.deviceAuthorization,
+        getDeviceVerificationPage: nativeSignIn.deviceVerificationPage,
+        lookupDeviceCode: nativeSignIn.lookupDeviceCode,
+        decideDeviceCode: nativeSignIn.decideDeviceCode,
+        authorizeNativeApp: nativeSignIn.authorizeNative,
+        getNativeSignInPage: nativeSignIn.nativeContinuePage,
+        completeNativeAuthorization: nativeSignIn.completeNativeAuthorization,
+        issueSignInToken: nativeSignIn.token,
+        ...passkeyHandlers,
         ...scimHandlers,
         createChatCompletion: (req, res) =>
           handleOpenAiHttpRequest(req, res, {

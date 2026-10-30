@@ -6,14 +6,19 @@
 // token) may act as a bootstrap admin until the first org-admin exists, or as break-glass while
 // SSO is required; both are named in the audit and evidence. Every change is audited and sealed.
 import type { GatewayClient, GatewayRequestHandlers, RespondFn } from "./types.js";
+import { loadConfig } from "../../config/config.js";
 import { findProvider } from "../../identity/config.js";
 import { declaredAgentOrigin } from "../../identity/connect.js";
 import { recordIdentityChange } from "../../identity/evidence.js";
+import { MAX_ENROLLMENT_TTL_MS, PasskeyError, summarizePasskey } from "../../identity/passkeys.js";
 import { DIRECTORY_READ_ROLES, hasRole, personPrincipalId } from "../../identity/rbac.js";
 import { getIdentityService } from "../../identity/service.js";
+import { type AuthnEvidence, personAuthn, stepUpGate } from "../../identity/step-up.js";
 import { IdentityError } from "../../identity/store.js";
 import { type AssignmentSubject, type OrgRole } from "../../identity/types.js";
+import { recordAuditEvent } from "../../security/audit-log.js";
 import { DEPARTMENT_IDS } from "../../workitems/types.js";
+import { normalizeControlUiBasePath } from "../control-ui-shared.js";
 import { identityValidators, type IdentityMethod } from "../protocol/identity-validators.js";
 import { ErrorCodes, errorShape, formatValidationErrors } from "../protocol/index.js";
 import { actorOf } from "./projects.js";
@@ -22,9 +27,10 @@ export const IDENTITY_READ_METHODS = [
   "identity.whoami",
   "identity.org.get",
   "identity.sessions.list",
+  "identity.authenticators.list",
 ] as const;
 
-type Authority = { actor: string; authority: string };
+type Authority = { actor: string; authority: string; authn?: AuthnEvidence | null };
 
 function refuse(respond: RespondFn, code: string, message: string) {
   respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, message, { details: { code } }));
@@ -91,13 +97,36 @@ function authorize(
   }
   const person = client?.person;
   if (person) {
-    if (hasRole(person, "org-admin")) {
-      return { actor, authority: "org-admin" };
+    const authority = hasRole(person, "org-admin")
+      ? "org-admin"
+      : need === "sessions" && hasRole(person, "security-admin")
+        ? "security-admin"
+        : null;
+    if (!authority) {
+      return deny("role_required", `${method} needs the org-admin role`);
     }
-    if (need === "sessions" && hasRole(person, "security-admin")) {
-      return { actor, authority: "security-admin" };
+    // Ending sessions is protective (like the emergency stop) and never waits for a step-up;
+    // every other directory change needs a fresh authentication.
+    if (need === "sessions") {
+      return { actor, authority, authn: personAuthn(person) };
     }
-    return deny("role_required", `${method} needs the org-admin role`);
+    const gate = stepUpGate(person, "identityAdmin", {}, { method });
+    if (!gate.ok) {
+      recordIdentityChange({
+        action: method,
+        actor,
+        authority,
+        outcome: "denied",
+        detail: { code: "step_up_required", why: gate.required.why },
+      });
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, gate.message, { details: gate.details }),
+      );
+      return null;
+    }
+    return { actor, authority, authn: gate.evidence };
   }
   if (isOwnerConnection(client)) {
     if (client?.breakGlass) {
@@ -114,6 +143,16 @@ function authorize(
 function fail(respond: RespondFn, err: unknown) {
   if (err instanceof IdentityError) {
     refuse(respond, err.code, err.message);
+    return;
+  }
+  if (err instanceof PasskeyError) {
+    refuse(
+      respond,
+      err.reason,
+      err.reason === "has_authenticators"
+        ? "this person already has a passkey or an authenticator app: they add more themselves while signed in (with a fresh sign-in); an admin enrollment code is only for a first authenticator"
+        : `refused: ${err.reason}`,
+    );
     return;
   }
   respond(
@@ -526,6 +565,198 @@ export const identityHandlers: GatewayRequestHandlers = {
     }
   },
 
+  // A person for built-in sign-in (passkeys, one-time codes) when there is no IdP or SCIM to
+  // provision them. Roles come from identity.roles.assign as for anyone else.
+  "identity.persons.create": ({ params, client, respond }) => {
+    if (!valid("identity.persons.create", params, respond)) {
+      return;
+    }
+    const auth = authorize("identity.persons.create", client, "org", respond);
+    if (!auth) {
+      return;
+    }
+    const p = params as { userName: string; email?: string; displayName?: string };
+    try {
+      const person = getIdentityService().store.createPerson({
+        userName: p.userName,
+        email: p.email ?? null,
+        // Nobody verified an e-mail an admin typed: it never links accounts or matches
+        // `email:` role assignments.
+        emailVerifiedBy: null,
+        displayName: p.displayName ?? null,
+        source: "admin",
+      });
+      const evidence = recordIdentityChange({
+        action: "identity.persons.create",
+        ...auth,
+        outcome: "ok",
+        detail: { person: personPrincipalId(person.id), userName: person.userName },
+      });
+      respond(true, { ok: true, person: { id: person.id, links: person.links }, evidence });
+    } catch (err) {
+      fail(respond, err);
+    }
+  },
+
+  // One-time enrollment code (and console link) for a person's passkey or authenticator app.
+  "identity.authenticators.enroll": ({ params, client, respond }) => {
+    if (!valid("identity.authenticators.enroll", params, respond)) {
+      return;
+    }
+    const auth = authorize("identity.authenticators.enroll", client, "org", respond);
+    if (!auth) {
+      return;
+    }
+    const p = params as { personId: string; ttlMinutes?: number };
+    const svc = getIdentityService();
+    try {
+      const ttlMs = Math.min((p.ttlMinutes ?? 60) * 60_000, MAX_ENROLLMENT_TTL_MS);
+      const { code, enrollment } = svc.passkeys.issueEnrollment(p.personId, auth.actor, ttlMs);
+      // There is no person-facing notification channel for identity events: the notice to the
+      // person and to security admins is this audit entry (identity.authenticators.notice),
+      // which a SIEM forwards.
+      recordAuditEvent({
+        action: "identity.authenticators.notice",
+        outcome: "allowed",
+        source: "gateway.identity",
+        identity: personPrincipalId(p.personId),
+        detail: {
+          notify: ["person", "security-admin"],
+          event: "admin_enrollment_issued",
+          by: auth.actor,
+          enrollment: enrollment.id,
+          expiresAt: enrollment.expiresAt,
+        },
+      });
+      const evidence = recordIdentityChange({
+        action: "identity.authenticators.enroll",
+        ...auth,
+        outcome: "ok",
+        detail: {
+          person: personPrincipalId(p.personId),
+          enrollment: enrollment.id,
+          expiresAt: enrollment.expiresAt,
+        },
+      });
+      const base = normalizeControlUiBasePath(loadConfig().gateway?.controlUi?.basePath);
+      const publicUrl = svc.settings.publicUrl;
+      respond(true, {
+        ok: true,
+        enrollment: {
+          id: enrollment.id,
+          personId: enrollment.personId,
+          expiresAt: enrollment.expiresAt,
+        },
+        code,
+        // The code rides in the fragment: it never reaches server logs or a Referer header.
+        link: publicUrl ? `${publicUrl}${base}/#kurahi_enroll=${code}` : null,
+        evidence,
+      });
+    } catch (err) {
+      fail(respond, err);
+    }
+  },
+
+  "identity.authenticators.list": ({ params, client, respond }) => {
+    if (!valid("identity.authenticators.list", params, respond)) {
+      return;
+    }
+    const p = client?.person;
+    const allowed = p
+      ? hasRole(p, "org-admin", "security-admin", "auditor")
+      : isOwnerConnection(client) && !declaredAgentOrigin(client);
+    if (!allowed) {
+      refuse(
+        respond,
+        "role_required",
+        "identity.authenticators.list needs org-admin, security-admin or auditor",
+      );
+      return;
+    }
+    const { store, authenticators } = getIdentityService();
+    const personId = (params as { personId?: string }).personId;
+    const ids = personId ? [personId] : store.listPersons().map((x) => x.id);
+    respond(true, {
+      persons: ids.map((id) => ({
+        personId: id,
+        passkeys: authenticators.listPasskeys(id).map(summarizePasskey),
+        totp: authenticators.totpInfo(id),
+        enrollments: authenticators.listEnrollments(id).map((e) => ({
+          id: e.id,
+          state: authenticators.stateOf(e),
+          createdAt: e.createdAt,
+          createdBy: e.createdBy,
+          expiresAt: e.expiresAt,
+          usedFor: e.usedFor,
+        })),
+      })),
+    });
+  },
+
+  // Remove a passkey or the authenticator app, or revoke an open enrollment code (a lost device,
+  // a leaver). Sessions stay; end them with identity.sessions.revoke.
+  "identity.authenticators.remove": ({ params, client, respond }) => {
+    if (!valid("identity.authenticators.remove", params, respond)) {
+      return;
+    }
+    const auth = authorize("identity.authenticators.remove", client, "sessions", respond);
+    if (!auth) {
+      return;
+    }
+    const p = params as {
+      personId: string;
+      passkeyId?: string;
+      totp?: true;
+      enrollmentId?: string;
+    };
+    const named = [p.passkeyId, p.totp, p.enrollmentId].filter((x) => x !== undefined).length;
+    if (named !== 1) {
+      refuse(respond, "invalid", "name exactly one of passkeyId, totp or enrollmentId");
+      return;
+    }
+    const { authenticators } = getIdentityService();
+    try {
+      let removed: string;
+      if (p.passkeyId) {
+        const cred = authenticators.getPasskey(p.passkeyId);
+        if (!cred || cred.personId !== p.personId) {
+          refuse(respond, "not_found", "passkey not found");
+          return;
+        }
+        authenticators.removePasskey(cred.id);
+        removed = "passkey";
+      } else if (p.totp) {
+        if (!authenticators.removeTotp(p.personId)) {
+          refuse(respond, "not_found", "no authenticator app enrolled");
+          return;
+        }
+        removed = "totp";
+      } else {
+        const e = authenticators.getEnrollment(p.enrollmentId ?? "");
+        if (!e || e.personId !== p.personId) {
+          refuse(respond, "not_found", "enrollment not found");
+          return;
+        }
+        authenticators.revokeEnrollment(e.id);
+        removed = "enrollment";
+      }
+      const evidence = recordIdentityChange({
+        action: "identity.authenticators.remove",
+        ...auth,
+        outcome: "ok",
+        detail: {
+          person: personPrincipalId(p.personId),
+          removed,
+          passkey: p.passkeyId ? p.passkeyId.slice(0, 16) : null,
+          enrollment: p.enrollmentId ?? null,
+        },
+      });
+      respond(true, { ok: true, revoked: 1, evidence });
+    } catch (err) {
+      fail(respond, err);
+    }
+  },
+
   "identity.sessions.list": ({ params, client, respond }) => {
     if (!valid("identity.sessions.list", params, respond)) {
       return;
@@ -555,6 +786,8 @@ export const identityHandlers: GatewayRequestHandlers = {
           createdAt: s.createdAt,
           lastSeenAt: s.lastSeenAt,
           expiresAt: s.expiresAt,
+          // Command-line and native app sessions carry their client; the console's do not.
+          client: s.client ? { flow: s.client.flow, id: s.client.id, label: s.client.label } : null,
         })),
       ),
     });

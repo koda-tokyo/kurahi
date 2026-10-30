@@ -14,14 +14,24 @@ English: [Enterprise identity](/security/identity)
 
 人は組織の ID プロバイダー（IdP）でゲートウェイと Work Console にサインインします。サインインした人は **パーソン・プリンシパル**（`person:<id>`）で、デバイス（ペアリング資格情報、デバイス鍵）やエージェント（バックエンドのツール接続）とは区別されます。人ができることはロールで決まります。人だけが行える操作（作業項目の決定、オートパイロットの承認、全体停止）は、どのロールを持っていてもエージェント接続を拒否します。
 
-| 機能                | 内容                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------ |
-| OIDC サインイン     | PKCE（S256）付き認可コード、`state` と `nonce`。ディスカバリーを公開する任意のプロバイダー |
-| SAML 2.0 サインイン | SP 起点。署名付きアサーション必須。オーディエンス、受信者、有効期間、リプレイを検査        |
-| SSO セッション      | 不透明トークン `kss_…`、絶対有効期間とアイドルタイムアウト、ログアウト（OIDC は RP 起点）  |
-| SCIM 2.0            | Entra ID / Okta のプロビジョニング用 Users と Groups。無効化でセッションを即時終了         |
-| 組織                | 自社で定義する部門とチーム、ロール、IdP グループ → ロール対応。変更はすべて監査・封印      |
-| SSO 必須            | 人は SSO 必須。ゲートウェイトークンは監査付きブレイクグラスとしてのみ有効                  |
+| 機能                | 内容                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| OIDC サインイン     | PKCE（S256）付き認可コード、`state` と `nonce`。ディスカバリーを公開する任意のプロバイダー        |
+| SAML 2.0 サインイン | SP 起点。署名付きアサーション必須。オーディエンス、受信者、有効期間、リプレイを検査               |
+| SSO セッション      | 不透明トークン `kss_…`、絶対有効期間とアイドルタイムアウト、ログアウト（OIDC は RP 起点）         |
+| SCIM 2.0            | Entra ID / Okta のプロビジョニング用 Users と Groups。無効化でセッションを即時終了                |
+| 組織                | 自社で定義する部門とチーム、ロール、IdP グループ → ロール対応。変更はすべて監査・封印             |
+| SSO 必須            | 人は SSO 必須。ゲートウェイトークンは監査付きブレイクグラスとしてのみ有効                         |
+| CLI とデスクトップ  | `kurahi login`（RFC 8628）とネイティブアプリ（RFC 8252、PKCE）が同じ SSO から専用セッションを取得 |
+| 機能                | 内容                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------        |
+| OIDC サインイン     | PKCE（S256）付き認可コード、`state` と `nonce`。ディスカバリーを公開する任意のプロバイダー        |
+| SAML 2.0 サインイン | SP 起点。署名付きアサーション必須。オーディエンス、受信者、有効期間、リプレイを検査               |
+| SSO セッション      | 不透明トークン `kss_…`、絶対有効期間とアイドルタイムアウト、ログアウト（OIDC は RP 起点）         |
+| SCIM 2.0            | Entra ID / Okta のプロビジョニング用 Users と Groups。無効化でセッションを即時終了                |
+| 組織                | 自社で定義する部門とチーム、ロール、IdP グループ → ロール対応。変更はすべて監査・封印             |
+| SSO 必須            | 人は SSO 必須。ゲートウェイトークンは監査付きブレイクグラスとしてのみ有効                         |
+| パスキー            | IdP なしの組み込みサインイン：パスキー（WebAuthn）とワンタイムコード。全プランで無料              |
 
 ## 設定
 
@@ -57,21 +67,23 @@ kurahi secrets set identity.scim.token              # 32 文字以上のラン�
 }
 ```
 
-| キー                               | 既定値                           | 意味                                                                                                          |
-| ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `publicUrl`                        | なし                             | SSO に必須。`https://`（`http://` はテスト用にループバックのみ）                                              |
-| `providers[]`                      | なし                             | 最大 10 件の OIDC / SAML プロバイダー。`id` は URL に入る（`a-z`、`0-9`、`-`。`scim` と `legacy` は予約済み） |
-| `session.lifetimeMinutes`          | 480（最大 1440）                 | セッションの絶対有効期間。SAML の `SessionNotOnOrAfter` があれば短縮                                          |
-| `session.idleMinutes`              | 60                               | この時間リクエストのないセッションは終了                                                                      |
-| `clockSkewSeconds`                 | 120（最大 300）                  | トークンとアサーションで許容する時刻のずれ                                                                    |
-| `defaultRole`                      | なし                             | 割り当ても対応グループもない人のロール。なしの場合サインインを拒否                                            |
-| `requireProvisioned`               | SCIM 有効時 true、それ以外 false | SCIM でプロビジョニングされた有効な人だけがサインイン可能                                                     |
-| `scim.enabled` / `scim.token`      | 無効                             | 両方そろったときだけ SCIM エンドポイントが応答                                                                |
-| `ssoRequired`                      | false                            | [SSO 必須とブレイクグラス](#sso-必須とブレイクグラス) を参照                                                  |
-| `breakGlass.localOnly`             | true                             | ブレイクグラスはゲートウェイホストからのみ                                                                    |
-| `providers[].trustEmailForLinking` | false                            | [アカウントの結び付け](#アカウントの結び付け) を参照                                                          |
-| `localPersons`                     | 下記参照                         | [人とみなす接続](#人とみなす接続) を参照                                                                      |
-| `configRoles`                      | なし                             | `operator.config`（ホストレベルのメソッド）も与えるロール。[ロール](#組織、ロール、グループ対応付け) を参照   |
+| キー                               | 既定値                           | 意味                                                                                                                                   |
+| ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `publicUrl`                        | なし                             | SSO に必須。`https://`（`http://` はテスト用にループバックのみ）                                                                       |
+| `providers[]`                      | なし                             | 最大 10 件の OIDC / SAML プロバイダー。`id` は URL に入る（`a-z`、`0-9`、`-`。`scim` と `legacy` は予約済み）                          |
+| `session.lifetimeMinutes`          | 480（最大 1440）                 | セッションの絶対有効期間。SAML の `SessionNotOnOrAfter` があれば短縮                                                                   |
+| `session.idleMinutes`              | 60                               | この時間リクエストのないセッションは終了                                                                                               |
+| `clockSkewSeconds`                 | 120（最大 300）                  | トークンとアサーションで許容する時刻のずれ                                                                                             |
+| `defaultRole`                      | なし                             | 割り当ても対応グループもない人のロール。なしの場合サインインを拒否                                                                     |
+| `requireProvisioned`               | SCIM 有効時 true、それ以外 false | SCIM でプロビジョニングされた有効な人だけがサインイン可能                                                                              |
+| `scim.enabled` / `scim.token`      | 無効                             | 両方そろったときだけ SCIM エンドポイントが応答                                                                                         |
+| `ssoRequired`                      | false                            | [SSO 必須とブレイクグラス](#sso-必須とブレイクグラス) を参照                                                                           |
+| `breakGlass.localOnly`             | true                             | ブレイクグラスはゲートウェイホストからのみ                                                                                             |
+| `providers[].trustEmailForLinking` | false                            | [アカウントの結び付け](#アカウントの結び付け) を参照                                                                                   |
+| `localPersons`                     | 下記参照                         | [人とみなす接続](#人とみなす接続) を参照                                                                                               |
+| `configRoles`                      | なし                             | `operator.config`（ホストレベルのメソッド）も与えるロール。[ロール](#組織、ロール、グループ対応付け) を参照                            |
+| `deviceSignIn`                     | true                             | `kurahi login`（デバイス認可グラント）。[コマンドラインとデスクトップのサインイン](#コマンドラインとデスクトップのサインイン) を参照   |
+| `nativeClients[]`                  | Kurahi Desktop（ループバック）   | 人をサインインさせてよいネイティブアプリ。[コマンドラインとデスクトップのサインイン](#コマンドラインとデスクトップのサインイン) を参照 |
 
 使えないプロバイダー（`publicUrl` がないなど）は、起動時に `identity: …` としてログに出ます。
 
@@ -127,6 +139,93 @@ Google Cloud で OAuth クライアント（ウェブアプリケーション）
 
 OIDC：上記のリダイレクト URI を持つ機密クライアント、`issuer: "https://keycloak.example.com/realms/<realm>"`、名前 `groups` の **Group Membership** マッパー（フルパスはオフ）。SAML：ACS URL を持つ SAML クライアント、「Sign assertions」オン、署名アルゴリズム RSA_SHA256、名前 `groups` のグループリストマッパー。
 
+## パスキーとワンタイムコード
+
+Entra ID や Okta などの IdP を持たない組織でも、強固なサインインを利用できます。Kurahi 自身が ID プロバイダーになります。人は **パスキー**（WebAuthn。デバイスの指紋・顔認証・PIN で解除する鍵で、鍵はデバイスの外に出ず、このサイトに結び付くためフィッシングされません）でサインインし、予備として認証アプリの **ワンタイムコード**（TOTP）も使えます。組み込みサインインは全プランで無料で、OIDC / SAML プロバイダーと併用できます。
+
+```json5
+{
+  gateway: {
+    identity: {
+      publicUrl: "https://kurahi.example.co.jp",
+      passkeys: {
+        enabled: true,
+        // 既定値：rpId = publicUrl のホスト、origins = [publicUrl のオリジン]、rpName "Kurahi"
+        // rpId: "example.co.jp",
+        // allowedOrigins: ["https://kurahi.example.co.jp"],
+        userVerification: "required", // または "preferred"
+        totp: true, // false にするとパスキーのみ
+      },
+    },
+  },
+}
+```
+
+| キー                        | 既定値                 | 意味                                                                                                      |
+| --------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `passkeys.enabled`          | false                  | 組み込みサインインを有効にする（プロバイダー ID `passkey`、予約済み）。                                   |
+| `passkeys.rpId`             | `publicUrl` のホスト   | WebAuthn のリライングパーティ ID。すべてのオリジンはこのドメインかその配下であること。IP アドレスは不可。 |
+| `passkeys.rpName`           | `Kurahi`               | 認証器に表示される名前。                                                                                  |
+| `passkeys.userVerification` | `required`             | `required`：毎回 PIN または生体認証。`preferred`：本人確認できない機器ではタッチのみでも可。              |
+| `passkeys.allowedOrigins`   | `publicUrl` のオリジン | ブラウザーがサインインできる正確なオリジン（https。http は localhost のみ）。                             |
+| `passkeys.totp`             | true                   | ワンタイムコードを予備として提供する。                                                                    |
+
+パスキーは「ID を構成済み」とみなされます。パスキーだけを有効にした場合もローカルパーソンモードは既定でオフになり、`ssoRequired: true` も満たされます（人はパスキーでサインインし、ゲートウェイトークンはブレイクグラスのみ）。
+
+### 登録できる人
+
+自己登録はありません。パスキーや認証アプリを追加できるのは次の場合だけです。
+
+1. **ディレクトリにすでに存在する人**（SCIM でプロビジョニング、ID 管理者が `identity.persons.create` で作成、または以前の SSO サインインで作成）が、ID 管理者が `identity.authenticators.enroll` で発行する **1 回限りの登録リンク** を使う場合。リンク（`<publicUrl>/#kurahi_enroll=kpe_…`）はコードを URL フラグメントに含むため、サーバーログや `Referer` ヘッダーに残りません。Console はアドレスバーから直ちに取り除きます。コードの有効期間は既定で 60 分（`ttlMinutes`、最長 72 時間）、使用は 1 回だけ、保存は SHA-256 ハッシュのみで、取り消しもできます。1 人あたり未使用のコードは最大 5 件です。
+2. **サインイン中の人が別のパスキーを追加する** 場合（概要 → **パスキーを追加**）。2 台目のデバイスやセキュリティキー向けです。1 人あたり最大 10 個です。
+
+登録コードで設定できるのは、その人の **最初の** 認証手段だけです。パスキーまたは認証アプリをすでに持つ人には `identity.authenticators.enroll` は拒否し（`has_authenticators`）、未使用のコードも本人が認証手段を持った時点で使えなくなります。そうした人は、サインイン中に自分でデバイスを追加します。セッションからのパスキー追加や認証アプリの登録には直前の認証（後述のステップアップ `authenticatorChange`）が必要で、盗まれたセッションが自分の認証手段を追加することはできません。既存の認証アプリを **置き換える** 場合は、その直前の認証が現在の認証アプリのコードまたはパスキー（amr の `otp`、`hwk`、`swk`）によるものである必要があり、IdP だけでは足りません。認証手段の変更と管理者によるコード発行のたびに、本人とセキュリティ管理者向けの監査エントリ `identity.authenticators.notice`（変更したセッションを記録）を書き込みます（ID 用のアプリ内通知はまだないため、SIEM から転送してください）。管理者のコードで設定した認証手段によるサインインは、`identity.passkey.login`／`identity.totp.login` に `credentialSource: "admin"` と記録されます。
+
+無効化または削除された人は、登録もサインインもできません。SCIM で人を削除すると、その人のパスキー、認証アプリ、未使用のコードも削除されます。`requireProvisioned`（SCIM 有効時の既定）では、IdP の場合と同様に、パスキーでも SCIM でプロビジョニングされた人だけがサインインできます。
+
+IdP のない組織の最初の設定は次のとおりです（最初の `org-admin` ができるまでは、ゲートウェイトークンがブートストラップ管理者として操作できます）。
+
+```text
+identity.persons.create        { userName: "sato@example.co.jp", displayName: "佐藤 花子" }
+identity.roles.assign          { subject: "person:<id>", role: "org-admin" }
+identity.authenticators.enroll { personId: "<id>" }   → { code, link, expiresAt }
+```
+
+リンクは信頼できる経路で本人に送ってください（使用されるまでは資格情報です）。デバイスの紛失や退職時は `identity.authenticators.remove { personId, passkeyId }`（または `totp: true`、未使用コードの取り消しは `enrollmentId`）と、稼働中のセッションを終了する `identity.sessions.revoke` を使います。`identity.authenticators.list` は各人のパスキー（ラベル、作成日時、最終使用日時、同期型かデバイス固定か）、認証アプリ、コードの状態を表示し、鍵やシークレットは表示しません。すべての変更は監査され、ID エビデンスに封印されます。
+
+### ゲートウェイが検査すること
+
+登録とサインインは WebAuthn Level 2/3（§7.1、§7.2）に従い、外部ライブラリは使いません。
+
+- セレモニーごとの **1 回限りのチャレンジ**。サーバー側に 5 分間保持し、結果にかかわらず最初の完了処理で消費します。未完了のセレモニー数には上限（接続元ごとに 20、全体で 2,000）があり、開始は SSO サインインの開始と同様に接続元ごと・ゲートウェイ全体でレート制限されます。
+- `clientDataJSON` の type、チャレンジ、**オリジン**（パスキーのオリジンのいずれかと完全一致。クロスオリジンの iframe は拒否）、認証器データの **RP ID ハッシュ**。
+- **ユーザー存在確認**（常に）、**ユーザー検証**（`userVerification: "required"` の場合）。
+- 保存済み公開鍵による署名：**ES256**（P-256）、**EdDSA**（Ed25519）、**RS256**（RSA 2048 ビット以上、公開指数 65537）。COSE 鍵は厳格な CBOR デコーダーで解析し、SPKI として保存します。
+- **署名カウンター**：カウンターが増えない場合（カウンターを持たない認証器を除く）は複製された認証器とみなし、サインインを拒否して監査します。
+- 認証器がユーザーハンドルを返す場合は、その資格情報のものと一致すること。
+
+Kurahi は `attestation: "none"` を要求し、認証器の機種で信頼を判断しません。空の `none` ステートメントは検査し、一部の認証器が送る他の形式はステートメントを検証せずに受け付けます。鍵を信頼する根拠は、登録時に本人であることを証明したことであり、アテステーションではありません。
+
+サインインは **ユーザー名不要** です。ブラウザーがこのサイト用に保持しているパスキーを提示します（登録時に検出可能な資格情報を必須にしています）。HTTP エンドポイントはパスキーのオリジンからの JSON POST のみ受け付ける（`Content-Type: application/json`、およびブラウザーが送る場合は `Origin` ヘッダー）ため、他のサイトがセレモニーを操作することはできません。サインインに成功すると、Console 自身のリクエストの応答本文でセッショントークンを返し（リダイレクトも URL 内のコードもありません）、プロバイダーとプロトコルが `passkey` の通常の SSO セッションを開きます。ロール、アイドル・絶対タイムアウト、失効、エビデンスは OIDC / SAML と同じように機能します。
+
+### セッションに記録される認証
+
+セッションの認証記録（`auth`）には RFC 8176 の `amr` 値が入ります。
+
+| 方式                                            | `amr`                                             |
+| ----------------------------------------------- | ------------------------------------------------- |
+| デバイス固定のパスキー（セキュリティキー、TPM） | `hwk`。デバイスが本人確認した場合は `user` も付与 |
+| 同期型パスキー（バックアップ対象）              | `swk`。デバイスが本人確認した場合は `user` も付与 |
+| ワンタイムコード                                | `otp`                                             |
+
+**ステップアップ**：サインイン中の人は、自分のパスキー（`POST /api/identity/passkey/stepup/begin|finish`。その人のパスキーだけを提示）またはワンタイムコード（`POST /api/identity/passkey/totp/stepup`）で再度証明できます。セッションの `auth` は新しい時刻と方式に置き換わります。他人のパスキーでセッションをステップアップすることはできません。コードからは `src/identity/passkeys.ts` の `stepUpWithPasskey(service, { sessionId, ceremonyId, credential })` で同じ処理を行い、`{ ok: true, auth }` または `{ ok: false, reason }` を返します。
+
+### ワンタイムコード（TOTP）
+
+RFC 6238、SHA-1、6 桁、30 秒間隔（すべての認証アプリが対応）。時刻のずれに備えて前後 1 ステップを受け付けます。コードは **1 回だけ** 有効です。最後に使ったステップを人ごとに記録し、そのステップ以前は拒否します。5 分間に 5 回誤ったコードを入力すると、そのユーザー名でのワンタイムコードによるサインインが一時停止します（存在しない名前でも同様に動作するため、名前の有無は分かりません）。パスキーは引き続き使えます。認証アプリの設定は最初のコードで確認し、そのコードは消費されます。
+
+TOTP シークレットは、Kurahi のシークレットストアに保管するデータ鍵（`identity.authenticators.key`。初回使用時に作成。`kurahi secrets list` で確認可）のもとで AES-256-GCM により暗号化して保存し、人に結び付けます。認証器は `<KOLO_HOME>/identity/authenticators.json`（0600）に保存されます：パスキーの公開鍵、暗号化した TOTP シークレット、登録コードのハッシュ。秘密鍵や平文のシークレットは保存しません。ファイル型のシークレットバックエンドではデータ鍵が同じマシン上にあるため、この暗号化が守るのは ID ディレクトリのコピー（バックアップ、サポートバンドル）であり、侵害されたホストではありません。コードはパスキーより弱い要素です（リアルタイムでフィッシングされ得ます）。全員がパスキーを持ったら `passkeys.totp: false` で無効にしてください。
+
 ## アカウントの結び付け
 
 サインインは次の順で人に結び付きます。
@@ -167,6 +266,73 @@ SAML ライブラリを使わない理由：信頼経路では汎用 XML スタ�
 - 人にはデバイストークンを発行しません。保存されたデバイストークンが SSO セッションより長く残るためです。
 - セッショントークンは SHA-256 ハッシュだけを保存します（`<KOLO_HOME>/identity/sessions.json`、0600）。RP 起点ログアウト用の OIDC ID トークンはメモリにだけ保持します。ゲートウェイの再起動後のログアウト URL は、`id_token_hint` なしで `client_id` を送ります。
 - サインイン開始は接続元ごとに毎分 30 回まで、ゲートウェイ全体で毎分 300 回まで（429 と `Retry-After`）、進行中のサインインは接続元ごとに 20 件まで（新しいものがその接続元の最も古いものを置き換えます）です。ゲートウェイ全体の進行中サインインが満杯のときは、他の人のサインインを追い出さず、新しい開始を拒否します（`too_many_pending`）。
+
+## 判断のステップアップ認証
+
+重要な承認には、直前の認証による署名が付きます。次の判断では、SSO の人の最後の認証（サインインまたはステップアップ）が `maxAgeSeconds` より古い場合、または `requireMethods` のいずれの方式も使っていない場合、ゲートウェイは何も記録せずに再認証を求めます。
+
+| アクション             | メソッド                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `approvals`            | `workitems.decide` の承認（すべて、または金額以上）                                                           |
+| `autopilotLevel`       | 昇格の `autopilot.autonomy.accept`                                                                            |
+| `emergencyStopRelease` | `autopilot.startAll`、`policy.release`                                                                        |
+| `identityAdmin`        | `identity.*` のディレクトリ変更（ロール、組織単位、対応付け、結び付け）                                       |
+| `authenticatorChange`  | サインイン中のパスキー追加、認証アプリの登録・置き換え                                                        |
+| `governance`           | `governance.holds.release`、`export.create`、`dsr.execute`、`policy.set`、`retention.run`（プレビューを除く） |
+
+リスクフラグの解除（`workitems.clearFlag`）は金額にかかわらず承認として、仕入先の選定（`workitems.selectSupplier`）は項目の金額の承認として、常設承認の作成（`autopilot.approvals.create`）はルーチンのレベル引き上げとして扱います。
+
+停止（`autopilot.stopAll`、`policy.kill`）、降格、差し戻し、キャンセル、常設承認の取り消し、リーガルホールドの設定、セッションの終了（`identity.sessions.revoke`）はステップアップの対象外です。保護のための操作はすぐに実行できます（認証の記録は残ります）。コマンドラインやアプリのセッションは、承認したブラウザの認証を引き継ぎません。認証の記録がないため、対象の判断には常にステップアップが必要です。ブレイクグラスのログイン、ローカルの人、エージェントは SSO の人ではないため従来どおりです（ブレイクグラスは引き続き判断できません。[SSO 必須とブレイクグラス](#sso-必須とブレイクグラス) を参照）。Kurahi 2.5 より前に保存されたセッションには認証の記録がないため、これらの操作では常にステップアップが必要です。
+
+```json5
+{
+  gateway: {
+    identity: {
+      stepUp: {
+        enabled: true, // 既定: ID が設定されていれば有効
+        maxAgeSeconds: 300, // 既定 300（30〜3600）
+        requireMethods: ["hwk", "mfa"], // RFC 8176 の amr 値（いずれか）。既定はなし
+        actions: {
+          approvals: { amountAtLeast: 100000, amountField: "amount" }, // または true / false
+          autopilotLevel: true,
+          emergencyStopRelease: true,
+          identityAdmin: true,
+          authenticatorChange: true,
+          governance: true,
+        },
+      },
+    },
+  },
+}
+```
+
+`amountAtLeast` は、ルートと同じように項目のフォームフィールド（`amountField`、既定は `amount`）を読みます。フィールドのない項目は対象外、数値でない値は対象になります。`requireMethods` を指定した場合、IdP がその方式を報告する必要があります。OIDC では `amr`、SAML では `AuthnContextClassRef` から導いた方式（多要素のクラスは `mfa`、X.509／スマートカードは `hwk`、パスワードは `pwd`）です。パスキーによるステップアップ（`protocol: "passkey"`）も同じように数えます。
+
+**拒否。** ステップアップが必要な場合、対象のメソッドは `INVALID_REQUEST` を返し、`error.details` は次のとおりです（`why` は `stale`、`method`、`no_auth`）。何も記録されません。拒否は `identity.stepup.required` として監査されます。
+
+```json
+{
+  "code": "step_up_required",
+  "action": "approval",
+  "why": "stale",
+  "maxAgeSeconds": 300,
+  "requireMethods": [],
+  "authAt": "2026-10-30T01:02:03.000Z",
+  "stepUpPath": "/api/identity/sso/step-up"
+}
+```
+
+**再認証。** `POST /api/identity/sso/step-up`（SSO セッションの Bearer、本文 `{ "returnTo": "/business" }`、任意で本人が結び付いている `provider`）は `{ url }` を返し、バインディングクッキーを設定します。`url` を開くと、セッションの IdP で再認証します。OIDC は `max_age=0` と `prompt=login`（プロバイダーの `stepUpAcrValues` を `acr_values` として追加）、SAML は `ForceAuthn="true"` です。戻ったとき、ゲートウェイは示されたプロバイダーの結び付け（issuer と subject）がセッション本人のものであること（別の人には決して切り替えない）と、認証がステップアップ開始後（時計のずれは 5 秒まで）に行われたことを確認します。OIDC のステップアップには `auth_time` が必要で（トークンの `iat` は数えません）、SAML には `AuthnInstant` が必要です。これらがない、または `prompt=login` を無視する IdP は `not_fresh` で拒否します。そのうえで新しい認証を同じセッションに記録します。新しいセッション、新しいトークン、`#sso_code` はありません。ブラウザーは `returnTo` に `#sso_stepup=ok`、または `#sso_error=<理由>`（`person_mismatch`、`not_fresh`、`session_ended` など）付きで戻ります。開始と完了は監査されます（`identity.stepup.start`、`identity.stepup.complete`）。ステップアップの開始はサインイン開始と同じ上限を共有します。`GET /api/identity/session` はセッションの `auth`（`at`、`methods`、`context`）を返します。判定はリクエスト時点のセッションを読むため、ステップアップ（IdP、パスキー、ワンタイムコード）直後の再試行は同じ接続で成功します。
+
+**エビデンス。** 対象の判断には、その人の認証方法が記録されます（トークンは記録しません）。
+
+```json
+"authn": { "authAt": "…", "methods": ["pwd", "mfa"], "context": "…", "protocol": "oidc", "stepUp": true }
+```
+
+`stepUp: true` は、ポリシーの対象となる判断で、認証が十分に新しかったことを示します。`false` は対象外（たとえば `amountAtLeast` 未満）を示します。記録先は、業務項目の履歴、封印されたエビデンスバンドルと監査エントリ（フラグ解除と仕入先選定も含む）、封印された自律レベル変更とその監査エントリ、常設承認とその監査エントリ、ID 管理のバンドルと監査エントリ、封印されたリーガルホールドのバンドルとガバナンスの監査エントリ、`autopilot.startAll` と `policy.release` の監査エントリです。
+
+**Console。** 承認にステップアップが必要な場合、判断フォームは開いたままになり、ボタンが **Confirm it's you（本人確認）** に変わります。ポップアップで IdP を開き、本人が戻るとそのフォームをもう一度送信します。ポップアップが使えない場合は同じウィンドウで続行し、項目に戻ります。
 
 ## SCIM 2.0
 
@@ -317,18 +483,115 @@ WebSocket のハンドシェイクでは、理由は `connect.auth.breakGlass` �
 
 注意：同じホスト上のリバースプロキシがループバックで接続し、`X-Forwarded-For` を付けない（または `Host` を `localhost` に書き換える）と、プロキシ経由のすべてのリクエストがローカルに見えます。その場合「ゲートウェイホストからのみ」のブレイクグラス、ローカルのエージェント例外、ローカルの HTTP 規則がリモートの利用者に適用されてしまいます。同じホストのプロキシの背後では、`X-Forwarded-For` を送らせ、`gateway.trustedProxies` に登録してください。
 
+## コマンドラインとデスクトップのサインイン
+
+一度のサインインで、すべての画面へ。同じ会社アカウントで、コマンドラインとネイティブアプリ（Kurahi Desktop、将来はモバイル）にもサインインできます。ゲートウェイは自分のセッションを発行する OAuth 2.0 認可サーバーとして動作します。人は必ずブラウザで通常の SSO を通してサインインするため、どのプロバイダー（OIDC、SAML、パスキー）でも使えます。アプリが IdP のシークレットを持つことはなく、ブラウザのセッションを見ることもありません。アプリには同じ人の **新しい** `kss_` セッションが発行されます。プロバイダーとプロトコルは同じで、ID は別、認証の記録はなし（直前のブラウザサインインの新しさを長期のクライアントトークンに貸すことはなく、対象の判断には独自のステップアップが必要）、クライアントのラベル付き、終了時刻は承認したブラウザのサインインより後になりません（SAML の `SessionNotOnOrAfter` も引き継ぎます）。これらのセッションは `identity.sessions.list` に `client`（`flow`、`id`、`label`。例：`CLI: Kurahi CLI (alice@build-01)`）付きで表示され、ほかのセッションと同じく失効（`identity.sessions.revoke`、ログアウト）でき、SCIM で人が無効化・削除されると終了します。承認からトークン取得までの間に無効化されたり、すべてのロールを失ったりした人には `access_denied` を返します。
+
+```json5
+{
+  gateway: {
+    identity: {
+      deviceSignIn: true, // 既定値
+      // 既定値：[{ id: "kurahi-desktop", name: "Kurahi Desktop", redirect: "loopback" }]。
+      // 指定したリストが既定値を置き換えます。[] でネイティブアプリのサインインを無効化。
+      nativeClients: [
+        { id: "kurahi-desktop", name: "Kurahi Desktop", redirect: "loopback" },
+        { id: "kurahi-mobile", name: "Kurahi Mobile", redirect: "com.kodasoken.kurahi" },
+      ],
+    },
+  },
+}
+```
+
+### コマンドライン：`kurahi login`
+
+```bash
+kurahi login                  # リンクとコードを表示し、ブラウザを開く
+kurahi login --url https://kurahi.example.com --no-open --device-name build-01
+kurahi whoami                 # 人、ロール、スコープ、セッション終了時刻
+kurahi logout                 # ゲートウェイでセッションを終了し、保存を消す
+```
+
+`login` は OAuth 2.0 デバイス認可グラント（RFC 8628）を使うため、SSH 越しやブラウザのないマシンでも使えます。任意の端末でリンクを開き、サインインし、コードを確かめて承認します。トークンはそのゲートウェイの URL ごとに `<KOLO_HOME>/secrets/sessions/<id>.json`（0600、ディレクトリ 0700）に保存され、表示されることはありません。WebSocket で話すゲートウェイコマンド（`callGatewayFromCli`）は、共有ゲートウェイトークンより優先してその人として認証するため、`ssoRequired` でもブレイクグラスなしで使えます。`kurahi logout` で共有トークンに戻ります。`kurahi api` などの HTTP クライアントは、オーナートークンもデバイス資格情報も見つからないときだけこのセッションを使います。コマンドは `gh auth login` や `az login` と同じくトップレベル（`login`、`logout`、`whoami`）です。`kurahi gateway` はサービスの実行、`kurahi models auth` はモデルプロバイダーへのサインインのためのグループで、人のサインインには合わないためです。
+
+ほかのコマンドラインクライアント向けのプロトコル：
+
+1. `POST /api/identity/oauth/device`（フォーム）に `client_id=kurahi-cli` と、任意で `device_name`（承認者に「未検証」として表示）を送ると、`device_code`（32 バイトの乱数。ゲートウェイは SHA-256 だけを保持）、`user_code`（`XXXX-XXXX`。母音と紛らわしい文字を除いた子音 20 文字）、`verification_uri`、`verification_uri_complete`、`expires_in`（600）、`interval`（5）が返ります。
+2. 人が `verification_uri`（`/api/identity/device`）を開き、任意のプロバイダーでサインインし（組み込みサインインだけの場合は、このページ自体がパスキーとワンタイムコードを提示します）、コマンドラインに表示されたコードを **入力** し（リンクに含まれるコードは表示するだけで、黙って受け付けません）、「<アプリ> に、<本人> として Kurahi へのフルアクセスを与えます」という説明とリクエスト時刻・送信元アドレス、端末の自己申告名を見て承認または拒否します。このページのために作られたブラウザセッションは、決定の直後に終了します。
+3. クライアントは `POST /api/identity/oauth/token` に `grant_type=urn:ietf:params:oauth:grant-type:device_code`、`device_code`、`client_id` でポーリングします。応答は `authorization_pending`、間隔より速いポーリングには `slow_down`（新しい `interval`、5 秒増）、`access_denied`（拒否、またはコードのロック）、`expired_token`、そして 1 回だけ `{access_token, token_type: "Bearer", expires_in, session_id}` です。デバイスコードは 1 回限りで、以後は `invalid_grant` です。
+
+制限：デバイスリクエストは送信元ごとに毎分 10 件、ゲートウェイ全体で毎分 100 件。保留中は送信元ごとに最大 10 件、全体で 500 件。誤ったユーザーコードは承認する人ごと（10 分間に 5 回）と送信元アドレスごと（10 分間に 20 回。1 つのアドレスを共有するオフィス向け）に数え、どちらかを超えるとその人またはアドレスに 429 を返します（正しいコードでも）。誤ったコードが他の人の保留中のコードに影響することはなく、推測によって他人のサインインをロックすることはできません。監査イベント：`identity.device.authorize`、`identity.device.lookup`（誤ったコード）、`identity.device.approve`、`identity.device.deny`、`identity.device.token`。
+
+### ネイティブアプリ（Kurahi Desktop）
+
+ネイティブアプリは、RFC 8252 の推奨どおり、公開クライアント向けの PKCE 付き認可コードフローと、ループバックまたはプライベートスキームのリダイレクトを使います。サインインはシステムブラウザで行い（埋め込み WebView は使わない）、トークンはトークン応答だけで受け渡し、URL には決して入れません。Desktop アプリが従う正確なプロトコル：
+
+1. `127.0.0.1`（または `[::1]`）の空いている任意のポートでループバックのリスナーを起動します（例：`http://127.0.0.1:53682/callback`）。`localhost` は拒否します（RFC 8252 8.3）。スキームのクライアントは `<自分のスキーム>:/path`（スラッシュ 1 つ）を使います。
+2. `code_verifier`（`A-Z a-z 0-9 - . _ ~` の 43〜128 文字。32 バイト以上の乱数から）、`code_challenge = BASE64URL(SHA-256(code_verifier))`、ランダムな `state` を作ります。
+3. システムブラウザで次を開きます：
+   `GET <publicUrl>/api/identity/oauth/authorize?client_id=kurahi-desktop&redirect_uri=<uri>&response_type=code&code_challenge=<challenge>&code_challenge_method=S256&state=<state>`。
+   ポートは毎回変わってかまいません（RFC 8252 7.3）。ホスト、スキーム、それ以外の部分は検査します。未登録のクライアントや、そのクライアントが使えないリダイレクト URI にはエラーページを返し、リダイレクトはしません。`state` がない場合もエラーページです。PKCE がない・S256 でない場合や、ほかの `response_type` は、リダイレクト URI に `error=invalid_request` / `unsupported_response_type` として返します。
+4. ゲートウェイはリクエストをそのブラウザに結び付け（Cookie `kurahi_oauth_req`、パス `/api/identity/oauth`、10 分）、通常のサインインを行い（プロバイダーが 1 つならそのまま進む）、「… として Kurahi Desktop にサインイン」の確認を求めます。キャンセルすると `error=access_denied` を返します。
+5. ブラウザは `<redirect_uri>?code=<code>&state=<state>&iss=<publicUrl>` に移動します。`state` が自分のものであること、`iss` が開始したゲートウェイであること（RFC 9207）を確かめ、ブラウザには「このウィンドウを閉じてかまいません」という短いページを返し、リスナーを閉じます。
+6. 60 秒以内に `POST <publicUrl>/api/identity/oauth/token`（フォーム）へ `grant_type=authorization_code`、`client_id=kurahi-desktop`、`code`、同じ `redirect_uri`、`code_verifier` を送ると、`{access_token, token_type: "Bearer", expires_in, session_id}` が返ります。コードは 1 回限りで、verifier、クライアント、リダイレクト URI が違えば `invalid_grant` となり、コードは使用済みになります。
+7. `kss_` トークンは OS の資格情報ストア（キーチェーン、資格情報マネージャー、Secret Service）に保存し、WebSocket ハンドシェイクの `auth.token` または `Authorization: Bearer` として送ります。終了したら再度サインインします（リフレッシュトークンはなく、セッションの有効期間とアイドルタイムアウトが適用されます）。トークンを付けた `POST /api/identity/logout` でサインアウトします。
+
+制限：認可リクエストは送信元ごとに毎分 30 件、ゲートウェイ全体で毎分 300 件。保留中は送信元ごとに最大 20 件、全体で 500 件。失敗したトークンリクエストは送信元ごとの認証試行回数の上限に数えます。監査イベント：`identity.native.authorize`、`identity.native.approve`、`identity.native.deny`、`identity.native.token`。
+
 ## HTTP エンドポイント
 
-| メソッドとパス                              | 認証           | 用途                                                   |
-| ------------------------------------------- | -------------- | ------------------------------------------------------ |
-| `GET /api/identity/sso`                     | なし           | 表示するプロバイダー、SSO 必須かどうか                 |
-| `GET /api/identity/sso/{provider}/login`    | なし           | サインイン開始                                         |
-| `GET /api/identity/sso/{provider}/callback` | なし           | OIDC リダイレクト URI                                  |
-| `POST /api/identity/sso/{provider}/acs`     | なし           | SAML ACS                                               |
-| `GET /api/identity/sso/{provider}/metadata` | なし           | SAML SP メタデータ                                     |
-| `POST /api/identity/sso/exchange`           | なし           | ワンタイムコードをセッショントークンに交換（1 回のみ） |
-| `GET /api/identity/session`                 | SSO セッション | サインイン中の人                                       |
-| `POST /api/identity/logout`                 | SSO セッション | セッション終了                                         |
+| メソッドとパス                                  | 認証           | 用途                                                   |
+| ----------------------------------------------- | -------------- | ------------------------------------------------------ |
+| `GET /api/identity/sso`                         | なし           | 表示するプロバイダー、SSO 必須かどうか                 |
+| `GET /api/identity/sso/{provider}/login`        | なし           | サインイン開始                                         |
+| `GET /api/identity/sso/{provider}/callback`     | なし           | OIDC リダイレクト URI                                  |
+| `POST /api/identity/sso/{provider}/acs`         | なし           | SAML ACS                                               |
+| `GET /api/identity/sso/{provider}/metadata`     | なし           | SAML SP メタデータ                                     |
+| `POST /api/identity/sso/exchange`               | なし           | ワンタイムコードをセッショントークンに交換（1 回のみ） |
+| `GET /api/identity/session`                     | SSO セッション | サインイン中の人                                       |
+| `POST /api/identity/sso/step-up`                | SSO セッション | ステップアップ再認証の開始                             |
+| `POST /api/identity/logout`                     | SSO セッション | セッション終了                                         |
+| メソッドとパス                                  | 認証           | 用途                                                   |
+| ---------------------------------------------   | -------------- | ------------------------------------------------------ |
+| `GET /api/identity/sso`                         | なし           | 表示するプロバイダー、SSO 必須かどうか                 |
+| `GET /api/identity/sso/{provider}/login`        | なし           | サインイン開始                                         |
+| `GET /api/identity/sso/{provider}/callback`     | なし           | OIDC リダイレクト URI                                  |
+| `POST /api/identity/sso/{provider}/acs`         | なし           | SAML ACS                                               |
+| `GET /api/identity/sso/{provider}/metadata`     | なし           | SAML SP メタデータ                                     |
+| `POST /api/identity/sso/exchange`               | なし           | ワンタイムコードをセッショントークンに交換（1 回のみ） |
+| `GET /api/identity/session`                     | SSO セッション | サインイン中の人                                       |
+| `POST /api/identity/logout`                     | SSO セッション | セッション終了                                         |
+| `POST /api/identity/oauth/device`               | なし           | コマンドライン：デバイスコードとユーザーコード         |
+| `GET /api/identity/device`                      | なし           | コマンドライン：確認ページ                             |
+| `POST /api/identity/device/lookup`              | SSO セッション | ページ：ユーザーコードの要求内容                       |
+| `POST /api/identity/device/decision`            | SSO セッション | ページ：承認または拒否                                 |
+| `GET /api/identity/oauth/authorize`             | なし           | ネイティブアプリ：認可リクエスト                       |
+| `GET /api/identity/oauth/continue`              | なし           | ネイティブアプリ：サインインと確認のページ             |
+| `POST /api/identity/oauth/authorize/complete`   | SSO セッション | ページ：確認し、アプリへのリダイレクトを返す           |
+| `POST /api/identity/oauth/token`                | なし           | トークンエンドポイント（両フロー共通）                 |
+| メソッドとパス                                  | 認証           | 用途                                                   |
+| ----------------------------------------------- | -------------- | ------------------------------------------------------ |
+| `GET /api/identity/sso`                         | なし           | 表示するプロバイダー、SSO 必須かどうか                 |
+| `GET /api/identity/sso/{provider}/login`        | なし           | サインイン開始                                         |
+| `GET /api/identity/sso/{provider}/callback`     | なし           | OIDC リダイレクト URI                                  |
+| `POST /api/identity/sso/{provider}/acs`         | なし           | SAML ACS                                               |
+| `GET /api/identity/sso/{provider}/metadata`     | なし           | SAML SP メタデータ                                     |
+| `POST /api/identity/sso/exchange`               | なし           | ワンタイムコードをセッショントークンに交換（1 回のみ） |
+| `GET /api/identity/session`                     | SSO セッション | サインイン中の人                                       |
+| `POST /api/identity/logout`                     | SSO セッション | セッション終了                                         |
+| `POST /api/identity/passkey/register/begin`     | なし¹          | パスキー登録の開始                                     |
+| `POST /api/identity/passkey/register/finish`    | なし¹          | パスキー登録の完了                                     |
+| `POST /api/identity/passkey/login/begin`        | なし           | パスキーによるサインインの開始（ユーザー名不要）       |
+| `POST /api/identity/passkey/login/finish`       | なし           | 完了。セッショントークンを返す                         |
+| `POST /api/identity/passkey/stepup/begin`       | SSO セッション | パスキーによるステップアップの開始                     |
+| `POST /api/identity/passkey/stepup/finish`      | SSO セッション | 完了。セッションの `auth` を更新                       |
+| `POST /api/identity/passkey/totp/enroll/begin`  | なし¹          | 認証アプリ設定の開始                                   |
+| `POST /api/identity/passkey/totp/enroll/finish` | なし           | 最初のコードで確認                                     |
+| `POST /api/identity/passkey/totp/verify`        | なし           | ユーザー名とコードでサインイン                         |
+| `POST /api/identity/passkey/totp/stepup`        | SSO セッション | コードでステップアップ                                 |
+| `GET /api/identity/passkey/credentials`         | SSO セッション | 本人のパスキーと認証アプリ                             |
+
+¹ 本文の登録コード、または Bearer の SSO セッション（サインイン中の人がパスキーを追加する場合）。
 
 SSO セッショントークンは、エビデンスと監査チェーンのルートでも `Authorization: Bearer` として受け付けます。auditor は observe スコープでもこれらを閲覧できます。人がジョブのエビデンス（`/api/jobs/{id}/evidence…`、`/evidence/{id}`）を閲覧できるのは、次の場合だけです。
 
@@ -340,4 +603,4 @@ SSO セッショントークンは、エビデンスと監査チェーンのル�
 
 ## Console
 
-ゲートウェイに SSO プロバイダーがあると、概要ページに **Sign in with …** ボタンが表示されます。サインイン後は、人、ロール、セッションの終了時刻と **Sign out** が表示されます。サインイン後のリダイレクトで Console に戻るには、Console をゲートウェイから配信する必要があります（既定の構成）。
+ゲートウェイに SSO プロバイダーがあると、概要ページに **Sign in with …** ボタンが表示されます。サインイン後は、人、ロール、セッションの終了時刻と **Sign out** が表示されます。パスキーが有効な場合は **パスキーでサインイン** と、ワンタイムコードが有効ならコード入力欄も表示されます。登録リンクを開くとパスキー作成または認証アプリ設定の画面が開き、サインイン中の人は **パスキーを追加** できます。サインイン後のリダイレクトで Console に戻るには、Console をゲートウェイから配信する必要があります（既定の構成）。

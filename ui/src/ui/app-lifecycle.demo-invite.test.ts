@@ -18,6 +18,7 @@ vi.mock("./app-polling", () => ({
 vi.mock("./sso", () => ({
   takeSsoFragment: () => Promise.resolve({ notice: null }),
   fetchSsoConfig: () => Promise.resolve(null),
+  takeEnrollFragment: () => undefined,
 }));
 vi.mock("./pair-link", () => ({
   handlePairLink: async (host: { useToken: (token: string) => void }) => {

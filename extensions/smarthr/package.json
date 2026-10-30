@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/smarthr",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "SmartHR business connector: employees (work fields only) and departments, read-only",
   "type": "module",
   "devDependencies": {

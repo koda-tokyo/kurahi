@@ -311,6 +311,17 @@ export function renderApp(state: AppViewState) {
                 identity: state.identity,
                 onSsoSignIn: (provider) => state.ssoSignIn(provider),
                 onSsoSignOut: () => void state.ssoSignOut(),
+                passkey: {
+                  enrollCode: state.passkeyEnrollCode,
+                  busy: state.passkeyBusy,
+                  notice: state.passkeyNotice,
+                  totpSetup: state.totpSetup,
+                },
+                onPasskeySignIn: () => void state.passkeySignIn(),
+                onTotpSignIn: (userName, code) => void state.totpSignIn(userName, code),
+                onPasskeyEnroll: (label) => void state.passkeyEnroll(label),
+                onTotpEnrollBegin: () => void state.totpEnrollBegin(),
+                onTotpEnrollFinish: (code) => void state.totpEnrollFinish(code),
               })
             : nothing
         }
