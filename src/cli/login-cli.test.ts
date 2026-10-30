@@ -182,7 +182,10 @@ describe("kurahi login / whoami / logout", () => {
     expect(printed).not.toContain("kss_");
     const stored = readSsoSession(BASE, { env });
     expect(stored?.token).toMatch(/^kss_/);
-    expect(fs.statSync(ssoSessionFilePath(BASE, env)).mode & 0o777).toBe(0o600);
+    // POSIX modes only; on Windows the file sits in the user's profile, protected by its ACL.
+    if (process.platform !== "win32") {
+      expect(fs.statSync(ssoSessionFilePath(BASE, env)).mode & 0o777).toBe(0o600);
+    }
     const session = gw.svc.sessions.get(stored?.sessionId ?? "");
     expect(session?.client?.label).toBe("CLI: Kurahi CLI (alice@build-01)");
 
