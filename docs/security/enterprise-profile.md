@@ -9,7 +9,7 @@ title: "Enterprise profile"
 
 # Enterprise profile
 
-日本語版: [エンタープライズプロファイル](/ja/security/enterprise-profile)
+Also available in [Japanese](/ja/security/enterprise-profile).
 
 Kurahi grew out of a general-purpose agent runtime that also carried consumer chat channels,
 consumer OAuth logins and free-tier data feeds. A business deployment needs none of them, and a

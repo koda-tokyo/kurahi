@@ -9,7 +9,7 @@ title: "A2A Plugin"
 
 # A2A (bundled plugin, off by default)
 
-日本語: [A2A（Agent2Agent）連携](/ja/plugins/a2a)
+Also available in [Japanese](/ja/plugins/a2a).
 
 [Agent2Agent (A2A)](https://a2a-protocol.org) is an open protocol (Linux Foundation) for
 agents to discover each other through an **Agent Card** and exchange messages and tasks over

@@ -9,7 +9,7 @@ title: "Scholar sources"
 
 # Scholar sources
 
-日本語: [学術情報源](/ja/connectors/scholar-sources)
+Also available in [Japanese](/ja/connectors/scholar-sources).
 
 | Property  | Value                                                                                                                         |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -114,7 +114,7 @@ Anything else is refused before a byte is downloaded, including free-to-read cop
 licence. The download goes through the SSRF guard (public hosts only, at most 5 redirects), is
 capped at 20 MB and must start with `%PDF-` (a landing page is refused). The bytes then go through
 the [attachment intake](/security/attachment-intake): quarantine, static policy, malware scan (fail
-closed), and only on a clean verdict a copy in `corpus-inbox/` (a writable folder; 実行 Act mode).
+closed), and only on a clean verdict a copy in `corpus-inbox/` (a writable folder; Act mode).
 A refusal by the intake is audited and sealed like any attachment refusal, and in an autopilot run
 it flags the item `malicious_attachment`.
 

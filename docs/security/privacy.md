@@ -8,7 +8,7 @@ title: "Privacy"
 
 # Privacy statement
 
-日本語版: [プライバシー](/ja/security/privacy)
+Also available in [Japanese](/ja/security/privacy).
 
 Kurahi is self-hosted. It runs on your machine, stores its data under one directory you control, and sends data only where you configure it to. This page is the complete list.
 

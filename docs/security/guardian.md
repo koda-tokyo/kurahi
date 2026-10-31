@@ -10,7 +10,7 @@ title: "Kurahi Guardian"
 
 # Kurahi Guardian
 
-日本語版: [Kurahi Guardian](/ja/security/guardian)
+Also available in [Japanese](/ja/security/guardian).
 
 Guardian is the security capability of Kurahi Core, so every edition has it. Proven engines and
 deterministic checks find problems; an agent explains them in Japanese or English; every finding

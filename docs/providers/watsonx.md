@@ -8,7 +8,7 @@ title: "IBM watsonx.ai"
 
 # IBM watsonx.ai
 
-日本語: [IBM watsonx.ai](/ja/providers/watsonx)
+Also available in [Japanese](/ja/providers/watsonx).
 
 Kurahi uses models hosted on watsonx.ai through its own adapter (model API `watsonx-chat`).
 watsonx.ai is not an OpenAI-compatible endpoint: each call needs a `version` date, a project or

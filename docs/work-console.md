@@ -9,7 +9,7 @@ title: "Work Console"
 
 # Work Console
 
-日本語: [Work Console](/ja/work-console)
+Also available in [Japanese](/ja/work-console).
 
 The Work Console is where an operator works hands-on inside one Project: a terminal that stays
 inside the Project folder and asks before anything consequential runs, and push-to-talk voice for
@@ -31,7 +31,7 @@ file system or process permission of its own; every keystroke goes through authe
 methods.
 
 - **One Project, one folder.** A session starts at the Project root and every path a command names
-  must stay inside it. A Project in read mode (参照) cannot open a terminal.
+  must stay inside it. A Project in read mode cannot open a terminal.
 - **Line gating.** Nothing reaches a shell until Enter. Each line is checked against the Project's
   mode, the destructive-command guard, a classifier (privilege elevation, detaching, command
   substitution and unapproved interactive programs are refused) and the path guard.
@@ -41,7 +41,7 @@ methods.
   `read-only-path` and no approval is offered. Reading them works as usual. To unlock a folder,
   change the Project's read-only list. A write the line does not show (a script, a build tool) is
   flagged as a policy violation in the diff and the audit log.
-- **Approvals.** In plan mode (計画), and in act mode (実行) with the new-installation setting, every
+- **Approvals.** In plan mode, and in act mode with the new-installation setting, every
   line that is not read-only waits for an explicit approval. An unanswered approval counts as
   denied. After approval the line is checked again before it runs.
 - **Clean environment.** Each approved line runs in a fresh shell without rc files or aliases, with
@@ -71,7 +71,7 @@ and sends it as an ordinary chat message.
 - **Transcripts are only chat messages.** The gateway does not store transcripts; the edited text is
   stored like anything typed.
 - **Voice never approves.** Every approval method refuses a request that carries a voice origin.
-  Approvals are always an explicit click or key press on screen, never a spoken "yes" or 「承認」.
+  Approvals are always an explicit click or key press on screen, never a spoken "yes" or `承認` ("approve").
 - **Audit without content.** Voice sessions are audited with counts and durations, never with audio
   or transcript text.
 

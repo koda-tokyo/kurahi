@@ -9,7 +9,7 @@ title: "Box"
 
 # Box connector
 
-日本語: [Box コネクター](/ja/connectors/box)
+Also available in [Japanese](/ja/connectors/box).
 
 | Property       | Value                                                                                     |
 | -------------- | ----------------------------------------------------------------------------------------- |

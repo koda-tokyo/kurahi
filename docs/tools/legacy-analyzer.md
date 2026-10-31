@@ -12,21 +12,21 @@ Read-only tools over deterministic analysers for COBOL, copybooks and JCL, Java 
 (`packages/legacy-analyzer`, plugin `extensions/legacy-analyzer`). The analysers provide the
 facts; the model explains them. Overview: [Industrial modernisation](/industrial-modernisation).
 
-| Tool                      | What it returns                                                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `legacy_index`            | Parses the sources under `path` and builds the fact index; counts and diagnostics                                            |
-| `legacy_query`            | Structure: callers, callees, file access, data references, job steps, paragraphs, perform graph, data sets                   |
-| `legacy_rules`            | Rule candidates: conditions, arithmetic with constants, rounding, 88-level values, numeric constants, literal assignments    |
-| `legacy_dictionary`       | Copybook data dictionary: level, PIC, usage, length, offset, positions, OCCURS, REDEFINES, values                            |
-| `legacy_impact`           | What a change to a data item reaches, with the fact that links each entry                                                    |
-| `legacy_design_doc`       | Design document (設計書) from the code, Japanese or English: see [design documents and wave plan](/tools/legacy-design-docs) |
-| `legacy_wave_plan`        | Modernisation wave proposal from dependencies and metrics: see [design documents and wave plan](/tools/legacy-design-docs)   |
-| `legacy_changes`          | What changed since the stored baseline, with path:line evidence: see [change detection](#change-detection)                   |
-| `legacy_baseline_advance` | Moves the change-detection baseline forward (or resets it): see [change detection](#change-detection)                        |
-| `modernise_plan`          | Entry point for mixed projects: detected languages, inventory per engine, shared tables, coverage, planned assistants        |
-| `modernise_crud`          | CRUD of SQL tables (COBOL and PL/I EXEC SQL, Java JPA/@Query/JDBC, JCL utilities) and of files, with evidence                |
-| `modernise_impact`        | What a change to a table, column, file, COMMON block, Java class or program reaches across languages and callers             |
-| `modernise_inventory`     | Java types, SQL tables, FORTRAN units and COMMON blocks, or PL/I procedures: the list, or one entry in full                  |
+| Tool                      | What it returns                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `legacy_index`            | Parses the sources under `path` and builds the fact index; counts and diagnostics                                          |
+| `legacy_query`            | Structure: callers, callees, file access, data references, job steps, paragraphs, perform graph, data sets                 |
+| `legacy_rules`            | Rule candidates: conditions, arithmetic with constants, rounding, 88-level values, numeric constants, literal assignments  |
+| `legacy_dictionary`       | Copybook data dictionary: level, PIC, usage, length, offset, positions, OCCURS, REDEFINES, values                          |
+| `legacy_impact`           | What a change to a data item reaches, with the fact that links each entry                                                  |
+| `legacy_design_doc`       | Design document from the code, Japanese or English: see [design documents and wave plan](/tools/legacy-design-docs)        |
+| `legacy_wave_plan`        | Modernisation wave proposal from dependencies and metrics: see [design documents and wave plan](/tools/legacy-design-docs) |
+| `legacy_changes`          | What changed since the stored baseline, with path:line evidence: see [change detection](#change-detection)                 |
+| `legacy_baseline_advance` | Moves the change-detection baseline forward (or resets it): see [change detection](#change-detection)                      |
+| `modernise_plan`          | Entry point for mixed projects: detected languages, inventory per engine, shared tables, coverage, planned assistants      |
+| `modernise_crud`          | CRUD of SQL tables (COBOL and PL/I EXEC SQL, Java JPA/@Query/JDBC, JCL utilities) and of files, with evidence              |
+| `modernise_impact`        | What a change to a table, column, file, COMMON block, Java class or program reaches across languages and callers           |
+| `modernise_inventory`     | Java types, SQL tables, FORTRAN units and COMMON blocks, or PL/I procedures: the list, or one entry in full                |
 
 Every fact carries `file` and `line`. Business meaning is never inferred.
 
@@ -194,7 +194,7 @@ To use the analyser outside projects, enable it for the gateway:
 ## Modes and scope
 
 The tools are reads: the project guard classifies each call as a read of its `path`. They are
-available in all three project modes (参照 Read, 計画 Plan, 実行 Act), reach only the project
+available in all three project modes (Read, Plan, Act), reach only the project
 folder, and never an excluded folder such as `_answer-keys` (the indexer also never enters it).
 The analyser's only write is its own cache folder, `output/.legacy-index/` inside the project: the
 index, and the latest design document and wave plan.

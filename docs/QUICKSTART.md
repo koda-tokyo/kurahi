@@ -7,7 +7,7 @@ title: "Quickstart"
 
 # Kurahi quickstart (one page)
 
-日本語版: [クイックスタート](/ja/QUICKSTART)
+Also available in [Japanese](/ja/QUICKSTART).
 
 Requirements: Linux, macOS, or Windows 10/11 (the installer ships its own Node.js runtime; the npm package needs Node.js 22.12 or newer); a model provider token (the Sakura AI Engine free tier works, see [Sakura AI Engine](/providers/sakura)).
 

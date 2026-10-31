@@ -9,7 +9,7 @@ title: "Office documents"
 
 # Office documents
 
-日本語: [Office ドキュメント](/ja/tools/office)
+Also available in [Japanese](/ja/tools/office).
 
 Three agent tools (plugin `extensions/office`) write Office files into the **current Project
 folder**. The model supplies the content as a structured JSON spec; the tool renders it with a
@@ -38,8 +38,8 @@ Open XML written on the gateway host: no Office installation, no cloud service, 
 
 ## Project modes
 
-The tools work only in a Project chat whose mode is **実行 Act**. In **参照 Read** and **計画
-Plan** modes they are refused (the project guard does not offer them, and the tools check the
+The tools work only in a Project chat whose mode is **Act**. In **Read** and **Plan**
+modes they are refused (the project guard does not offer them, and the tools check the
 mode again themselves). Outside a Project they refuse with `not_in_project`.
 
 ## office_pptx_create

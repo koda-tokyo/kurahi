@@ -1,5 +1,5 @@
 ---
-summary: "Design documents (設計書) and a modernisation wave plan generated from COBOL, copybooks and JCL: deterministic, every fact line cites path:line, Japanese and English, with an honest coverage report"
+summary: "Design documents and a modernisation wave plan generated from COBOL, copybooks and JCL: deterministic, every fact line cites path:line, Japanese and English, with an honest coverage report"
 read_when:
   - Producing design documents for a legacy system from its code
   - Planning the order of a COBOL modernisation
@@ -12,30 +12,30 @@ title: "Legacy design documents and wave plan"
 Two more tools of the [legacy analyser](/tools/legacy-analyzer) turn its fact index into documents
 people can review:
 
-| Tool                | Output                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| `legacy_design_doc` | A design document (設計書) in Markdown, Japanese (`lang: "ja"`, the default) or English (`en`) |
-| `legacy_wave_plan`  | A proposal for the order of migration waves, with the dependencies and metrics behind it       |
+| Tool                | Output                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `legacy_design_doc` | A design document in Markdown, Japanese (`lang: "ja"`, the default) or English (`en`)    |
+| `legacy_wave_plan`  | A proposal for the order of migration waves, with the dependencies and metrics behind it |
 
 Both are deterministic: the same sources give a byte-identical document (no dates, no absolute
 paths, a stable order). Each document records a fingerprint of the sources it was made from.
 
 ## What the design document contains
 
-1. **システム概要 / System overview**: inventory of programs, copybooks and jobs with line counts,
+1. **System overview**: inventory of programs, copybooks and jobs with line counts,
    and a Mermaid diagram of which job step runs which program and who calls whom.
-2. **ジョブフロー / Job flow**: per JCL job a Mermaid diagram of steps and data sets, the steps with
+2. **Job flow**: per JCL job a Mermaid diagram of steps and data sets, the steps with
    PARM and COND, every DD with its DISP and the program file (SELECT) it binds to, and the lineage
    of each data set (which programs write it, which read it).
-3. **プログラム仕様書 / Program specifications**: per program its basic facts, inputs and outputs
+3. **Program specifications**: per program its basic facts, inputs and outputs
    (files, EXEC SQL tables, EXEC CICS files), CALL relations in both directions, the PERFORM
    structure from the entry paragraph, and the business-rule candidates of the rules engine with
    the conditions they run under and the declared values of the constants they use.
-4. **データ項目定義書 / Data dictionary**: every copybook field with level, PIC, USAGE, bytes,
+4. **Data dictionary**: every copybook field with level, PIC, USAGE, bytes,
    position, OCCURS, REDEFINES, VALUE and 88 values, and the programs that copy it.
 5. **CRUD matrix**: program × data set, SQL table or CICS file with C/R/U/D, and an evidence table
    with the statement and the DD behind every cell.
-6. **カバレッジと要確認事項 / Coverage and open questions**: the files analysed, the files not
+6. **Coverage and open questions**: the files analysed, the files not
    analysed and why, parser diagnostics, and every gap found in the code (CALL targets without
    source, dynamic CALLs with the initial VALUE as a hint, missing copybooks, steps that run
    utilities, EXEC blocks that are not modelled, SELECTs without a DD and DDs without a SELECT,
@@ -44,24 +44,24 @@ paths, a stable order). Each document records a fingerprint of the sources it wa
 When the folder also has Java, FORTRAN, PL/I or SQL DDL sources, the document gains a section per
 engine (by default only when the project has those sources):
 
-- **Java クラス仕様 / Java class specifications**: classes, fields with their column mapping,
+- **Java class specifications**: classes, fields with their column mapping,
   methods with resolved calls and table access.
-- **FORTRAN プログラム単位仕様 / FORTRAN program units**: the unit list (kind, host, IMPLICIT rule,
-  calls, COMMON blocks, files), the **COMMON ブロック対応表 / COMMON block map** (each unit's
+- **FORTRAN program units**: the unit list (kind, host, IMPLICIT rule,
+  calls, COMMON blocks, files), the **COMMON block map** (each unit's
   member layout with types, explicit or implicit, and whether the layouts agree), then per unit
   its declaration, USE and INCLUDE, calls (call or function reference, and how each was resolved),
   declarations and file I/O with the binding of each unit number.
-- **PL/I 手続き仕様 / PL/I procedure specifications**: the procedure list, **構造体定義 /
-  structure definitions** (levels, attributes, BASED / DEFINED storage, initial values, members
-  from `%INCLUDE` at their own lines), **ファイル定義 / file definitions** (attributes, DD name,
+- **PL/I procedure specifications**: the procedure list, **structure
+  definitions** (levels, attributes, BASED / DEFINED storage, initial values, members
+  from `%INCLUDE` at their own lines), **file definitions** (attributes, DD name,
   operations), then per procedure its calls, EXEC SQL, file I/O and ON-units.
-- **テーブル定義 / Table definitions**: DDL tables with columns and keys, and who accesses each
+- **Table definitions**: DDL tables with columns and keys, and who accesses each
   table across COBOL, Java and PL/I.
 
 Each of these sections ends with what its engine did not model.
 
 Every fact line (each table row and list item) cites the source as `path:line`. What code cannot
-tell is never filled in: a program's business purpose is **要確認 / needs confirmation**, and so is
+tell is never filled in: a program's business purpose is **to confirm**, and so is
 the business meaning of every rule candidate. A program's header comment is quoted as written,
 labelled as unverified.
 
@@ -108,11 +108,11 @@ The graph behind both documents is available through `legacy_query`:
 Markdown is also converted, deterministically, into a Word document: headings, paragraphs, block
 quotes, bullet and numbered lists, tables (cell line breaks kept), and Mermaid diagrams as
 preformatted source; Japanese or English by `lang`, with Japanese fonts and proofing language for
-`ja`. The file is written into the Project's `output/design-docs/` as `設計書_<YYYYMMDD>.docx`
-(English: `design-doc_<YYYYMMDD>.docx`), never over an existing file: a taken name gets `-2`,
+`ja`. The file is written into the Project's `output/design-docs/` as `design-doc_<YYYYMMDD>.docx`
+(Japanese: `設計書_<YYYYMMDD>.docx`), never over an existing file: a taken name gets `-2`,
 `-3` and so on. The tool result names the file (`details.path`).
 
-The Word file needs a Project session in 計画 Plan or 実行 Act mode and follows the
+The Word file needs a Project session in Plan or Act mode and follows the
 [office tools](/tools/office)' path guards (a folder the mode makes writable, no symbolic links,
 nothing outside the Project). Both use one shared renderer (`src/office/`), so Word output works
 without the office plugin being enabled.

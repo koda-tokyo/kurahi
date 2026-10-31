@@ -8,7 +8,7 @@ title: "watsonx.governance"
 
 # IBM watsonx.governance
 
-日本語: [watsonx.governance 連携](/ja/integrations/ibm-watsonx-governance)
+Also available in [Japanese](/ja/integrations/ibm-watsonx-governance).
 
 watsonx.governance has no native OpenTelemetry intake for external agents. IBM's route for
 agent observability is its Langfuse and Arize integrations, and watsonx Orchestrate accepts

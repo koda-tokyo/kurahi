@@ -9,7 +9,7 @@ title: "OWASP Agentic Top 10"
 
 # OWASP Agentic Top 10: where Kurahi stands
 
-日本語版: [OWASP Agentic Top 10 への対応](/ja/security/owasp-agentic)
+Also available in [Japanese](/ja/security/owasp-agentic).
 
 This page maps the OWASP Top 10 for Agentic Applications (risks ASI01 to ASI10) to the controls
 Kurahi ships. It is a self-assessment by the KODA SōKEN team, written from the mechanism pages

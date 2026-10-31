@@ -1,17 +1,17 @@
 ---
-summary: "freee 会計 business connector: read companies, deals, partners, account items and receipt metadata through the freee API; read-only (the deals API has no draft state, so there is no write tool)"
+summary: "freee Accounting business connector: read companies, deals, partners, account items and receipt metadata through the freee API; read-only (the deals API has no draft state, so there is no write tool)"
 read_when:
-  - You are connecting Kurahi to freee 会計
+  - You are connecting Kurahi to freee Accounting
   - You need the freee app setup and permissions
   - You want to know why the connector cannot create deals
-title: "freee 会計"
+title: "freee Accounting"
 ---
 
-# freee 会計 connector
+# freee Accounting connector
 
-日本語: [freee 会計 コネクター](/ja/connectors/freee)
+Also available in [Japanese](/ja/connectors/freee).
 
-The freee connector lets Kurahi agents read accounting data of the freee companies (事業所) an
+The freee connector lets Kurahi agents read accounting data of the freee companies (offices) an
 administrator lists, through the freee API with a freee app the customer owns.
 
 | Property      | Value                                                                                  |
@@ -26,7 +26,7 @@ administrator lists, through the freee API with a freee app the customer owns.
 
 The task for this connector allowed creating a deal **only as a draft**. freee's `POST /deals`
 has no draft or approval field: `status` (`unsettled` / `settled`) is the payment state, so a
-created deal always affects the books. Drafts exist only for 各種申請, 経費申請 and 支払依頼
+created deal always affects the books. Drafts exist only for general requests, expense claims and payment requests
 (`draft: true` on `POST /approval_requests`, `/expense_applications`, `/payment_requests`), which
 are workflow requests, not deals. So this release has no write tool at all.
 
@@ -42,13 +42,14 @@ are workflow requests, not deals. So this release has no write tool at all.
 | `freee_receipts_list`      | `GET /receipts`      | metadata: id, status, issue date, file type, description; at most 100                                                           |
 
 **Never read:** companies that are not listed; receipt files (no download; the file URL is never
-returned); partner bank accounts, addresses and contacts; users; payroll (freee 人事労務 is a
+returned); partner bank accounts, addresses and contacts; users; payroll (freee HR is a
 separate product and not covered).
 
 ## Set up
 
 1. In the freee app store developer console, create an app. Give it **read** permissions only for
-   the resources above (取引, 取引先, 勘定科目, 証憑/ファイルボックス, 事業所). Set the callback URL to
+   the resources above: deals (`取引`), partners (`取引先`), account items (`勘定科目`),
+   receipts / file box (`証憑/ファイルボックス`) and companies (`事業所`), as the console labels them. Set the callback URL to
    `http://localhost:<port>/callback`.
 2. Configure:
 

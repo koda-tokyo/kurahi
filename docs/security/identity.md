@@ -10,7 +10,7 @@ title: "Enterprise identity"
 
 # Enterprise identity
 
-日本語版: [エンタープライズ ID](/ja/security/identity)
+Also available in [Japanese](/ja/security/identity).
 
 People sign in to the gateway and the Work Console with the organisation's identity provider
 (IdP). A signed-in person is a **person principal** (`person:<id>`), distinct from devices

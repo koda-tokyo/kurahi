@@ -9,7 +9,7 @@ title: "Microsoft Entra ID"
 
 # Microsoft Entra ID connector
 
-日本語: [Microsoft Entra ID コネクター](/ja/connectors/entra)
+Also available in [Japanese](/ja/connectors/entra).
 
 The Entra connector does two things, in this order:
 

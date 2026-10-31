@@ -1,15 +1,15 @@
 ---
-summary: "Business quotations (見積管理): quotation requests become cases with a 見積書 in Word and Excel, priced from the company price list; tax per rate and totals computed by Kurahi; a person approves and sends"
+summary: "Business quotations: quotation requests become cases with a quotation in Word and Excel, priced from the company price list; tax per rate and totals computed by Kurahi; a person approves and sends"
 read_when:
   - You are setting up quotations in Kurahi Business
   - You need to know how prices, consumption tax and totals are computed
 title: "Quotations"
 ---
 
-# Quotations (見積管理)
+# Quotations
 
 A quotation request becomes a case in the **Quotation requests** queue (`sales-quotes`, work item
-type `quote`) with a 見積書 written as Word and Excel. People approve it and a person sends it.
+type `quote`) with a quotation written as Word and Excel. People approve it and a person sends it.
 
 ## Who computes what
 
@@ -20,10 +20,10 @@ type `quote`) with a 見積書 written as Word and Excel. People approve it and 
   tax-exclusive unit price, unit and tax rate of each item.
 - **Kurahi** computes every amount exactly: line amounts, line and document discounts, consumption
   tax per rate (10%, 8% reduced, 0%) and the totals. Tax is rounded **once per rate per document**,
-  as the qualified-invoice rule (インボイス制度) requires; the rounding mode is 切り捨て (floor) unless
+  as Japan's qualified invoice system requires; the rounding mode is floor (round down) unless
   `quotes/company.json` says `round` or `ceil`.
 - A requested item the price list cannot match **exactly** (by item code, or by the exact item
-  name) is shown as 【要確認】 with no amount and is left out of the totals, for a person to price.
+  name) is shown as `【要確認】` ("to confirm") with no amount and is left out of the totals, for a person to price.
 
 ## Approval gate
 
@@ -37,9 +37,10 @@ Two outcomes are kept apart:
 - **Final quotation**: every included item is priced and every line has a supported tax
   classification. Only then can the case be approved as final.
 - **Provisional estimate**: `quote.complete` (unpriced items) and `quote.taxclass` (0% lines, while
-  非課税, 不課税 and 輸出免税 are not distinguished) block final approval. A person may approve with a
+  tax-exempt, out-of-scope and export-exempt sales are not distinguished) block final approval. A person may approve with a
   written reason, but that releases a **provisional estimate only**: the document stays titled
-  御見積書（暫定）, lists why (暫定合計—未確定項目あり), and the case records
+  "Quotation (provisional)" (`御見積書（暫定）` in Japanese), states that open items remain, and the
+  case records
   `override.outcome: "provisional"` and who authorised the release. It never becomes a final
   approval. To make it final, a person prices the items, or takes them out of scope: the quotation is
   prepared again with `excluded` entries (each with the person's reason, at least 10 characters),
@@ -63,12 +64,12 @@ changing the source or the draft clears earlier approvals.
 
 Create a Project from the **Sales quotations** template. It adds:
 
-| Path                    | What it is                                                                                                                                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `quotes/price-list.csv` | Sample price list. Columns 品番 / code, 品名 / name, 単価 / unit price (required), 単位 / unit, 税率 / tax rate, 原価 / cost. UTF-8 or Shift_JIS (Excel's Japanese CSV). Replace the sample rows. |
-| `quotes/company.json`   | Issuer name, `department`, `contact` (person), address, phone, `registrationNumber` (T + 13 digits), `lineRounding`, `taxRounding`.                                                               |
-| `workqueue.yaml`        | The `sales-quotes` queue, a one-stage approval route (sales lead) and checks: the quotation document is attached; the reply draft does not say the quotation was sent or the order accepted.      |
-| `autopilot.yaml`        | The `sales-quote-intake` routine (L1, off until you enable it).                                                                                                                                   |
+| Path                    | What it is                                                                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quotes/price-list.csv` | Sample price list. Columns code, name, unit price (required), unit, tax rate, cost; the Japanese headers `品番`, `品名`, `単価`, `単位`, `税率`, `原価` are also accepted. UTF-8 or Shift_JIS (Excel's Japanese CSV). Replace the sample rows. |
+| `quotes/company.json`   | Issuer name, `department`, `contact` (person), address, phone, `registrationNumber` (T + 13 digits), `lineRounding`, `taxRounding`.                                                                                                            |
+| `workqueue.yaml`        | The `sales-quotes` queue, a one-stage approval route (sales lead) and checks: the quotation document is attached; the reply draft does not say the quotation was sent or the order accepted.                                                   |
+| `autopilot.yaml`        | The `sales-quote-intake` routine (L1, off until you enable it).                                                                                                                                                                                |
 
 The `quotes/` folder is read-only for agents: only people change prices.
 
@@ -83,25 +84,25 @@ Sending a quotation is a commercial offer: it is never autonomous, at any level.
 
 ## The tool
 
-`office_quote_create` (office plugin) writes `output/quotes/見積書_<number>.docx` and `.xlsx`
-(`quotation_<number>` in English), never over an earlier file. The number defaults to
+`office_quote_create` (office plugin) writes `output/quotes/quotation_<number>.docx` and `.xlsx`
+(`見積書_<number>` for a Japanese quotation), never over an earlier file. The number defaults to
 `Q-YYYYMMDD`; validity defaults to 30 days. The audit row records line counts and size, never
 customer names or amounts.
 
 `office_quote_compare` compares quotations from two or more suppliers for the same request
-(相見積). The model transcribes what each supplier quoted; Kurahi computes every amount and compares
+(competing quotes). The model transcribes what each supplier quoted; Kurahi computes every amount and compares
 the tax-exclusive net. A quote that leaves out an item or quotes a different quantity is incomplete
 and is never named lowest: a missing item is not a free item. Ties list every supplier. The result
 is not an award; a person decides. It writes nothing, and the audit row records only counts.
 
-`office_po_create` writes a purchase order draft (発注書) for the supplier **a person** chose from
-that comparison: `output/purchase-orders/発注書_<number>.docx` and `.xlsx` (`purchase-order_<number>`
-in English), never over an earlier file. The number defaults to `PO-YYYYMMDD`. Kurahi recomputes the
+`office_po_create` writes a purchase order draft for the supplier **a person** chose from
+that comparison: `output/purchase-orders/purchase-order_<number>.docx` and `.xlsx` (`発注書_<number>`
+for a Japanese purchase order), never over an earlier file. The number defaults to `PO-YYYYMMDD`. Kurahi recomputes the
 comparison from the same request and quotes, so the draft carries only computed amounts; a supplier
 whose quote is incomplete is refused. The draft names the person who chose the supplier
 (`selected_by`, required). Choosing a supplier other than the lowest complete quote is allowed, but
 needs a written reason, which is printed on the draft for the approver. The model never chooses the
-supplier. It needs a Project in 実行 Act mode, nothing is issued or sent, and the audit row records
+supplier. It needs a Project in Act mode, nothing is issued or sent, and the audit row records
 only counts and whether the choice deviates from the lowest.
 
 ## Limitations
@@ -112,8 +113,8 @@ only counts and whether the choice deviates from the lowest.
   problem rather than being read as a blank. A workbook whose XML holds a comment, a DTD or
   CDATA, uses Strict Open XML, or lists rows or cells out of order is refused whole rather than
   guessed at; save it again from Excel. kintone and Money Forward item masters are not read.
-- Prices are tax-exclusive; tax-inclusive (内税) price lists are not supported yet.
-- The 0% rate is one bucket; 非課税, 不課税 and 輸出免税 are not distinguished yet.
+- Prices are tax-exclusive; tax-inclusive price lists are not supported yet.
+- The 0% rate is one bucket; tax-exempt, out-of-scope and export-exempt sales are not distinguished yet.
 - Negative amounts (credits) are refused rather than rounded.
 - Tax is rounded once per rate per document, as the qualified-invoice rule requires for invoices;
   quotations use the same method. Confirm the rounding settings with your accountant before use.

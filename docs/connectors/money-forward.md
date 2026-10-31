@@ -1,20 +1,20 @@
 ---
-summary: "マネーフォワード クラウド business connector: read billings, quotes and partners of クラウド請求書 through its public API v3; which Money Forward products have public APIs"
+summary: "Money Forward Cloud business connector: read billings, quotes and partners of Money Forward Cloud Invoice through its public API v3; which Money Forward products have public APIs"
 read_when:
-  - You are connecting Kurahi to マネーフォワード クラウド
+  - You are connecting Kurahi to Money Forward Cloud
   - You need the app setup, scopes and client authentication method
   - You want to know which Money Forward products are covered
-title: "マネーフォワード クラウド"
+title: "Money Forward Cloud"
 ---
 
-# マネーフォワード クラウド connector
+# Money Forward Cloud connector
 
-日本語: [マネーフォワード クラウド コネクター](/ja/connectors/money-forward)
+Also available in [Japanese](/ja/connectors/money-forward).
 
 | Property      | Value                                                                                  |
 | ------------- | -------------------------------------------------------------------------------------- |
 | Plugin id     | `money-forward` (bundled, **off by default**), CLI `kurahi moneyforward`               |
-| Product       | マネーフォワード クラウド請求書 (invoicing), API v3                                    |
+| Product       | Money Forward Cloud Invoice, API v3                                                    |
 | Access        | **Read-only, always.** Only `mfc/invoice/data.read` is requested                       |
 | Sign-in       | OAuth 2.0 authorization code on a loopback redirect; client secret in the secret store |
 | Token storage | Kurahi secret store (`connector.money-forward.token`)                                  |
@@ -24,14 +24,14 @@ title: "マネーフォワード クラウド"
 
 Checked on the [developer portal](https://developers.biz.moneyforward.com/) (2026-10-25):
 
-| Product            | Public API                                                                                          | This connector          |
-| ------------------ | --------------------------------------------------------------------------------------------------- | ----------------------- |
-| クラウド請求書     | Yes, API v3 (OAuth 2.0)                                                                             | **Covered (read-only)** |
-| クラウド会計       | Yes, API v3 at `api-accounting.moneyforward.com` (OAuth 2.0 or API key; access by 会計 permissions) | Not in this release     |
-| クラウド経費       | Yes ([expense API](https://expense.moneyforward.com/api/index.html))                                | Not in this release     |
-| クラウド債務支払   | Yes ([payable API](https://payable.moneyforward.com/api/index.html))                                | Not in this release     |
-| クラウド連結会計   | Listed under partner APIs (likely partner-only)                                                     | No                      |
-| クラウド給与, 勤怠 | No public API found                                                                                 | No                      |
+| Product                       | Public API                                                                                                | This connector          |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------- |
+| Cloud Invoice                 | Yes, API v3 (OAuth 2.0)                                                                                   | **Covered (read-only)** |
+| Cloud Accounting              | Yes, API v3 at `api-accounting.moneyforward.com` (OAuth 2.0 or API key; access by accounting permissions) | Not in this release     |
+| Cloud Expense                 | Yes ([expense API](https://expense.moneyforward.com/api/index.html))                                      | Not in this release     |
+| Cloud Accounts Payable        | Yes ([payable API](https://payable.moneyforward.com/api/index.html))                                      | Not in this release     |
+| Cloud Consolidated Accounting | Listed under partner APIs (likely partner-only)                                                           | No                      |
+| Cloud Payroll, Attendance     | No public API found                                                                                       | No                      |
 
 ## What it reads
 

@@ -9,7 +9,7 @@ title: "SmartHR"
 
 # SmartHR connector
 
-日本語: [SmartHR コネクター](/ja/connectors/smarthr)
+Also available in [Japanese](/ja/connectors/smarthr).
 
 | Property      | Value                                                                                    |
 | ------------- | ---------------------------------------------------------------------------------------- |
@@ -52,8 +52,9 @@ allow-list, and the test suite runs all 144 properties of the published Crew sch
 
 ## Set up
 
-1. In SmartHR, an administrator issues an access token (共通設定 > API アクセストークン). Where your
-   plan offers it, restrict the token to **read** (参照) on employees and departments and to the
+1. In SmartHR, an administrator issues an access token (Common settings > API access tokens; in the
+   Japanese console `共通設定 > API アクセストークン`). Where your plan offers it, restrict the token to
+   **read** on employees and departments and to the
    employee fields above.
 2. Configure:
 

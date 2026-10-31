@@ -8,7 +8,7 @@ title: "Kurahi Scholars"
 
 # Kurahi Scholars
 
-日本語: [Kurahi Scholars](/ja/scholars)
+Also available in [Japanese](/ja/scholars).
 
 **Applications will open soon.** This page describes the programme so that researchers and teachers
 can plan for it. There is nothing to apply for yet, and the programme and its terms may change

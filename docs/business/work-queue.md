@@ -9,7 +9,7 @@ title: "Work queue"
 
 # Work queue
 
-日本語: [ワークキュー](/ja/business/work-queue)
+Also available in [Japanese](/ja/business/work-queue).
 
 The work queue is the back office of the Business edition: requests, leave and overtime,
 expense claims, invoices and purchase requests arrive as **work items** in a Project. An agent
@@ -17,7 +17,7 @@ drafts the reply, review or order proposal; the Project's **policy rules** check
 draft; a **person** approves, sends back or cancels. Agents never decide.
 
 Status as of 24 October 2026: the gateway methods, policy engine, evidence, templates and typed
-client are built, including staged approval routes (稟議), "My requests", the approver inbox,
+client are built, including staged approval routes for internal approval requests, "My requests", the approver inbox,
 document previews, draft diffs and the queue overview. The desktop screen (queues on the left, the item in the centre with the agent's
 draft next to the source document, policy checks on the right, Approve / Send back) is in
 development against this contract.
@@ -210,9 +210,9 @@ coded from `WORK_ITEM_LINKED_PLAN_PROBLEMS`.
 `workitems.assignAgent` checks that the agent is allowed in the Project (the queue's
 `defaultAgent`, else `main`), moves the item to `drafting` and runs the agent in the item's own
 Project session `agent:<agent>:proj-<projectId>-wi<item>`. The Project's folder scope, mode
-(参照 / 計画 / 実行) and tool guard apply exactly as in a Project chat. The prompt holds the form
+(Read / Plan / Act) and tool guard apply exactly as in a Project chat. The prompt holds the form
 fields, the source document refs, the rules that apply and any send-back comments. The final
-reply is saved as an artifact (status 確認中 / review), pinned as the draft, and the checks run
+reply is saved as an artifact (status `review`), pinned as the draft, and the checks run
 automatically against it. After a send back, the re-draft is saved as the next version of the
 same artifact, so `workitems.draftDiff` can compare the rounds. A failed or empty run puts the item back where it was, with
 `lastError`. A run still `drafting` after 30 minutes (for example after a restart) may be
@@ -236,8 +236,8 @@ identities (`separation_of_duties`; in a staged route this always applies); and 
 failing blocking check needs `override.reason` (10 characters or more); the override is stored on
 the item, written into the evidence and logged as its own `workitem.override` audit entry. When the
 stage needs more approvals, or more stages follow, the item stays in `awaiting_review`. On the
-last stage's final approval the draft artifact becomes 承認済み (approved); on a send back to the
-requester it returns to 下書き (draft). Send back and cancel need a comment. Send back is open to
+last stage's final approval the draft artifact becomes `approved`; on a send back to the
+requester it returns to `draft`. Send back and cancel need a comment. Send back is open to
 the people who may decide the current stage; cancel to the requester, operators and those people.
 
 Refusals answer `error.details.code`: `not_a_person`, `terminal`, `comment_required`,
@@ -277,7 +277,7 @@ messageId, receivedAt?, from?, subject?}`. It is stored on the item as `source.o
   returns the existing item unchanged with `created: false` (no second item, no event). If the
   caller may not read that item, the answer is `duplicate_source` without the item. The check
   and the insert run under one Project-wide lock, across processes.
-- New items always start as `new` (準備). Intake never submits or approves anything; people review
+- New items always start as `new`. Intake never submits or approves anything; people review
   and decide as for any other item.
 - Refusal code: `duplicate_source`; other invalid input answers with a message naming the field.
 
@@ -307,7 +307,7 @@ expectedRevision?}` needs `operator.approvals`, a written `reason` of 10 charact
 - Refusal codes: `not_a_person`, `invalid_flag`, `reason_required`, `terminal`, `flag_not_set`,
   `not_authorised`.
 
-## Approval routes (稟議)
+## Approval routes
 
 A Project's policy can define **routes**: an ordered list of stages for a queue (and optionally
 item types and conditions). The first route whose `queues`, `types` and `when` match is fixed on
@@ -551,12 +551,12 @@ The Business console groups queues into department workspaces. Each queue may se
 
 ## Templates
 
-| Template                                | Queues                                    | Example rules                                                                                                                                                                     |
-| --------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `business-general-affairs` 総務         | `ga-requests`, `ga-facilities`            | Required fields, cost with second approver above 100,000 JPY, lead time, no "booked" before approval                                                                              |
-| `business-hr-leave-overtime` 人事       | `hr-leave`, `hr-overtime`                 | Leave dates, month-end overtime forecast (warn 36 h, second approver 45 h, max 80 h), daily hours, separation of duties                                                           |
-| `business-finance-expense-invoice` 経理 | `fin-expense`, `fin-invoice`, `fin-ringi` | Receipt attached, amount thresholds, qualified-invoice fields, no "paid" before approval; example 稟議 route manager → finance (from 100,000 JPY) → director (from 1,000,000 JPY) |
-| `business-procurement` 購買             | `proc-requests`                           | Required fields, amount (second approver above 300,000 JPY; 稟議 above 5,000,000 JPY), two quotes (a three-quote rule is included as a comment), lead time                        |
+| Template                           | Queues                                    | Example rules                                                                                                                                                                                  |
+| ---------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `business-general-affairs`         | `ga-requests`, `ga-facilities`            | Required fields, cost with second approver above 100,000 JPY, lead time, no "booked" before approval                                                                                           |
+| `business-hr-leave-overtime`       | `hr-leave`, `hr-overtime`                 | Leave dates, month-end overtime forecast (warn 36 h, second approver 45 h, max 80 h), daily hours, separation of duties                                                                        |
+| `business-finance-expense-invoice` | `fin-expense`, `fin-invoice`, `fin-ringi` | Receipt attached, amount thresholds, qualified-invoice fields, no "paid" before approval; example internal approval route manager → finance (from 100,000 JPY) → director (from 1,000,000 JPY) |
+| `business-procurement`             | `proc-requests`                           | Required fields, amount (second approver above 300,000 JPY; internal approval request above 5,000,000 JPY), two quotes (a three-quote rule is included as a comment), lead time                |
 
 The bundled templates map their queues to departments: general affairs → `admin`, finance (including
 `fin-ringi`) → `finance`, HR → `hr`, procurement → `procurement`.
@@ -566,7 +566,7 @@ starts with `fallback: any_approver` so the example works before people are list
 members and set `fallback: none` so only they can decide.
 
 The HR template uses the figures and status labels of the overtime-coordinator workflow (actual
-hours, month-end forecast, applicable limit; 実績で超過 / 月末見込みに基づくリスク) and its
+hours, month-end forecast, applicable limit; `実績で超過` (over on actuals) / `月末見込みに基づくリスク` (at risk on forecast)) and its
 rule that nothing is sent to an employee before a manager's approval.
 
 ## Hand-offs and settlement

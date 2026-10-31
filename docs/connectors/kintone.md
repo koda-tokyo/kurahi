@@ -9,7 +9,7 @@ title: "kintone"
 
 # kintone connector
 
-日本語: [kintone コネクター](/ja/connectors/kintone)
+Also available in [Japanese](/ja/connectors/kintone).
 
 The kintone connector lets Kurahi agents read records of the kintone apps an administrator lists,
 and only the field codes listed for each app.

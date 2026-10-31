@@ -9,7 +9,7 @@ title: "LINE WORKS"
 
 # LINE WORKS connector
 
-日本語: [LINE WORKS コネクター](/ja/connectors/line-works)
+Also available in [Japanese](/ja/connectors/line-works).
 
 | Property       | Value                                                                                    |
 | -------------- | ---------------------------------------------------------------------------------------- |

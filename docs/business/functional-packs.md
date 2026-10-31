@@ -5,7 +5,7 @@ title: "Functional packs"
 
 # Functional packs
 
-日本語: [業務パック](/ja/business/functional-packs)
+Also available in [Japanese](/ja/business/functional-packs).
 
 Kurahi Business is a governed work and approval layer over your existing business systems.
 It prepares requests, checks configured rules, supports human review and records evidence.

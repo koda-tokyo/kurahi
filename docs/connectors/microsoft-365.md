@@ -9,7 +9,7 @@ title: "Microsoft 365"
 
 # Microsoft 365 connector
 
-日本語: [Microsoft 365 コネクター](/ja/connectors/microsoft-365)
+Also available in [Japanese](/ja/connectors/microsoft-365).
 
 The Microsoft 365 connector lets Kurahi agents read Outlook mail and calendars and, when you
 switch it on, OneDrive and SharePoint files. It talks to Microsoft Graph with your own app

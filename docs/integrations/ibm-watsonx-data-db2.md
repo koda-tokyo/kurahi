@@ -8,7 +8,7 @@ title: "watsonx.data and Db2"
 
 # watsonx.data and Db2 (read-only)
 
-日本語: [watsonx.data と Db2](/ja/integrations/ibm-watsonx-data-db2)
+Also available in [Japanese](/ja/integrations/ibm-watsonx-data-db2).
 
 The `ibm-data` plugin (bundled, off by default) adds two optional tools. Both read only, return
 their results as untrusted content, and audit ids and counts only (a hash of the SQL, row counts,

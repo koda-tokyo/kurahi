@@ -9,7 +9,7 @@ title: "Legacy analyser in your editor (MCP)"
 
 # Legacy analyser in your editor (MCP)
 
-日本語: [エディタでレガシー解析（MCP）](/ja/tools/legacy-mcp)
+Also available in [Japanese](/ja/tools/legacy-mcp).
 
 `kurahi legacy mcp` serves the [legacy analyser](/tools/legacy-analyzer) to the tools engineers
 already use: VS Code, Eclipse-based mainframe IDEs, or any client that speaks the Model Context
@@ -41,7 +41,7 @@ file of the project, relative to the root; default the root), `offset` and `limi
 | `legacy_rules`        | Rule candidates: conditions, arithmetic with constants, rounding, 88-level values, constants.                                                                      |
 | `legacy_dictionary`   | Copybook data dictionary: level, PIC, usage, length, offset, positions, OCCURS, REDEFINES, values.                                                                 |
 | `legacy_impact`       | What a change to a data item reaches, with the fact that links each entry.                                                                                         |
-| `legacy_design_doc`   | Design document (設計書) from the code in Japanese or English, one section per entry; every fact cites path:line.                                                  |
+| `legacy_design_doc`   | Design document from the code in Japanese or English, one section per entry; every fact cites path:line.                                                           |
 | `legacy_wave_plan`    | Proposed migration waves for human review, ordered by dependencies and risk.                                                                                       |
 | `modernise_plan`      | Detected languages, inventory of the COBOL/JCL, Java, SQL DDL, FORTRAN, PL/I and PLC engines, shared tables, coverage, planned assistants (which analyse nothing). |
 | `modernise_crud`      | CRUD of SQL tables across COBOL, PL/I, Java and JCL utilities, and of files (COBOL, FORTRAN, PL/I), with the evidence of each operation.                           |

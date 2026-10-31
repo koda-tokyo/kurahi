@@ -8,7 +8,7 @@ title: "Security Overview"
 
 # Kurahi security overview
 
-日本語版: [セキュリティ概要](/ja/security/SECURITY_OVERVIEW)
+Also available in [Japanese](/ja/security/SECURITY_OVERVIEW).
 
 This page answers the questions a security review asks about a self-hosted Kurahi installation. Each statement names the mechanism and, where one exists, the command that verifies it. Version: this page describes Kurahi 2.0.0 and later; check `kurahi --version`.
 
@@ -56,7 +56,7 @@ Verify: `kurahi pair list`, `kurahi pair invite --scope observe` followed by an 
 
 - Every authentication, pairing, attach/detach, admin action and tool execution is appended to a hash-chained audit log under `KOLO_HOME/audit/` (one file per month; each entry carries the hash of the previous entry).
 - `kurahi audit verify` recomputes the chain and reports the first break; `kurahi audit tail` shows recent entries. The log is append-only from the gateway's point of view; tampering is detectable, not preventable, unless the files are shipped to write-once storage.
-- Audit retention removes whole months from the oldest end only, behind a signed anchor, so the remaining chain still verifies; it is never shorter than `governance.minimumRetentionDays.audit` (default 365 days). A valid My Number (個人番号) is always masked in audit rows. See [Data governance](/security/data-governance#audit-log).
+- Audit retention removes whole months from the oldest end only, behind a signed anchor, so the remaining chain still verifies; it is never shorter than `governance.minimumRetentionDays.audit` (default 365 days). A valid My Number (Individual Number) is always masked in audit rows. See [Data governance](/security/data-governance#audit-log).
 
 ## 7. Boot integrity gate
 

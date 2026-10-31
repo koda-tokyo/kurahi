@@ -8,7 +8,7 @@ title: "IBM watsonx"
 
 # IBM watsonx interoperability
 
-日本語: [IBM watsonx 連携](/ja/integrations/ibm-watsonx)
+Also available in [Japanese](/ja/integrations/ibm-watsonx).
 
 Kurahi is built to work **alongside** an enterprise's IBM stack, not to replace it. Each piece
 below uses an open protocol where IBM supports one (A2A, MCP, OpenAPI, OpenTelemetry, the

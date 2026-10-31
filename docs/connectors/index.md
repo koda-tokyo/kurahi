@@ -8,7 +8,7 @@ title: "Business connectors"
 
 # Business connectors
 
-日本語: [業務コネクター](/ja/connectors)
+Also available in [Japanese](/ja/connectors).
 
 Every business connector is a bundled plugin that is **off by default**, **read-only by default**,
 and makes each write a separate administrator opt-in that waits for a person's approval. Tokens
@@ -16,17 +16,17 @@ live in the Kurahi secret store; audit rows hold ids and counts only; provider t
 model only inside the untrusted-content boundary; the desktop catalogue shows **Active** only
 after a successful live probe. Each has `kurahi <cli> login`, `status`, `probe` and `logout`.
 
-| Connector                                              | CLI            | Reads                                                       | Opt-in writes (each approved)           | Status    |
-| ------------------------------------------------------ | -------------- | ----------------------------------------------------------- | --------------------------------------- | --------- |
-| [Microsoft 365](/connectors/microsoft-365)             | `m365`         | Mail, calendar, OneDrive and SharePoint files               | Send, drafts, events, app-folder upload | Available |
-| [Gmail](/connectors/gmail)                             | `gmail`        | Mail                                                        | Send                                    | Available |
-| [Microsoft Entra ID](/connectors/entra)                | `entra`        | Sign-in, users and groups                                   | None                                    | Available |
-| [kintone](/connectors/kintone)                         | `kintone`      | Records of listed apps, allow-listed field codes            | Record comment, record creation         | Available |
-| [freee 会計](/connectors/freee)                        | `freee`        | Companies, deals, partners, account items, receipt metadata | None (the API has no draft deal)        | Available |
-| [マネーフォワード クラウド](/connectors/money-forward) | `moneyforward` | クラウド請求書: billings, quotes, partners                  | None                                    | Available |
-| [SmartHR](/connectors/smarthr)                         | `smarthr`      | Employees (work fields only), departments                   | None                                    | Available |
-| [LINE WORKS](/connectors/line-works)                   | `lineworks`    | Channel information and members (no message history API)    | Bot text message                        | Available |
-| [Box](/connectors/box)                                 | `box`          | Search, metadata, scanned fetch into the Project            | Upload to one folder                    | Available |
+| Connector                                        | CLI            | Reads                                                       | Opt-in writes (each approved)           | Status    |
+| ------------------------------------------------ | -------------- | ----------------------------------------------------------- | --------------------------------------- | --------- |
+| [Microsoft 365](/connectors/microsoft-365)       | `m365`         | Mail, calendar, OneDrive and SharePoint files               | Send, drafts, events, app-folder upload | Available |
+| [Gmail](/connectors/gmail)                       | `gmail`        | Mail                                                        | Send                                    | Available |
+| [Microsoft Entra ID](/connectors/entra)          | `entra`        | Sign-in, users and groups                                   | None                                    | Available |
+| [kintone](/connectors/kintone)                   | `kintone`      | Records of listed apps, allow-listed field codes            | Record comment, record creation         | Available |
+| [freee Accounting](/connectors/freee)            | `freee`        | Companies, deals, partners, account items, receipt metadata | None (the API has no draft deal)        | Available |
+| [Money Forward Cloud](/connectors/money-forward) | `moneyforward` | Cloud Invoice: billings, quotes, partners                   | None                                    | Available |
+| [SmartHR](/connectors/smarthr)                   | `smarthr`      | Employees (work fields only), departments                   | None                                    | Available |
+| [LINE WORKS](/connectors/line-works)             | `lineworks`    | Channel information and members (no message history API)    | Bot text message                        | Available |
+| [Box](/connectors/box)                           | `box`          | Search, metadata, scanned fetch into the Project            | Upload to one folder                    | Available |
 
 For research, the [Scholar sources](/connectors/scholar-sources) plugin (Kurahi Scholars) reads
 arXiv, OpenAlex, Crossref and PubMed through their free public APIs, with no sign-in and no key.

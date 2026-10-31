@@ -9,7 +9,7 @@ title: "Autopilot"
 
 # Autopilot
 
-日本語: [オートパイロット](/ja/autopilot)
+Also available in [Japanese](/ja/autopilot).
 
 The autopilot carries the repetitive work of a team end to end: inbox triage, invoice intake, a
 nightly analysis of a legacy code base, a literature watch, platform health checks. It runs in
@@ -101,17 +101,17 @@ queue has no flag for (`unverified_citation`, the informational flags) stay in t
 
 ### Core action catalogue
 
-| Action             | Class    | Executed as                                                                                                    |
-| ------------------ | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `workitem.intake`  | prepare  | a work item created by `autopilot:<routineId>` (email intake for a message the routine read)                   |
-| `mail.draft`       | prepare  | `m365_mail_create_draft` (a draft; a person sends it from Outlook)                                             |
-| `office.create`    | prepare  | a Word, PowerPoint or Excel file from a typed spec, rendered by the office plugin into output/                 |
-| `mail.attach`      | prepare  | `m365_mail_attach_to_draft`: this item's document to this item's draft                                         |
-| `quote.prepare`    | prepare  | a 見積書 (Word and Excel) priced from the price list by the office plugin ([Quotations](/business/quotations)) |
-| `files.upload`     | prepare  | `m365_files_upload` (the signed-in user's OneDrive app folder only)                                            |
-| `calendar.propose` | prepare  | a work item with the proposed times; nothing is written to a calendar                                          |
-| `brief.deliver`    | prepare  | the member's morning brief: an Outlook draft to their own address, or `output/briefs/`                         |
-| `mail.send`        | external | `m365_mail_send` or `gmail_send`, only under a standing approval                                               |
+| Action             | Class    | Executed as                                                                                                       |
+| ------------------ | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `workitem.intake`  | prepare  | a work item created by `autopilot:<routineId>` (email intake for a message the routine read)                      |
+| `mail.draft`       | prepare  | `m365_mail_create_draft` (a draft; a person sends it from Outlook)                                                |
+| `office.create`    | prepare  | a Word, PowerPoint or Excel file from a typed spec, rendered by the office plugin into output/                    |
+| `mail.attach`      | prepare  | `m365_mail_attach_to_draft`: this item's document to this item's draft                                            |
+| `quote.prepare`    | prepare  | a quotation (Word and Excel) priced from the price list by the office plugin ([Quotations](/business/quotations)) |
+| `files.upload`     | prepare  | `m365_files_upload` (the signed-in user's OneDrive app folder only)                                               |
+| `calendar.propose` | prepare  | a work item with the proposed times; nothing is written to a calendar                                             |
+| `brief.deliver`    | prepare  | the member's morning brief: an Outlook draft to their own address, or `output/briefs/`                            |
+| `mail.send`        | external | `m365_mail_send` or `gmail_send`, only under a standing approval                                                  |
 
 `workitem.intake` accepts `title`, `type`, `priority`, `note` and, in Business, `department`:
 the item goes to the `<department>-work` queue when the Project has it (the company operations
@@ -147,7 +147,7 @@ each failing closed: the plan schema types the spec per kind (unknown keys fail 
 before anything is written the engine validates it with the office plugin's own parser (the
 office plugin not enabled for the gateway: the action fails); then the engine renders it through the
 plugin's tool (`office_docx_create`, …) in the routine's Project session, so the tool's guards
-apply unchanged: the Project must be in 実行 Act mode, the file goes to
+apply unchanged: the Project must be in Act mode, the file goes to
 `output/autopilot/<runId>/<n>/<file>` (a writable folder, never through a symbolic link, never
 over an existing file). The answering tool must come from the office plugin. A routine may name
 its own `outputFolder` (a writable Project folder such as `output/literature`, never
@@ -200,7 +200,7 @@ a customer system (`repo.merge`, `deploy`). Opening a pull request (`repo.open_p
 `external`: it needs L3 and a standing approval naming the repository. The legacy-analyzer
 actions `legacy.analyze`, `legacy.design_doc` and `legacy.baseline_advance` are `prepare`
 (read-only on the sources; results go to the analyser cache, and `legacy.design_doc` with
-`output_format: docx` also writes the 設計書 as a new Word file in `output/design-docs/`, which the
+`output_format: docx` also writes the design document as a new Word file in `output/design-docs/`, which the
 item's work item references). `legacy.baseline_advance` runs only after the item's work item is
 filed: the engine executes it after `workitem.intake`, and never when filing failed, so a change
 cannot be dropped from the baseline before a person has the item.
@@ -214,13 +214,14 @@ item `unverified_citation` (on by default in Scholars routines, `requireCitation
 gets no action and goes to a person with the flag. `research.search` is `prepare`.
 
 The **Research & academic** template ships three L1 starter routines, a work queue
-(`res-literature` 文献レビュー, `res-writing` 執筆, `res-grants` 研究費・締切, `res-data`
-データ・再現性, with a rule that refuses "submitted", "accepted", 投稿済み, 採択済み, 申請済み … in
+(`res-literature` literature review, `res-writing` writing, `res-grants` grants and deadlines,
+`res-data` data and reproducibility, with a rule that refuses "submitted", "accepted", `投稿済み`,
+`採択済み`, `申請済み` (their Japanese equivalents) … in
 writing and grant items) and the [scholar sources](/connectors/scholar-sources) and office plugins.
 Its `knowledge/` folder is read-only and starts with two forms the researcher fills in:
 `knowledge/research-profile.md` (topics, keywords, sources, languages) and `knowledge/grants.md`
 (one `- YYYY-MM-DD | name | note` line per deadline). Open-access PDFs land in `corpus-inbox/`;
-drafts to check go in `output/drafts/`. The routines need the Project in 実行 Act mode.
+drafts to check go in `output/drafts/`. The routines need the Project in Act mode.
 
 | Routine            | Trigger                                     | Gather                                                                                                                | Files                                                                                                                                             |
 | ------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -376,8 +377,9 @@ compares the sources with the stored baseline
 prompt gets the changes and the wave plan and proposes one item: a title, a summary in the
 project language with each change and its `path:line` evidence, the impact (callers, job steps,
 tables, wave plan effect) and the review a person should do, never a claim that anything was
-deployed, merged or written to OT. The engine then regenerates the 設計書 as Word
-(`legacy.design_doc` with `output_format: docx`, into `output/design-docs/設計書_<YYYYMMDD>.docx`),
+deployed, merged or written to OT. The engine then regenerates the design document as Word
+(`legacy.design_doc` with `output_format: docx`, into `output/design-docs/`
+as `設計書_<YYYYMMDD>.docx` for a Japanese document, `design-doc_<YYYYMMDD>.docx` for English),
 files the work item in `ind-analysis` (its summary is the plan's summary, or the intake note when
 the summary is empty, and it references the Word file), and only then advances the baseline
 (`legacy.baseline_advance`), so the next night compares against tonight.
@@ -388,8 +390,8 @@ for a document, writes a Word document from `knowledge/company-facts.md` and att
 draft (`workitem.intake`, `mail.draft`, `office.create`, `mail.attach`). Nothing is sent; flagged
 mail gets no draft. It needs the Microsoft 365 connector with mail read and `write.mailDraft`,
 the office plugin enabled for the gateway (the engine calls tools through the gateway tool path,
-which sees the gateway's plugins, not a template's per-Project plugins) and the Project in 実行
-Act mode for documents. The template keeps `knowledge/` read-only. It and
+which sees the gateway's plugins, not a template's per-Project plugins) and the Project in Act
+mode for documents. The template keeps `knowledge/` read-only. It and
 `finance-invoice-intake` start on new mail ([Triggers](#triggers)) with an hourly schedule as the
 safety net.
 

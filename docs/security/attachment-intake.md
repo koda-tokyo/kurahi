@@ -9,7 +9,7 @@ title: "Attachment intake"
 
 # Attachment intake
 
-日本語版: [添付ファイルの取り込み](/ja/security/attachment-intake)
+Also available in [Japanese](/ja/security/attachment-intake).
 
 Mail attachments are the most common way malware reaches a company. Kurahi never hands an
 attachment's bytes to a model, and never stores one in a Project before it has been checked.
@@ -33,7 +33,7 @@ and runs:
    `unscanned` passes only when `security.attachments.requireScan` is `false`.
 5. **Store**: a copy goes to `inbox-attachments/` in the Project folder, named
    `<date>-<hash>-<sanitised name>`. The folder must be writable in the Project's current mode
-   (add `inbox-attachments` to the Project's writable folders; 実行 Act mode), is never written
+   (add `inbox-attachments` to the Project's writable folders; Act mode), is never written
    through a symbolic link, never onto a file the integrity registry protects, and never over a
    different file. Open-access papers fetched by the
    [scholar sources](/connectors/scholar-sources) go to `corpus-inbox/` instead, under the same

@@ -218,7 +218,7 @@ A transcript is only ever text in the composer. **No approval can be given by vo
   (`src/voice/approval-guard.ts`).
 - The `voice.*` methods themselves cannot approve, run or send anything.
 - The Work Console must render approvals as explicit click or keyboard confirmations and must
-  never map a spoken "yes" / 「承認」 to an approval call.
+  never map a spoken "yes" / `承認` ("approve") to an approval call.
 
 ## Limitations
 

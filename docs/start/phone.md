@@ -9,7 +9,7 @@ title: "Connect your phone"
 
 # Connect your phone (five minutes)
 
-日本語版: [スマートフォンをつなぐ](/ja/start/phone)
+Also available in [Japanese](/ja/start/phone).
 
 The last step of `kurahi init` asks **Connect your phone** and ends with a QR code. Scan it, send
 one message, and your resident answers you there. The same step is available any time as

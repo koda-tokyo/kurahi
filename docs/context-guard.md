@@ -55,7 +55,7 @@ That is enough for most deployments: the built-in detectors are on by default.
 | -------------- | ------------------------------------------------------------------------ | ----------------- |
 | `email`        | e-mail addresses                                                         |                   |
 | `phone`        | international numbers, Japanese landlines and mobiles, Brazilian numbers |                   |
-| `jp-my-number` | Japanese Individual Numbers (マイナンバー)                               | check digit       |
+| `jp-my-number` | Japanese Individual Numbers (My Number)                                  | check digit       |
 | `br-cpf`       | Brazilian CPF                                                            | both check digits |
 | `br-cnpj`      | Brazilian CNPJ                                                           | both check digits |
 | `credit-card`  | payment card numbers                                                     | Luhn              |

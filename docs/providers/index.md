@@ -20,7 +20,7 @@ Japan-hosted, OpenAI-compatible, with a free tier of 3,000 chat requests a month
 - Default: `sakura/gpt-oss-120b`
 - Also in the preset: `sakura/llm-jp-3.1-8x13b-instruct`, `sakura/Kimi-K2.6` (public preview)
 
-See [Sakura AI Engine](/providers/sakura) (日本語: [さくらのAI Engine](/ja/providers/sakura)).
+See [Sakura AI Engine](/providers/sakura) (also available in [Japanese](/ja/providers/sakura)).
 
 ## Quick start
 

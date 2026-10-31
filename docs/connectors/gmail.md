@@ -9,7 +9,7 @@ title: "Gmail"
 
 # Gmail connector
 
-日本語: [Gmail コネクター](/ja/connectors/gmail)
+Also available in [Japanese](/ja/connectors/gmail).
 
 The Gmail connector lets Kurahi agents list, search and read one mailbox through the Gmail API,
 with an OAuth client the customer owns. It is separate from the Gmail Pub/Sub hook

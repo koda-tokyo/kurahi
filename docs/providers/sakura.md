@@ -8,9 +8,9 @@ title: "Sakura AI Engine"
 
 # Sakura AI Engine
 
-Sakura AI Engine (さくらのAI Engine) is an inference service operated by Sakura Internet and hosted in Japan. It exposes an OpenAI-compatible Chat Completions API, so Kurahi talks to it with the standard `openai-completions` adapter. It is the first profile `kurahi init` offers and the default for evaluations: no card details are needed to start, and prompts do not leave Japan.
+Sakura AI Engine is an inference service operated by Sakura Internet and hosted in Japan. It exposes an OpenAI-compatible Chat Completions API, so Kurahi talks to it with the standard `openai-completions` adapter. It is the first profile `kurahi init` offers and the default for evaluations: no card details are needed to start, and prompts do not leave Japan.
 
-Japanese version: [さくらのAI Engine](/ja/providers/sakura).
+Also available in [Japanese](/ja/providers/sakura).
 
 ## Facts (verified 2026-10-13 against the official pages)
 

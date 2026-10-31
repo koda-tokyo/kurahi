@@ -40,7 +40,7 @@ admin connections. The policy kill switch (`kurahi policy kill`) refuses `termin
 
 **Where.** A session is bound to one project. The working directory starts at the project root
 and the shell's `HOME` is the root, so `~` and a bare `cd` stay inside it. Opening is refused when
-the project is in read mode (参照). Every path a command line names is resolved (lexically, then
+the project is in read mode. Every path a command line names is resolved (lexically, then
 through symlinks for whatever exists, applying `..` after a link the way the kernel does) and
 must stay inside the root; `cd` is tracked through the line, and a `cd` that might or might not
 run is checked both ways. Paths with `$` expansions,
@@ -62,9 +62,9 @@ shell until Enter. Each submitted line is then, in order:
 5. checked by the read-only folder guard (see below); a match is refused in every mode, never
    queued for approval;
 6. decided by mode:
-   - 計画 plan: read-only lines run; everything else waits for an approval;
-   - 実行 act, `actApprovals: "always"`: the same;
-   - 実行 act, `actApprovals: "policy"`: the exec-approvals file of the default agent decides
+   - plan: read-only lines run; everything else waits for an approval;
+   - act, `actApprovals: "always"`: the same;
+   - act, `actApprovals: "policy"`: the exec-approvals file of the default agent decides
      (security, ask, allowlist, as for the exec tool); lines with a risk beyond "runs a program"
      (deletes, overwrites, moves, permissions, git history, network, packages, process control,
      nested commands, background jobs) always ask.

@@ -9,7 +9,7 @@ title: "watsonx Orchestrate"
 
 # IBM watsonx Orchestrate
 
-日本語: [watsonx Orchestrate 連携](/ja/integrations/ibm-watsonx-orchestrate)
+Also available in [Japanese](/ja/integrations/ibm-watsonx-orchestrate).
 
 Kurahi works next to an existing watsonx Orchestrate deployment; it does not replace it. The pack
 uses open protocols where Orchestrate supports them and adds no IBM code to Kurahi:

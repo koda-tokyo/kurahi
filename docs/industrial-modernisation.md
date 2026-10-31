@@ -1,5 +1,5 @@
 ---
-summary: "Industrial modernisation with Kurahi: deterministic analysers for COBOL/JCL, Java and SQL DDL, design documents (設計書) with path:line evidence, a wave plan proposal for human review, and the kurahi-legacy MCP server for engineers' editors"
+summary: "Industrial modernisation with Kurahi: deterministic analysers for COBOL/JCL, Java and SQL DDL, design documents with path:line evidence, a wave plan proposal for human review, and the kurahi-legacy MCP server for engineers' editors"
 read_when:
   - Evaluating Kurahi for a legacy modernisation project
   - Explaining what the analysers produce and what is still planned
@@ -9,7 +9,7 @@ title: "Industrial modernisation"
 
 # Industrial modernisation
 
-日本語: [産業向けモダナイゼーション](/ja/industrial-modernisation)
+Also available in [Japanese](/ja/industrial-modernisation).
 
 Modernising a legacy estate starts with knowing what the code does. Kurahi answers that from the
 code itself: deterministic analysers produce the facts, every fact cites the file and line it came
@@ -46,7 +46,7 @@ Tables are one node across languages: a COBOL `EXEC SQL` table, a JPA `@Table` a
 across COBOL, Java and the database schema. Details and limits per language:
 [Legacy analyser](/tools/legacy-analyzer).
 
-## Design documents (設計書)
+## Design documents
 
 The analyser turns its facts into a design document in Japanese or English: system overview, job
 flow, program specifications, data dictionary, CRUD matrix, and a coverage section with every gap
@@ -93,7 +93,7 @@ and `@Embedded` are not modelled yet.
 
 - **Every fact line cites `path:line`.** A reviewer can check any row against the source.
 - **Nothing is invented.** A program's business purpose, and the business meaning of each rule
-  candidate, are marked 要確認 (needs confirmation).
+  candidate, are marked "to confirm".
 - **Deterministic.** The same sources give a byte-identical document, with a fingerprint of the
   sources it was made from.
 
@@ -130,7 +130,7 @@ revisions of an existing artifact, open it and save a new version. Review and ap
 separate steps; a migration wave plan is a proposal, not permission to change the system.
 
 In the Industrial Edition, the analysis runs inside a Project. The Project's folder is the
-permission boundary, the Project's mode (read 参照, plan 計画, act 実行) limits what agents may do,
+permission boundary, the Project's mode (read, plan, act) limits what agents may do,
 and a Project can require an approval before an artifact the agents produce counts. Commands and
 other consequential actions go through the same approvals as everywhere in Kurahi
 ([Secure defaults](/security/secure-defaults)).

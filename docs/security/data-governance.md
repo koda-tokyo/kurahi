@@ -1,5 +1,5 @@
 ---
-summary: "Data governance: retention per data class with a deterministic sweeper, legal holds, signed eDiscovery exports, the APPI / My Number (マイナンバー) guard on outbound tools, and data subject requests"
+summary: "Data governance: retention per data class with a deterministic sweeper, legal holds, signed eDiscovery exports, the APPI / My Number guard on outbound tools, and data subject requests"
 read_when:
   - Answering a legal, audit or compliance review about how long Kurahi keeps data
   - Placing a legal hold or producing records for litigation or an audit
@@ -10,7 +10,7 @@ title: "Data governance"
 
 # Data governance
 
-日本語版: [データガバナンス](/ja/security/data-governance)
+Also available in [Japanese](/ja/security/data-governance).
 
 Legal and audit departments ask four questions of any system that keeps business records: how
 long is each kind of record kept, can deletion be stopped for a matter, can everything about a
@@ -122,7 +122,7 @@ anchor fails its signature. Pruning stops at the first month a legal hold covers
 
 ## Legal hold
 
-A legal hold (訴訟ホールド) stops every deletion of the data it covers until a person releases it.
+A legal hold stops every deletion of the data it covers until a person releases it.
 
 | Method                     | Params                                           |
 | -------------------------- | ------------------------------------------------ |
@@ -177,17 +177,17 @@ because they are redacted when recorded and a changed byte would fail their sign
 
 The detector recognises Japanese personal identifiers, with full-width digits and dashes:
 
-| Kind               | Rule                                                                                    |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `my_number`        | 12 digits whose check digit validates (個人番号). Invalid check digits are not reported |
-| `corporate_number` | 13 digits whose leading check digit validates (法人番号: public, never personal data)   |
-| `residence_card`   | 在留カード: 2 letters, 8 digits, 2 letters                                              |
-| `passport`         | 2 letters and 7 digits                                                                  |
-| `bank_account`     | 7 digits after 口座, 普通, 当座, 支店 or 店番 (with an optional 3-digit branch code)    |
-| `phone`            | Japanese numbers: 0X…, mobile 0X0, +81                                                  |
-| `email`            | addresses                                                                               |
+| Kind               | Rule                                                                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `my_number`        | 12 digits whose check digit validates (Individual Number). Invalid check digits are not reported                                               |
+| `corporate_number` | 13 digits whose leading check digit validates (corporate number: public, never personal data)                                                  |
+| `residence_card`   | Residence card: 2 letters, 8 digits, 2 letters                                                                                                 |
+| `passport`         | 2 letters and 7 digits                                                                                                                         |
+| `bank_account`     | 7 digits after `口座`, `普通`, `当座`, `支店` or `店番` (account, ordinary, current, branch, branch no.; with an optional 3-digit branch code) |
+| `phone`            | Japanese numbers: 0X…, mobile 0X0, +81                                                                                                         |
+| `email`            | addresses                                                                                                                                      |
 
-A 13-digit 法人番号 is never read as a 個人番号, nor is a 12-digit run inside a longer number, a hex
+A 13-digit corporate number is never read as an Individual Number, nor is a 12-digit run inside a longer number, a hex
 digest or an id.
 
 **Outbound guard.** Before a tool that sends or writes outside Kurahi runs (`m365_mail_send`,
@@ -197,7 +197,7 @@ digest or an id.
 arguments is checked, after every policy and approval guard and with the final arguments, both
 for agent tool calls and for gateway-invoked tools (autopilot, `/tools/invoke`):
 
-- `myNumber` (default `block`): a valid 個人番号 refuses the call with rule `personal-data:my_number`.
+- `myNumber` (default `block`): a valid Individual Number refuses the call with rule `personal-data:my_number`.
 - `otherIdentifiers` (default `warn`): the call proceeds and the finding is audited.
 - Either may be `block`, `warn` or `off`, organisation-wide (`governance.personalData`) or per
   Project (`governance.policy.set`).
@@ -207,7 +207,7 @@ audited with the tool, the argument path, offsets and a keyed digest (HMAC-SHA25
 installation key in `KOLO_HOME/governance/pd.key`); never the value. A plain hash would not do:
 a 12-digit number can be recovered from its SHA-256 by trying every candidate.
 
-**Logs.** A valid 個人番号 is always masked (`[マイナンバー]`) in audit rows and in sealed evidence
+**Logs.** A valid Individual Number is always masked (`[マイナンバー]`) in audit rows and in sealed evidence
 events. `governance.personalData.redactLogs: true` masks every kind above.
 
 ## Data subject requests
