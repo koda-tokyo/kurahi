@@ -94,11 +94,11 @@ command-line model and without content leaving the network.
   `<provider>/<model>`, is refused when it is loaded, not at the first run.
 
 ### Business edition
-- **Quotations (見積管理):** quotation requests become cases with a 見積書 in Word and Excel.
+- **Quotations:** quotation requests become cases with a quotation document in Word and Excel.
   Unit prices come from the company price list (CSV, UTF-8 or Shift_JIS); Kurahi computes every
-  amount and the consumption tax per rate, rounded once per rate per document (インボイス制度).
-  Items not in the price list are 【要確認】. A quotation with open items can be released only as a
-  provisional estimate (御見積書（暫定）); a final quotation needs every item priced or explicitly
+  amount and the consumption tax per rate, rounded once per rate per document (Japan's qualified invoice system).
+  Items not in the price list are marked "to confirm". A quotation with open items can be released only as a
+  provisional estimate; a final quotation needs every item priced or explicitly
   taken out of scope with a reason. Revisions (R2, R3 …) name the version they supersede, and
   approval is bound to the exact files. Sending is always a person's action. Price lists can also
   be Excel workbooks (.xlsx, read with a strict XML parser); a price list older than the company's
@@ -129,7 +129,7 @@ command-line model and without content leaving the network.
   approval.
 
 ### Data governance
-- Retention sweeper with signed manifests, legal holds, eDiscovery export, a My Number (マイナンバー)
+- Retention sweeper with signed manifests, legal holds, eDiscovery export, a My Number (Japan's individual number)
   guard on outbound tools, and data subject requests (APPI).
 
 ### Console
@@ -192,15 +192,15 @@ command-line model and without content leaving the network.
 
 ## 2.2.0 — 2026-10-25
 
-The Business Edition and Autopilot release: 稟議 approval routes and business connectors, routines that carry repetitive work end to end in every edition, deeper Industrial analysis, a Scholars research workspace, enterprise identity and the enterprise package. Upgrade notes: [Kurahi 2.2.0](https://docs.kodasoken.com/releases/2.2.0).
+The Business Edition and Autopilot release: internal approval routes and business connectors, routines that carry repetitive work end to end in every edition, deeper Industrial analysis, a Scholars research workspace, enterprise identity and the enterprise package. Upgrade notes: [Kurahi 2.2.0](https://docs.kodasoken.com/releases/2.2.0).
 
 ### Business Edition
 
 - Departments: 15 department workspaces and six SME groups with scoped queue navigation, server-side search and status filters; the Company operations template provides every department queue. Department conversations open from the console into agent chat with persistent context and safe session switching.
-- Approval routes (稟議): ordered stages with role, named or department approvers, minimum approvals, due hours, send-back behaviour, conditional stages, delegation and escalation (audited, with evidence). Requester ownership, `mine` and `awaitingMe` views, safe document previews, draft version diffs and queue statistics (`workitems.delegate|document|draftDiff|stats`). Templates gain a three-stage finance route and a three-quote procurement option.
+- Approval routes: ordered stages with role, named or department approvers, minimum approvals, due hours, send-back behaviour, conditional stages, delegation and escalation (audited, with evidence). Requester ownership, `mine` and `awaitingMe` views, safe document previews, draft version diffs and queue statistics (`workitems.delegate|document|draftDiff|stats`). Templates gain a three-stage finance route and a three-quote procurement option.
 - Control UI: create, edit and submit expense requests with pinned revisions and duplicate-save protection; approve, send back and cancel with written reasons; preview the exact pinned draft (Project, version and SHA-256 checked); verify evidence on request; staged route progress with deadlines and overdue and escalation markers (Japanese and English).
 - Email intake: a mail message becomes a work item by reference (connector, message id, bounded headers; never the body), idempotent per message. Risk flags: `suspected_fraud` (also raised for a proposed bank-detail change) and `malicious_attachment` block approval and completion until a person clears the flag with a written reason.
-- Connectors, all off by default: kintone, freee 会計, マネーフォワード クラウド請求書, SmartHR, LINE WORKS and Box (read-only, or read-only by default), with API-token, assertion and confidential OAuth client credentials in the connector kit. Microsoft 365 adds draft-only Outlook replies, Project files attached to drafts, uploads to the OneDrive app folder and a Graph delta-query mail watcher for triggers. The catalogue shows a connector as Active once its connection probe succeeds.
+- Connectors, all off by default: kintone, freee Accounting, Money Forward Cloud Invoice, SmartHR, LINE WORKS and Box (read-only, or read-only by default), with API-token, assertion and confidential OAuth client credentials in the connector kit. Microsoft 365 adds draft-only Outlook replies, Project files attached to drafts, uploads to the OneDrive app folder and a Graph delta-query mail watcher for triggers. The catalogue shows a connector as Active once its connection probe succeeds.
 - Office documents: the bundled `office` plugin (off by default, Project-scoped; enabled by the Business templates) writes PowerPoint, Word and Excel files from structured specs into the Project, with native editable charts, speaker notes and a 20 MB cap. No new dependencies.
 
 ### Autopilot
@@ -218,12 +218,12 @@ The Business Edition and Autopilot release: 稟議 approval routes and business 
 - Stored procedures: DB2 SQL PL and PL/SQL routine bodies, PL/SQL package bodies split into member routines, and calls linked to routine nodes from Java, Oracle calls without `CALL`, `@NamedStoredProcedureQueries`, and COBOL and PL/I `EXEC SQL CALL`, so table impact reaches their callers.
 - PLC engine: IEC 61131-3 Structured Text, and FBD and LD networks in PLCopen XML exports, with a POU and I/O inventory and a PLC section in the design document. IL and SFC bodies and vendor ladder exports are listed as not read. Source text only; never touches a controller.
 - Change detection: `legacy_changes` compares the fact index with a stored baseline (programs, copybooks, jobs, tables, columns, routines and their edges, with `path:line` evidence); `legacy_baseline_advance` promotes it. The nightly starter routine runs only when something changed and also after a new source drop.
-- Design documents (設計書) as Word files (`output_format: "docx"`), never overwriting an earlier one. The Industrial template gains analysis, design-document, modernisation and quality work queues.
+- Design documents as Word files (`output_format: "docx"`), never overwriting an earlier one. The Industrial template gains analysis, design-document, modernisation and quality work queues.
 
 ### Scholars
 
 - New bundled `scholar-sources` plugin (off by default, enabled by the Research & academic template): search, records, citation check, open-access PDF fetch through the attachment intake and grant deadlines over arXiv, OpenAlex, Crossref, PubMed and doi.org, keyless and within each provider's rate limits.
-- The template becomes a working research workspace: work queues for literature, writing, grants and data, profile and grant forms, and three L1 routines: a weekly literature watch with a Word digest, a citation check of drafts and grant deadline reminders. A missing fact is marked 【要確認】 in place, never invented.
+- The template becomes a working research workspace: work queues for literature, writing, grants and data, profile and grant forms, and three L1 routines: a weekly literature watch with a Word digest, a citation check of drafts and grant deadline reminders. A missing fact is marked "to confirm" in place, never invented.
 
 ### Security
 
@@ -253,7 +253,7 @@ The Business Edition and Autopilot release: 稟議 approval routes and business 
 - Connectors: a sign-in whose redirect port is taken names the port; `KURAHI_DEBUG_CONNECTORS=1` shows the raw error on the administrator's own terminal.
 - Work queue: the intake tool stays remote when `gateway.mode` is `remote`.
 - Control UI: distinct, localised accessible names for Industrial assessment and pack buttons.
-- Docs (English and Japanese): Autopilot, Business work queue and 稟議, business connectors, Office documents, attachment intake, enterprise identity, enterprise profile, Scholars and IBM watsonx.
+- Docs (English and Japanese): Autopilot, Business work queue and approval routes, business connectors, Office documents, attachment intake, enterprise identity, enterprise profile, Scholars and IBM watsonx.
 
 ## 2.1.0 — 2026-10-24
 
@@ -267,12 +267,12 @@ The Industrial Edition release. Kurahi Desktop 0.4.0 ships with it.
 
 - Legacy analyser (deterministic, no model in the loop): COBOL with copybooks and JCL, Java (classes, methods, inheritance, resolvable calls, Spring and JPA annotations, table access), SQL DDL (tables, views, indexes, columns, keys; ANSI, DB2, Oracle and PostgreSQL basics), FORTRAN (fixed and free form, COMMON, INCLUDE, calls, file I/O) and PL/I (procedures, structures, files, EXEC SQL, ON-units). Every fact carries `path:line`; what the analyser cannot read is reported as a gap, never dropped silently.
 - Cross-program knowledge graph across languages: CRUD facts per table, call and data impact, graph queries.
-- Design documents (設計書) generated from code, with Java and SQL sections, and a modernisation wave plan proposed for human review.
+- Design documents generated from code, with Java and SQL sections, and a modernisation wave plan proposed for human review.
 - `kurahi legacy mcp --root <project>`: the analyser as an MCP server for the engineer's own editor (VS Code, Eclipse-based tools), read-only and scoped to one folder.
 - Modernisation tools in the legacy-analyzer plugin, enabled per Project rather than for the whole gateway; the Industrial Project template routes each language to its engine.
-- Industrial workbench in Kurahi Desktop: Projects with permission modes (参照 read / 計画 plan / 実行 act), engineering and industrial capability packs, an outputs (成果物) panel with verifiable export hashes, and a connector catalogue that shows only what is really connected.
+- Industrial workbench in Kurahi Desktop: Projects with permission modes (read / plan / act), engineering and industrial capability packs, an outputs panel with verifiable export hashes, and a connector catalogue that shows only what is really connected.
 - Project-scoped plugins: a plugin can be enabled for one Project only.
-- Document requests: in an Industrial Project, the Assets view prepares a design document (設計書) or wave plan request as a chat draft for that Project, in Japanese or English, for the operator to review and send; workspace manifests point at the shipped Industrial, Business, Research, Education and Professional templates.
+- Document requests: in an Industrial Project, the Assets view prepares a design document or wave plan request as a chat draft for that Project, in Japanese or English, for the operator to review and send; workspace manifests point at the shipped Industrial, Business, Research, Education and Professional templates.
 
 ### Work Console
 
@@ -284,7 +284,7 @@ The Industrial Edition release. Kurahi Desktop 0.4.0 ships with it.
 
 - Governed work queue: work items with policy checks, approval records, history and evidence (`workitems.*` gateway methods and the `workitems.changed` event), and a read-only review view in the Control UI (Japanese and English).
 - Business connectors for Microsoft 365, Gmail and Microsoft Entra ID, off by default (OAuth with PKCE or device code, sanitized read-only status in `connectors.status`). The catalogue shows a connector as Active only after a live probe succeeds.
-- Business Project templates: 総務, 人事, 経理, 購買.
+- Business Project templates: General Affairs, HR, Accounting, Procurement.
 
 ### Security
 
