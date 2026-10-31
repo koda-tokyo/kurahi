@@ -97,6 +97,14 @@ const entries: SubCliEntry[] = [
     },
   },
   {
+    name: "industrial",
+    description: "Industrial edition: modernisation providers and vendor results import",
+    register: async (program) => {
+      const mod = await import("../industrial-cli.js");
+      mod.registerIndustrialCli(program);
+    },
+  },
+  {
     name: "attach",
     description: "Attach this terminal to a live session",
     register: async (program) => {
@@ -389,6 +397,14 @@ const entries: SubCliEntry[] = [
     register: async (program) => {
       const mod = await import("../directory-cli.js");
       mod.registerDirectoryCli(program);
+    },
+  },
+  {
+    name: "guardian",
+    description: "Kurahi Guardian (exposure check: verify, attest, run, people)",
+    register: async (program) => {
+      const mod = await import("../guardian-cli.js");
+      mod.registerGuardianCli(program);
     },
   },
   {

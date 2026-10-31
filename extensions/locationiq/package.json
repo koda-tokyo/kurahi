@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/locationiq",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "LocationIQ geocoding and maps plugin — 5K requests/day free",
   "type": "module",
   "devDependencies": {

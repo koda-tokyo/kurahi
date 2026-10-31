@@ -1,0 +1,27 @@
+{
+  "schema": "kurahi.vendor-import/1",
+  "provider": "ibm-z",
+  "format": "business-rules-export",
+  "origin": {
+    "product": "IBM watsonx Code Assistant for Z - Z Understand",
+    "productVersion": "2.8.30",
+    "exportedAt": "2026-10-30T09:00:00Z",
+    "exportedBy": "alice",
+    "authorisedBy": "ops-lead",
+    "sourceSystem": "synthetic payroll sample"
+  },
+  "files": [
+    {
+      "path": "business-rules.csv",
+      "sha256": "d1a3aafd8ce48db86b18152215af4df37fb8bf0dbb389f073429c105024fc788",
+      "bytes": 193,
+      "role": "data"
+    },
+    {
+      "path": "kurahi-mapping.json",
+      "sha256": "a294a7d5d19582477990a893859940b808c158048cdbc1ffcd3821f9e58e2128",
+      "bytes": 252,
+      "role": "mapping"
+    }
+  ]
+}

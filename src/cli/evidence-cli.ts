@@ -5,6 +5,7 @@
 //   kurahi evidence export <jobId> --out <dir|zip>      signed bundle: manifest, events, snapshots,
 //                                                     audit slice, REPORT.md
 //   kurahi evidence verify <bundle> [--json]            recompute every hash and signature offline
+//        [--trust-key <keyId...>]                       and require one of these signer keys
 //   kurahi evidence replay <bundle|jobId> [--step N]    walk the events with a stepper
 //   kurahi evidence prune [--days N] [--dry-run]        apply retention
 //
@@ -92,6 +93,7 @@ export function verificationLines(target: string, v: BundleVerification): string
     `job-end sig  ${mark(v.recordedOk)}`,
     `audit slice  ${mark(v.auditSliceOk)}`,
     `snapshots    ${mark(v.snapshotsOk)}`,
+    `trusted key  ${v.trustedOk === null || v.trustedOk === undefined ? "not checked (no --trust-key)" : mark(v.trustedOk)}`,
     `verdict      ${v.ok ? "PASS" : "FAIL"}`,
   ];
   for (const p of v.problems) {
@@ -222,7 +224,7 @@ export async function runEvidenceExport(
 
 export async function runEvidenceVerify(
   target: string | undefined,
-  opts: { json?: boolean },
+  opts: { json?: boolean; trustKey?: string[] },
   deps: EvidenceCliDeps = {},
 ): Promise<number> {
   const runtime = deps.runtime ?? defaultRuntime;
@@ -233,7 +235,7 @@ export async function runEvidenceVerify(
   }
   let result: BundleVerification;
   try {
-    result = await verifyEvidenceBundle(bundle);
+    result = await verifyEvidenceBundle(bundle, { trustedKeyIds: opts.trustKey });
   } catch (err) {
     runtime.error(
       `kurahi evidence verify: cannot read ${bundle} (${err instanceof Error ? err.message : String(err)})`,
@@ -338,7 +340,11 @@ export function registerEvidenceCli(program: Command, deps: EvidenceCliDeps = {}
     .alias("check")
     .description("Recompute every hash and signature of a bundle offline (exit 1 on any failure)")
     .option("--json", "JSON output", false)
-    .action(async (bundle: string, opts: { json?: boolean }) =>
+    .option(
+      "--trust-key <keyId...>",
+      "accept only these signer key ids (sha256 of the public key; see manifest.json signer.keyId)",
+    )
+    .action(async (bundle: string, opts: { json?: boolean; trustKey?: string[] }) =>
       exit(await runEvidenceVerify(bundle, opts, deps)),
     );
 

@@ -16,6 +16,8 @@
     "packages/client/src/generated/",
     "packages/legacy-analyzer/examples/",
     "patches/",
+    // Import bundles whose manifests carry SHA-256 hashes of these exact bytes.
+    "src/industrial/vendor-import/test-fixtures/",
     "pnpm-lock.yaml/",
     "Swabble/",
     "vendor/",

@@ -1,0 +1,50 @@
+{
+  "id": "CHG-001",
+  "title": "Raise the weekly overtime threshold from 40.0 to 45.0 hours",
+  "rationale": "Synthetic policy change for the verification fixture. Only employees over 40.0 hours (E00002, E00005, E00008 in week-01) change gross, tax and net; every other record and every other fixture must stay equivalent.",
+  "comparators": {
+    "stdout": { "mode": "text" },
+    "PAYOUT.DAT": {
+      "mode": "fields",
+      "keyField": "EMP-ID",
+      "fields": [
+        { "name": "EMP-ID", "start": 1, "length": 6, "type": "text" },
+        { "name": "GROSS", "start": 31, "length": 11, "type": "decimal" },
+        { "name": "TAX", "start": 43, "length": 11, "type": "decimal" },
+        { "name": "NET", "start": 55, "length": 10, "type": "decimal", "scale": 2 }
+      ]
+    },
+    "PAYPK.DAT": {
+      "mode": "fields",
+      "recordLength": 16,
+      "keyField": "EMP-ID",
+      "fields": [
+        { "name": "EMP-ID", "start": 1, "length": 6, "type": "text" },
+        { "name": "GROSS", "start": 7, "length": 5, "type": "packed", "scale": 2 },
+        { "name": "NET", "start": 12, "length": 5, "type": "packed", "scale": 2 }
+      ]
+    }
+  },
+  "intended": [
+    {
+      "output": "PAYOUT.DAT",
+      "fixtures": ["week-01"],
+      "keys": ["E00002", "E00005", "E00008"],
+      "fields": ["GROSS", "TAX", "NET"],
+      "expected": { "week-01": "expected-chg001/week-01/PAYOUT.DAT" }
+    },
+    {
+      "output": "PAYPK.DAT",
+      "fixtures": ["week-01"],
+      "keys": ["E00002", "E00005", "E00008"],
+      "fields": ["GROSS", "NET"],
+      "expected": { "week-01": "expected-chg001/week-01/PAYPK.DAT" }
+    },
+    {
+      "output": "stdout",
+      "fixtures": ["week-01"],
+      "records": [1, 2],
+      "expected": { "week-01": "expected-chg001/week-01/stdout" }
+    }
+  ]
+}

@@ -124,7 +124,11 @@ export function resolveProjectFile(folder: string, input: unknown): string {
  * (`output/.legacy-index/`: the index, the latest design document and wave plan, the
  * change-detection baseline) and, for legacy_design_doc with output_format docx, a new Word file
  * in `output/design-docs/` under the office path guards (only where the mode makes output/
- * writable, never over an existing file); never a file the agent chooses.
+ * writable, never over an existing file); never a file the agent chooses. modernise_import reads
+ * a bundle in the project folder and writes only the Project's state (industrial-imports/), in
+ * Plan or Act mode (the tool refuses Read mode itself).
+ * modernise_verify is deliberately not listed: it compiles and runs the programs (in a scratch
+ * folder, writing only the Project's data area), so it is offered in 実行 Act mode only.
  */
 export const LEGACY_ANALYZER_TOOLS = [
   "legacy_index",
@@ -140,6 +144,7 @@ export const LEGACY_ANALYZER_TOOLS = [
   "modernise_crud",
   "modernise_impact",
   "modernise_inventory",
+  "modernise_import",
 ];
 
 /** Tools that only read (no writes, no commands, nothing leaves the machine). */
@@ -248,6 +253,7 @@ export function projectContextForAgent(
         "then legacy_query, legacy_rules, legacy_dictionary or legacy_impact with the same path " +
         "(legacy_design_doc and legacy_wave_plan generate the design document and a migration wave proposal). " +
         "For Java, SQL DDL or mixed projects, start with modernise_plan, then modernise_crud, modernise_impact or modernise_inventory; " +
+        "results exported from a vendor tool are imported with modernise_import and are unverified vendor claims, never analyser facts; " +
         "assistants it lists as planned are not available yet, say so. " +
         "State only facts the analyser returned and cite each one as file:line from its output; the analyser provides the facts, you explain them.",
     );

@@ -1,0 +1,27 @@
+{
+  "schema": "kurahi.vendor-import/1",
+  "provider": "aws-transform",
+  "format": "analysis-json",
+  "origin": {
+    "product": "AWS Transform for mainframe",
+    "productVersion": null,
+    "exportedAt": "2026-10-30T09:00:00Z",
+    "exportedBy": "alice",
+    "authorisedBy": "ops-lead",
+    "sourceSystem": "synthetic payroll sample"
+  },
+  "files": [
+    {
+      "path": "dependencies.json",
+      "sha256": "6a3d66a4730db5c125f7a5c6e3c154d6006e4a2decde593f6d1fa7e3dead6273",
+      "bytes": 163,
+      "role": "data"
+    },
+    {
+      "path": "kurahi-mapping.json",
+      "sha256": "599f648ccfd5512d5133789933eb8a718345e48378ef4f6cf9773b549f02f52a",
+      "bytes": 272,
+      "role": "mapping"
+    }
+  ]
+}

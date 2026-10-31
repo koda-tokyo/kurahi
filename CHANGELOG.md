@@ -2,6 +2,49 @@
 
 Docs: https://kurahi.kodasoken.com/docs
 
+## 2.6.0 — 2026-11-01
+
+Kurahi 2.6 extends Kurahi Industrial from understanding legacy systems to verifying changes to them,
+brings in modernisation results from IBM, AWS and Google, and adds an exposure check to Kurahi
+Guardian. The documentation's English pages are now in English only.
+
+### Kurahi Industrial
+- **Change verification for COBOL and FORTRAN** (`modernise_verify`, `kurahi legacy verify`): the
+  original and the changed program are frozen as source snapshots (SHA-256 per file, compiler
+  identity), compiled with GnuCOBOL or GNU Fortran, run on the same test inputs and compared —
+  byte-exact by default, or by fields including packed decimal (COMP-3) with an explicit tolerance
+  (default 0). An approved change specification separates intended changes from regressions.
+  Verdicts: PASS, FAIL, INCONCLUSIVE, TIMEOUT, CANCELLED, NOT_RUN_NO_FIXTURES and
+  NOT_RUN_COMPILER_UNAVAILABLE (PL/I without a licensed compiler); a missing compiler, missing
+  inputs or an unfinished run is never PASS. A PASS covers the test inputs that were run.
+- **Change cases:** a case binds the baseline, the candidate, the change specification and the test
+  runs; the approver must differ from the owner and the requester; changing the candidate, the
+  specification, the policy or the inputs cancels the approval; approval hands off and never deploys.
+- **Signed evidence for every outcome** (pass, fail, timeout, cancel); `kurahi evidence verify`
+  gains `--trust-key` so a bundle signed with another key fails.
+- **Vendor results import** (`modernise_import`, `kurahi industrial import`): exports from Google
+  Cloud Mainframe Assessment Tool (Neo4j graph), AWS Transform for mainframe (generated
+  requirements) and IBM watsonx Code Assistant for Z (Z Understand generated documentation),
+  following each vendor's published format; other exports with a field mapping you provide. Every
+  bundle is size- and path-checked, hash-checked against its manifest and malware-scanned; imports
+  are idempotent and recorded as signed evidence. Imported results stay labelled as unverified
+  vendor claims until reviewed. Kurahi does not connect to or run these vendor services.
+
+### Kurahi Guardian
+- **Exposure check** (`guardian.exposure`): for domains the organisation has verified (DNS TXT or an
+  audited attestation) — subdomains from certificate transparency, SPF/DMARC/MX/CAA and dangling
+  CNAME posture, secrets or plaintext credentials on its own public websites (masked), registered
+  lookalike domains, and optionally Have I Been Pwned domain search and GitHub code search.
+- **Personal exposure, with consent** (`guardian.exposure.people`, off by default): people who enrol
+  and prove their own identifiers can see breaches of their email, where their own handles exist on
+  major platforms, and their email or phone on the organisation's sites; results are visible to the
+  person and the security role only; consent is revocable and data is deleted after the retention
+  period. It never searches people who have not enrolled.
+
+### Documentation
+- English pages are in English only; Japanese terms are translated (glossary in
+  `docs/reference/glossary-ja-en.md`). Values a user types or a system shows stay as they are.
+
 ## 2.5.0 — 2026-10-30
 
 Kurahi 2.5 brings Super SSO: one company sign-in for every surface, passkeys built in, and a fresh

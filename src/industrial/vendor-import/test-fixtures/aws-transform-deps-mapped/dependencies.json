@@ -1,0 +1,6 @@
+{
+  "dependencies": [
+    { "source": "PAYCALC", "target": "TAXCALC", "type": "CALLS" },
+    { "source": "PAYJOB", "target": "PAYCALC", "type": "EXECUTES" }
+  ]
+}

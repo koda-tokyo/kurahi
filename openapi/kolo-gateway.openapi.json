@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "KoLo Gateway API",
-    "version": "2.5.0",
+    "version": "2.6.0",
     "description": "HTTP surface of one Kurahi gateway (one per identity). Generated from the route registry in src/gateway/http-routes.ts; the gateway serves the live copy at GET /doc. Every operation names its token class in `x-kolo-scope`. All HTTP requests share a per-IP sliding window (x-kolo-rate-limit) and credential-bearing requests also count against a 20/min credential-attempt limiter; both answer 429 with Retry-After. Routes that exist but are not described operation by operation are listed in x-kolo-undocumented-routes with the reason.",
     "license": {
       "name": "MIT"

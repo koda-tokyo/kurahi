@@ -1,0 +1,21 @@
+{
+  "schema": "kurahi.vendor-import/1",
+  "provider": "google-mat",
+  "format": "neo4j-jsonl",
+  "origin": {
+    "product": "Mainframe Assessment Tool",
+    "productVersion": null,
+    "exportedAt": "2026-10-30T09:00:00Z",
+    "exportedBy": "alice",
+    "authorisedBy": "ops-lead",
+    "sourceSystem": "synthetic payroll sample"
+  },
+  "files": [
+    {
+      "path": "graph/assessment.jsonl",
+      "sha256": "ee8d8f3ebf0f0184330aec456584aad55eec013d2e99129c910576d829aebb71",
+      "bytes": 1149,
+      "role": "data"
+    }
+  ]
+}

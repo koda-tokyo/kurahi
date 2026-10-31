@@ -11,6 +11,14 @@ queues:
     name: { ja: セキュリティインシデント, en: Security incidents }
     types: [case]
     slaHours: 24
+  # Personal exposure (consented people): readable only by the security role, the requester and
+  # privileged operators. No management stage and no escalation to other roles, so nobody else is
+  # ever an approver (and so a reader) of these cases.
+  - id: sec-personal
+    department: it
+    name: { ja: 個人の露出（同意者・セキュリティ担当のみ）, en: Personal exposure (consented, security only) }
+    types: [case]
+    slaHours: 72
 rules:
   - id: sec.required
     kind: required
@@ -37,3 +45,12 @@ routes:
         when: [{ field: priority, in: [high, urgent] }]
         approvers: { roles: [director] }
         dueHours: 24
+  - id: sec-personal-review
+    name: { ja: 個人の露出の確認（セキュリティ担当のみ）, en: Personal exposure review (security only) }
+    queues: [sec-personal]
+    stages:
+      - id: security
+        name: { ja: 情報セキュリティ担当の確認, en: IT security review }
+        approvers: { roles: [security] }
+        dueHours: 72
+        onReturn: requester

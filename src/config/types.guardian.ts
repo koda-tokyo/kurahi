@@ -42,6 +42,48 @@ export type GuardianSiemConfig = {
   ca?: string;
 };
 
+export type GuardianExposureCrawlConfig = {
+  /** Pages fetched per run across all sites (default 200). */
+  maxPages?: number;
+  /** Bytes read per run across all sites (default 50 MiB). */
+  maxBytes?: number;
+  /** Link depth from each site's home page (default 3). */
+  maxDepth?: number;
+};
+
+export type GuardianExposurePeopleConfig = {
+  /** Personal exposure checks for enrolled, consenting people (default false). */
+  enabled?: boolean;
+  /** Days results are kept after consent is revoked (default 30). */
+  retentionDays?: number;
+  /** Platform ids from the curated list (default: all of them). */
+  platforms?: string[];
+  /** Breaches per verified email via HIBP `breachedaccount` (needs the HIBP key). */
+  hibp?: { enabled?: boolean };
+};
+
+/**
+ * Exposure check: defensive OSINT on the organisation's OWN declared assets. Domains must be
+ * verified (DNS TXT or admin attestation) before anything is fetched.
+ */
+export type GuardianExposureConfig = {
+  enabled?: boolean;
+  /** Apex domains the organisation owns (lowercase, no wildcard, at most 20). */
+  domains?: string[];
+  /** Mail domains for the breach check (each must also be a verified domain or under one). */
+  emailDomains?: string[];
+  /** Brand terms for the code search. */
+  brandTerms?: string[];
+  crawl?: GuardianExposureCrawlConfig;
+  /** Lookalike permutations per domain (default 300); `ignore` = lookalikes the org holds itself. */
+  lookalikes?: { max?: number; ignore?: string[] };
+  /** Have I Been Pwned domain search (needs the key `guardian.exposure.hibpApiKey`). */
+  hibp?: { enabled?: boolean };
+  /** GitHub code search (needs the token `guardian.exposure.githubToken`). */
+  github?: { enabled?: boolean };
+  people?: GuardianExposurePeopleConfig;
+};
+
 export type GuardianConfig = {
   enabled?: boolean;
   /** Company file shares (absolute paths) watched by the ransomware shield and scanned. */
@@ -50,4 +92,5 @@ export type GuardianConfig = {
   posture?: GuardianPostureConfig;
   siem?: GuardianSiemConfig;
   advisories?: { feeds?: ("jpcert" | "ipa")[]; products?: string[] };
+  exposure?: GuardianExposureConfig;
 };

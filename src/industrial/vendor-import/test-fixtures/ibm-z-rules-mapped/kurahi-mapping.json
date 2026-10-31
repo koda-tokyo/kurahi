@@ -1,0 +1,11 @@
+{
+  "schema": "kurahi.vendor-import-mapping/1",
+  "tables": [
+    {
+      "file": "business-rules.csv",
+      "format": "csv",
+      "produces": "rules",
+      "fields": { "title": "Rule Name", "text": "Description", "subject": "Program" }
+    }
+  ]
+}

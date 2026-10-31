@@ -17,8 +17,10 @@ import {
 import { optionalStringEnum } from "../../src/agents/schema/typebox.js";
 import { changesTools } from "./changes-tools.js";
 import { writeDesignDocx } from "./design-doc-docx.js";
+import { importTools } from "./import-tools.js";
 import { moderniseTools } from "./modernise-tools.js";
 import { failure, markdownResult, result, str } from "./results.js";
+import { verifyTools } from "./verify-tool.js";
 
 // Read-only tools over the legacy analyser. Each takes the folder to analyse as `path`; the
 // permission guard classifies these calls as reads of that path, so a project session can only
@@ -276,7 +278,13 @@ export default function register(api: KoLoPluginApi) {
         },
       },
       ...changesTools({ root, pathParam, env }),
-      ...moderniseTools({ root, pathParam, env }),
+      ...moderniseTools({ root, pathParam, env, sessionKey: () => ctx.sessionKey }),
+      ...verifyTools({ base, sessionKey: ctx.sessionKey, env }),
+      ...importTools({
+        pathParam,
+        sessionKey: () => ctx.sessionKey,
+        agentId: () => ctx.agentId ?? "main",
+      }),
     ];
   });
 }

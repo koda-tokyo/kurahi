@@ -109,6 +109,14 @@ const CORE_READ_TOOLS: ReadToolDef[] = [
     "guardian_integrity",
     "guardian_credentials",
     "guardian_scan",
+    // Guardian exposure (src/guardian/exposure): the organisation's own verified domains.
+    "guardian_exposure_subdomains",
+    "guardian_exposure_dns",
+    "guardian_exposure_web_secrets",
+    "guardian_exposure_lookalikes",
+    "guardian_exposure_breaches",
+    "guardian_exposure_code",
+    "guardian_exposure_people",
   ].map((name) => ({ name, provider: "engine" })),
   // Guardian: JPCERT/CC and IPA advisories from allow-listed feeds (src/guardian/advisories.ts).
   { name: "guardian_advisories", provider: "core" },

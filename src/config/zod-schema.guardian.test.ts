@@ -32,3 +32,54 @@ describe("guardian config paths", () => {
     expect(ok.success).toBe(true);
   });
 });
+
+describe("guardian exposure config", () => {
+  const parse = (exposure: unknown) => GuardianSchema.safeParse({ exposure }).success;
+
+  it("accepts lowercase apex domains and the documented options", () => {
+    expect(
+      parse({
+        enabled: true,
+        domains: ["example.co.jp", "xn--eckwd4c7c.xn--zckzah", "my-company.com"],
+        emailDomains: ["example.co.jp"],
+        brandTerms: ["Example Corp"],
+        crawl: { maxPages: 200, maxBytes: 10_000_000, maxDepth: 3 },
+        lookalikes: { max: 300, ignore: ["examp1e.co.jp"] },
+        hibp: { enabled: true },
+        github: { enabled: false },
+        people: {
+          enabled: true,
+          retentionDays: 30,
+          platforms: ["github"],
+          hibp: { enabled: true },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["uppercase", "Example.com"],
+    ["wildcard", "*.example.com"],
+    ["scheme", "https://example.com"],
+    ["path", "example.com/login"],
+    ["trailing dot", "example.com."],
+    ["single label", "localhost"],
+    ["leading hyphen", "-example.com"],
+    ["ip address", "192.168.0.1"],
+  ])("refuses a domain with %s", (_why, domain) => {
+    expect(parse({ domains: [domain] })).toBe(false);
+  });
+
+  it("caps domains at 20 and people platforms at 15", () => {
+    const many = Array.from({ length: 21 }, (_, i) => `d${i}.example.com`);
+    expect(parse({ domains: many })).toBe(false);
+    expect(parse({ domains: many.slice(0, 20) })).toBe(true);
+    const platforms = Array.from({ length: 16 }, (_, i) => `p${i}x`);
+    expect(parse({ people: { platforms } })).toBe(false);
+  });
+
+  it("refuses unknown keys (no free-text person search)", () => {
+    expect(parse({ domains: ["example.com"], people: { names: ["Taro Yamada"] } })).toBe(false);
+    expect(parse({ domains: ["example.com"], usernames: ["taro"] })).toBe(false);
+  });
+});

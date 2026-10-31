@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/tlon",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Kurahi Tlon/Urbit channel plugin",
   "type": "module",
   "dependencies": {

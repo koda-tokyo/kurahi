@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/freee",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "freee 会計 business connector: companies, deals, partners, account items and receipt metadata, read-only",
   "type": "module",
   "devDependencies": {

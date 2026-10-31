@@ -12,6 +12,59 @@ const AbsPath = z
   .max(4096)
   .refine(isAbsoluteConfigPath, { message: "must be an absolute path" });
 
+/** Lowercase host name in dot-separated labels; no wildcard, no scheme, no trailing dot. */
+const Domain = z
+  .string()
+  .min(3)
+  .max(253)
+  .regex(
+    /^(?:(?!-)[a-z0-9-]{1,63}(?<!-)\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/,
+    "must be a lowercase domain name (no wildcard, scheme or path)",
+  );
+
+const ExposureSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    domains: z.array(Domain).max(20).optional(),
+    emailDomains: z.array(Domain).max(20).optional(),
+    brandTerms: z.array(z.string().trim().min(3).max(60)).max(20).optional(),
+    crawl: z
+      .object({
+        maxPages: z.number().int().min(1).max(5000).optional(),
+        maxBytes: z
+          .number()
+          .int()
+          .min(1024)
+          .max(1024 ** 3)
+          .optional(),
+        maxDepth: z.number().int().min(0).max(10).optional(),
+      })
+      .strict()
+      .optional(),
+    lookalikes: z
+      .object({
+        max: z.number().int().min(1).max(1000).optional(),
+        ignore: z.array(Domain).max(500).optional(),
+      })
+      .strict()
+      .optional(),
+    hibp: z.object({ enabled: z.boolean().optional() }).strict().optional(),
+    github: z.object({ enabled: z.boolean().optional() }).strict().optional(),
+    people: z
+      .object({
+        enabled: z.boolean().optional(),
+        retentionDays: z.number().int().min(0).max(3650).optional(),
+        platforms: z
+          .array(z.string().regex(/^[a-z0-9-]{2,30}$/))
+          .max(15)
+          .optional(),
+        hibp: z.object({ enabled: z.boolean().optional() }).strict().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const GuardianSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -73,6 +126,7 @@ export const GuardianSchema = z
       })
       .strict()
       .optional(),
+    exposure: ExposureSchema.optional(),
   })
   .strict()
   .optional();

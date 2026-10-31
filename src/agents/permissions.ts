@@ -246,8 +246,17 @@ export function classifyToolCall(
     case "modernise_crud":
     case "modernise_impact":
     case "modernise_inventory":
+    case "modernise_import":
       // The legacy analyser reads every source file under `path`: guard it as a read of that folder.
       return { toolClass: "read", targets: [asString(params.path) || ""] };
+    case "modernise_verify": {
+      // Reads the baseline, candidate, fixtures and change spec; writes only the Project's data
+      // area. It runs the compiled programs, so project modes offer it in 実行 Act mode only.
+      const targets = [params.baseline, params.candidate, params.fixtures, params.change_spec]
+        .map((v) => asString(v))
+        .filter((v) => v.length > 0);
+      return { toolClass: "read", targets: targets.length > 0 ? targets : [""] };
+    }
     case "exec":
     case "bash":
       return { toolClass: "exec", targets: [asString(params.command) || ""] };

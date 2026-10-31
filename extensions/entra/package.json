@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/entra",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Microsoft Entra ID business connector: sign-in (OIDC) and directory read",
   "type": "module",
   "devDependencies": {

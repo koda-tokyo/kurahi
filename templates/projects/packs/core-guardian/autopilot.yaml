@@ -54,3 +54,56 @@ routines:
     limits: { maxItemsPerRun: 20, maxActionsPerDay: 50 }
     queue: sec-incidents
     metrics: { baselineMinutes: 20 }
+  - id: guardian-exposure
+    edition: core
+    area: security
+    name: { ja: 外部からの露出チェック, en: External exposure check }
+    trigger: { schedule: "40 3 * * 1", tz: Asia/Tokyo }
+    gather:
+      - { id: subdomains, tool: guardian_exposure_subdomains }
+      - { id: dns, tool: guardian_exposure_dns }
+      - { id: websecrets, tool: guardian_exposure_web_secrets }
+      - { id: lookalikes, tool: guardian_exposure_lookalikes }
+    reasoning:
+      schema: autopilot.plan.v1
+      promptText: |
+        You review the organisation's external exposure: what an attacker finds first about its OWN verified
+        domains (certificate transparency, DNS and mail posture, its own public websites, lookalike domains).
+        Each check ends with "verdict OK" or "verdict ESCALATE". For every ESCALATE verdict propose one
+        workitem.intake: type case; title = the check and the problem in a few words; priority high for a
+        credential or key on a website, a possible subdomain takeover or a lookalike WITH MX, normal otherwise
+        (low for an unverified domain); note = the fact lines unchanged (secrets appear only as masked preview
+        and SHA-256 — never ask for or reconstruct the value), then the recommended response for a person
+        (remove the page or value, rotate the credential, fix the DNS record, consider a takedown).
+        The item summary is one line; cite the check's SOURCE id. Propose nothing for OK verdicts.
+        Never claim a problem is fixed. An escalated check that no item cites is filed by the engine.
+        日本語で要約してください。
+    actions: [workitem.intake]
+    level: L1
+    limits: { maxItemsPerRun: 10, maxActionsPerDay: 20 }
+    queue: sec-incidents
+    metrics: { baselineMinutes: 60 }
+  - id: guardian-exposure-people
+    edition: core
+    area: security
+    name: { ja: 個人の露出チェック（同意者のみ）, en: Personal exposure check (consented people only) }
+    trigger: { schedule: "10 4 * * 1", tz: Asia/Tokyo }
+    gather:
+      - { id: people, tool: guardian_exposure_people }
+    reasoning:
+      schema: autopilot.plan.v1
+      promptText: |
+        You review personal exposure checks for people who enrolled and consented. People are named only by
+        enrolment id (pe-…); never ask for, guess or add a name, email address, phone number or anything
+        about them beyond the facts. For every ESCALATE verdict propose one workitem.intake: type case;
+        priority normal (high for a possible impersonation); title = the enrolment id and the problem in a few
+        words; note = the fact lines unchanged, then the recommended response (change the breached password
+        and turn on multi-factor sign-in, report the impersonating account to the platform, remove the
+        address from the page). "no consent" is one low-priority item. The item summary is one line; cite the
+        check's SOURCE id. Never claim a problem is fixed.
+        日本語で要約してください。
+    actions: [workitem.intake]
+    level: L1
+    limits: { maxItemsPerRun: 20, maxActionsPerDay: 20 }
+    queue: sec-personal
+    metrics: { baselineMinutes: 30 }

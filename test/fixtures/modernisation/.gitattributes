@@ -1,0 +1,3 @@
+# Synthetic verification fixtures: golden outputs and inputs are compared byte for byte
+# (COMP-3 files are binary); never normalise their line endings.
+* -text

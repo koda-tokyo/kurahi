@@ -66,10 +66,24 @@ export type BundleVerification = EvidenceVerification & {
   events: number;
   auditSliceOk: boolean | null;
   snapshotsOk: boolean | null;
+  /** null when no trusted keys were given; otherwise whether every signer is one of them. */
+  trustedOk: boolean | null;
+};
+
+export type VerifyBundleOptions = {
+  /**
+   * Trust anchors: signer key ids (sha256 of the Ed25519 public key) accepted for this bundle.
+   * Without them a bundle only proves it is self-consistent; with them a bundle re-signed by any
+   * other key fails.
+   */
+  trustedKeyIds?: string[];
 };
 
 /** Verify a loaded bundle: chain, root, every file digest, both signatures, slice lines, objects. */
-export function verifyBundleFiles(files: BundleFiles): BundleVerification {
+export function verifyBundleFiles(
+  files: BundleFiles,
+  opts: VerifyBundleOptions = {},
+): BundleVerification {
   const problems: string[] = [];
   const result: BundleVerification = {
     ok: false,
@@ -81,6 +95,7 @@ export function verifyBundleFiles(files: BundleFiles): BundleVerification {
     recordedOk: null,
     auditSliceOk: null,
     snapshotsOk: null,
+    trustedOk: null,
     events: 0,
     problems,
     manifest: null,
@@ -271,8 +286,24 @@ export function verifyBundleFiles(files: BundleFiles): BundleVerification {
     }
   }
 
+  // Trust anchors: the export signer and the job-end signer must both be trusted keys.
+  const trusted = (opts.trustedKeyIds ?? []).map((k) => k.trim().toLowerCase()).filter(Boolean);
+  if (trusted.length > 0) {
+    const signers = [manifest.signer?.keyId, manifest.recorded?.signer?.keyId].filter(
+      (k): k is string => typeof k === "string",
+    );
+    result.trustedOk =
+      signers.length > 0 && signers.every((k) => trusted.includes(k.toLowerCase()));
+    if (!result.trustedOk) {
+      problems.push(
+        `signer key ${String(manifest.signer?.keyId ?? "none").slice(0, 16)} is not a trusted key`,
+      );
+    }
+  }
+
   result.ok =
     problems.length === 0 &&
+    result.trustedOk !== false &&
     result.chainOk &&
     result.rootOk &&
     result.filesOk &&
@@ -284,8 +315,11 @@ export function verifyBundleFiles(files: BundleFiles): BundleVerification {
   return result;
 }
 
-export async function verifyEvidenceBundle(target: string): Promise<BundleVerification> {
-  return verifyBundleFiles(await loadBundle(target));
+export async function verifyEvidenceBundle(
+  target: string,
+  opts: VerifyBundleOptions = {},
+): Promise<BundleVerification> {
+  return verifyBundleFiles(await loadBundle(target), opts);
 }
 
 /** Events of a bundle, for replay. */

@@ -116,6 +116,13 @@ design document, the wave plan and the cross-language tools (`modernise_plan`, `
 
 Setup: [Legacy analyser in your editor (MCP)](/tools/legacy-mcp).
 
+## Results from other modernisation tools
+
+Results exported from vendor modernisation tools (assessment graphs, generated requirements,
+generated program documentation) can be imported into a Project as unverified vendor claims, kept
+apart from the analyser's facts. See [Vendor results import](/industrial/vendor-import) for the
+supported formats and how far each is verified.
+
 ## How it fits the workbench
 
 In the Project's Assets view, **Prepare design document request** and **Prepare wave plan request**

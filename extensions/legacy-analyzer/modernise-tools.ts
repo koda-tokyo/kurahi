@@ -5,19 +5,29 @@ import {
   legacyInventory,
   legacyModernisePlan,
 } from "../../packages/legacy-analyzer/src/index.js";
+import { importedImpact, importedInventory } from "../../src/industrial/vendor-import/view.js";
+import { parseProjectSessionKey } from "../../src/projects/scope.js";
 import { failure, result, str } from "./results.js";
 
 // Modernisation-assistant tools of the plugin: the entry point (modernise_plan) and the
 // cross-language CRUD, impact and inventory over COBOL/JCL, Java, SQL DDL, FORTRAN and PL/I.
 // Read-only, like the legacy_* tools; the only writes are the analyser's index cache.
+// In a Project with vendor imports (modernise_import), inventory (kind imported) and impact also
+// return the imported data in a separate `imported` block, labelled as unverified vendor claims.
 
 type Deps = {
   root: (params: Record<string, unknown>) => string;
   pathParam: TSchema;
   env: { stateDir: string };
+  /** The session, to find the Project's vendor imports (none outside a Project). */
+  sessionKey?: () => string | undefined;
 };
 
-export function moderniseTools({ root, pathParam, env }: Deps) {
+function projectIdOf(sessionKey: (() => string | undefined) | undefined): string | null {
+  return parseProjectSessionKey(sessionKey?.())?.projectId ?? null;
+}
+
+export function moderniseTools({ root, pathParam, env, sessionKey }: Deps) {
   const run =
     (fn: (params: Record<string, unknown>) => unknown) =>
     async (_id: string, params: Record<string, unknown>) => {
@@ -69,9 +79,16 @@ export function moderniseTools({ root, pathParam, env }: Deps) {
         "Impact of changing a table, a column (TABLE.COLUMN), a data set or file, a FORTRAN COMMON block (/NAME/) or " +
         "module, a Java class or a program (COBOL, FORTRAN, PL/I): who reads or writes it in any language, views, " +
         "foreign keys, indexes, JPA mappings and units sharing the COMMON block, SQL text naming the column, and " +
-        "upstream Java callers, CALL callers in any language, job steps and jobs. Every entry carries path:line.",
+        "upstream Java callers, CALL callers in any language, job steps and jobs. Every entry carries path:line. " +
+        "In a Project with vendor imports, imported holds the vendor's edges and rules for the target, separately " +
+        "and labelled unverified: never present them as analysed facts.",
       parameters: Type.Object({ path: pathParam, target: Type.String() }),
-      execute: run((p) => legacyCrossImpact(root(p), str(p.target), env)),
+      execute: run((p) => {
+        const analysed = legacyCrossImpact(root(p), str(p.target), env);
+        const projectId = projectIdOf(sessionKey);
+        const imported = projectId ? importedImpact(projectId, str(p.target)) : null;
+        return imported ? { ...analysed, imported } : analysed;
+      }),
     },
     {
       name: "modernise_inventory",
@@ -82,14 +99,22 @@ export function moderniseTools({ root, pathParam, env }: Deps) {
         "fields, methods, calls, table access; SQL: columns with type, NULL, default and comment, constraints, " +
         "indexes; FORTRAN: declarations, COMMON layouts, calls and callers, file I/O; PL/I: declarations, files, " +
         "calls, EXEC SQL, ON-units; PLC: variables, instances, calls, writes, or a %I/%Q/%M address). " +
-        "Every fact at path:line.",
+        "Every fact at path:line. Kind imported: items the Project imported from vendor exports " +
+        "(modernise_import), with their rules when name is given; unverified vendor claims, cite them as such.",
       parameters: Type.Object({
         path: pathParam,
-        kind: Type.String({ description: "java, sql, fortran, pli or plc" }),
+        kind: Type.String({ description: "java, sql, fortran, pli, plc or imported" }),
         name: Type.Optional(Type.String()),
       }),
       execute: run((p) => {
         const kind = str(p.kind);
+        if (kind === "imported") {
+          const projectId = projectIdOf(sessionKey);
+          if (!projectId) {
+            throw new Error("kind imported needs a Project: vendor imports belong to a Project.");
+          }
+          return importedInventory(projectId, str(p.name) || undefined);
+        }
         if (
           kind !== "java" &&
           kind !== "sql" &&
@@ -97,7 +122,7 @@ export function moderniseTools({ root, pathParam, env }: Deps) {
           kind !== "pli" &&
           kind !== "plc"
         ) {
-          throw new Error('kind must be "java", "sql", "fortran", "pli" or "plc".');
+          throw new Error('kind must be "java", "sql", "fortran", "pli", "plc" or "imported".');
         }
         return legacyInventory(root(p), kind, str(p.name) || undefined, env);
       }),

@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/zalouser",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Kurahi Zalo Personal Account plugin via zca-cli",
   "type": "module",
   "dependencies": {

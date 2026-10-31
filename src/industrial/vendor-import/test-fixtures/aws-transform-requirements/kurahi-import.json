@@ -1,0 +1,21 @@
+{
+  "schema": "kurahi.vendor-import/1",
+  "provider": "aws-transform",
+  "format": "requirements-md",
+  "origin": {
+    "product": "AWS Transform for mainframe",
+    "productVersion": null,
+    "exportedAt": "2026-10-30T09:00:00Z",
+    "exportedBy": "alice",
+    "authorisedBy": "ops-lead",
+    "sourceSystem": "synthetic payroll sample"
+  },
+  "files": [
+    {
+      "path": "payroll/requirements.md",
+      "sha256": "006cce076923d1bccef7e7d5e9713712418e4f00d987bf402702d0a3fd019420",
+      "bytes": 1133,
+      "role": "data"
+    }
+  ]
+}

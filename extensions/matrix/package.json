@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/matrix",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Kurahi Matrix channel plugin",
   "type": "module",
   "dependencies": {

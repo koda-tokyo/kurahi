@@ -165,6 +165,18 @@ describe("classifyToolCall", () => {
     });
   });
 
+  it("classifies modernise_verify as reads of every folder and file it is given", () => {
+    expect(
+      classifyToolCall("modernise_verify", {
+        baseline: "src/v1",
+        candidate: "src/v2",
+        fixtures: "tests",
+        change_spec: "chg.json",
+      }),
+    ).toEqual({ toolClass: "read", targets: ["src/v1", "src/v2", "tests", "chg.json"] });
+    expect(classifyToolCall("modernise_verify", {})).toEqual({ toolClass: "read", targets: [""] });
+  });
+
   it("classifies the legacy analyser tools as reads of their path", () => {
     for (const name of [
       "legacy_index",
@@ -180,6 +192,7 @@ describe("classifyToolCall", () => {
       "modernise_crud",
       "modernise_impact",
       "modernise_inventory",
+      "modernise_import",
     ]) {
       expect(classifyToolCall(name, { path: "/proj/source" })).toEqual({
         toolClass: "read",

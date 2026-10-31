@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/open-meteo",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Open-Meteo weather data plugin — unlimited, no API key",
   "type": "module",
   "devDependencies": {

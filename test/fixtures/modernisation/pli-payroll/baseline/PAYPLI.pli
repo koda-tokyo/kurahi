@@ -1,0 +1,23 @@
+ /* PAYPLI - weekly gross pay (synthetic verification fixture).        */
+ /* Synthetic fixture written for Kurahi. SPDX-License-Identifier: MIT */
+ PAYPLI: PROC OPTIONS(MAIN);
+   %INCLUDE EMPREC;
+   DCL PAYIN  FILE RECORD INPUT;
+   DCL PAYOUT FILE STREAM OUTPUT PRINT;
+   DCL EOF    BIT(1) INIT('0'B);
+   DCL THRESHOLD FIXED DEC(4,1) INIT(40.0);
+   DCL GROSS     FIXED DEC(9,2);
+   ON ENDFILE(PAYIN) EOF = '1'B;
+   OPEN FILE(PAYIN), FILE(PAYOUT);
+   READ FILE(PAYIN) INTO(EMP_REC);
+   DO WHILE (^EOF);
+     IF EMP_HOURS > THRESHOLD THEN
+       GROSS = THRESHOLD * EMP_RATE
+             + (EMP_HOURS - THRESHOLD) * EMP_RATE * 1.5;
+     ELSE
+       GROSS = EMP_HOURS * EMP_RATE;
+     PUT FILE(PAYOUT) SKIP EDIT (EMP_ID, GROSS) (A(6), X(1), F(10,2));
+     READ FILE(PAYIN) INTO(EMP_REC);
+   END;
+   CLOSE FILE(PAYIN), FILE(PAYOUT);
+ END PAYPLI;

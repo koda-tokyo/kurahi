@@ -2,8 +2,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import type { Actor, WorkItem } from "../workitems/types.js";
 import { flushAudit } from "../audit/audit-log.js";
 import { loadRoutines } from "../autopilot/routines.js";
+import { canRead, parseAccess } from "../workitems/access.js";
 import { evaluatePolicy } from "../workitems/checks.js";
 import { loadWorkQueuePolicy } from "../workitems/policy.js";
 import { buildRoute } from "../workitems/routes.js";
@@ -50,16 +52,67 @@ const base = {
 };
 
 describe("Kurahi Guardian pack", () => {
-  it("loads the incident queue and both routines at L1", () => {
+  it("loads the incident queues and the routines at L1", () => {
     expect(policy.error).toBeNull();
-    expect(policy.queues.map((q) => [q.id, q.department])).toEqual([["sec-incidents", "it"]]);
+    expect(policy.queues.map((q) => [q.id, q.department])).toEqual([
+      ["sec-incidents", "it"],
+      ["sec-personal", "it"],
+    ]);
     const set = loadRoutines(project);
     expect(set.error).toBeNull();
     expect(set.routines.map((r) => [r.id, r.edition, r.area, r.level])).toEqual([
       ["guardian-posture", "core", "security", "L1"],
       ["guardian-shares", "core", "security", "L1"],
+      ["guardian-exposure", "core", "security", "L1"],
+      ["guardian-exposure-people", "core", "security", "L1"],
     ]);
     expect(set.routines.every((r) => r.actions.join() === "workitem.intake")).toBe(true);
+    const byId = Object.fromEntries(set.routines.map((r) => [r.id, r]));
+    expect(byId["guardian-exposure"].queue).toBe("sec-incidents");
+    expect(byId["guardian-exposure"].gather.map((g) => g.tool)).toEqual([
+      "guardian_exposure_subdomains",
+      "guardian_exposure_dns",
+      "guardian_exposure_web_secrets",
+      "guardian_exposure_lookalikes",
+    ]);
+    // Personal exposure never lands in the general incident queue.
+    expect(byId["guardian-exposure-people"].queue).toBe("sec-personal");
+    expect(byId["guardian-exposure-people"].gather.map((g) => g.tool)).toEqual([
+      "guardian_exposure_people",
+    ]);
+  });
+
+  it("lets only the security role (and the requester, and operators) read personal exposure cases", () => {
+    const withMembers = {
+      ...policy,
+      access: parseAccess({
+        members: [
+          { principal: "device:security0001", roles: ["security"] },
+          { principal: "device:director0001", roles: ["director"] },
+          { principal: "device:approver0001", roles: ["approver"] },
+        ],
+      }),
+    };
+    const fields = { ...base, priority: "urgent" };
+    const route = buildRoute(withMembers, { ...item(fields), queue: "sec-personal" });
+    expect(route.stages.map((s) => s.id)).toEqual(["security"]);
+    expect(route.stages.every((s) => !s.escalation)).toBe(true);
+    const personal = {
+      id: "wpersonal0001",
+      projectId: project.id,
+      queue: "sec-personal",
+      type: "case",
+      status: "awaiting_review",
+      requestedBy: "autopilot:guardian-exposure-people",
+      approvals: [],
+      route: { ...route, current: 0 },
+    } as unknown as WorkItem;
+    const who = (id: string): Actor => ({ id: `device:${id}`, kind: "person" });
+    const now = new Date();
+    expect(canRead(personal, who("security0001"), withMembers, now)).toBe(true);
+    expect(canRead(personal, who("director0001"), withMembers, now)).toBe(false);
+    expect(canRead(personal, who("approver0001"), withMembers, now)).toBe(false);
+    expect(canRead(personal, who("someone00001"), withMembers, now)).toBe(false);
   });
 
   it("sends only high and urgent incidents to management", () => {

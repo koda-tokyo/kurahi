@@ -843,6 +843,8 @@
               "QUICKSTART",
               "editions",
               "industrial-modernisation",
+              "industrial/verification",
+              "industrial/vendor-import",
               "work-console",
               "business/work-queue",
               "business/functional-packs",
@@ -863,7 +865,7 @@
           },
           {
             "group": "Releases",
-            "pages": ["releases/2.5.0", "releases/2.4.0", "releases/2.3.0", "releases/2.2.0"]
+            "pages": ["releases/2.6.0", "releases/2.5.0", "releases/2.4.0", "releases/2.3.0", "releases/2.2.0"]
           },
           {
             "group": "Help",
@@ -1269,6 +1271,8 @@
               "ja/start/phone",
               "ja/editions",
               "ja/industrial-modernisation",
+              "ja/industrial/verification",
+              "ja/industrial/vendor-import",
               "ja/work-console",
               "ja/business/work-queue",
               "ja/business/functional-packs",
@@ -1280,7 +1284,13 @@
           },
           {
             "group": "リリース",
-            "pages": ["ja/releases/2.5.0", "ja/releases/2.4.0", "ja/releases/2.3.0", "ja/releases/2.2.0"]
+            "pages": [
+              "ja/releases/2.6.0",
+              "ja/releases/2.5.0",
+              "ja/releases/2.4.0",
+              "ja/releases/2.3.0",
+              "ja/releases/2.2.0"
+            ]
           },
           {
             "group": "業務コネクター",

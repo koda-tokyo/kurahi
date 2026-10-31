@@ -5,7 +5,7 @@ import type { OperationSpec } from "../operation-spec.js";
 import type * as T from "./types.js";
 
 /** info.version of the spec this client was generated from. */
-export const SPEC_VERSION = "2.5.0";
+export const SPEC_VERSION = "2.6.0";
 /** OpenAPI version of the source document. */
 export const OPENAPI_VERSION = "3.1.0";
 /** Default gateway port (servers[0].variables.port.default). */

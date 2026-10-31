@@ -1,0 +1,11 @@
+{"type":"node","id":"prog-PAYCALC","labels":["Program"],"properties":{"name":"PAYCALC","language":"COBOL"}}
+{"type":"node","id":"prog-TAXCALC","labels":["Program"],"properties":{"name":"TAXCALC","language":"COBOL"}}
+{"type":"node","id":"job-PAYJOB","labels":["JclJob"],"properties":{"name":"PAYJOB"}}
+{"type":"node","id":"ds-PAY.MASTER","labels":["Dataset"],"properties":{"name":"PAY.MASTER"}}
+{"type":"node","id":"db-EMPLOYEE","labels":["Database","Table"],"properties":{}}
+{"type":"node","id":"map-PAYMAP","labels":["BmsMap"],"properties":{"name":"PAYMAP"}}
+{"type":"relationship","start":{"id":"prog-PAYCALC"},"end":{"id":"prog-TAXCALC"},"label":"CALLS","properties":{}}
+{"type":"relationship","start":{"id":"job-PAYJOB"},"end":{"id":"prog-PAYCALC"},"label":"EXECUTES","properties":{"step":"STEP010"}}
+{"type":"relationship","start":{"id":"prog-PAYCALC"},"end":{"id":"ds-PAY.MASTER"},"label":"READS","properties":{}}
+{"type":"relationship","start":{"id":"prog-PAYCALC"},"end":{"id":"db-EMPLOYEE"},"label":"QUERIES","properties":{}}
+{"type":"relationship","start":{"id":"prog-TAXCALC"},"end":{"id":"prog-MISSING"},"label":"CALLS","properties":{}}

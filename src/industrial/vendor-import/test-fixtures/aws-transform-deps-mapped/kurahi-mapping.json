@@ -1,0 +1,12 @@
+{
+  "schema": "kurahi.vendor-import-mapping/1",
+  "tables": [
+    {
+      "file": "dependencies.json",
+      "format": "json",
+      "records": "dependencies",
+      "produces": "edges",
+      "fields": { "from": "source", "to": "target", "relation": "type" }
+    }
+  ]
+}

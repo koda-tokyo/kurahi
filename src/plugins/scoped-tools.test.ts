@@ -15,8 +15,10 @@ const LEGACY = [
   "legacy_wave_plan",
   "modernise_crud",
   "modernise_impact",
+  "modernise_import",
   "modernise_inventory",
   "modernise_plan",
+  "modernise_verify",
 ];
 
 function scopedTools(config: Record<string, unknown>, pluginIds = ["legacy-analyzer"]) {

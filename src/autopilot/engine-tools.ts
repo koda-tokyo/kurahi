@@ -6,14 +6,24 @@
 // Guardian checks (`guardian_*`, docs/security/guardian.md) read `guardian` from the config: the
 // posture checks (src/guardian/posture.ts) and the share scan (src/guardian/scan.ts), whose only
 // writes are its scan index and quarantine copies. Nothing configured is ESCALATE, never OK.
+// The exposure checks (`guardian_exposure_*`, src/guardian/exposure) look at the organisation's
+// own verified domains from the outside; their only writes are their inventories under the state
+// dir.
 
 import fs from "node:fs";
 import os from "node:os";
 import type { GuardianConfig } from "../config/types.guardian.js";
+import type { ExposureDeps } from "../guardian/exposure/common.js";
 import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
 import { loadConfig } from "../config/io.js";
 import { resolveKoloHome } from "../config/kolo-home.js";
 import { resolveEvidenceSigningKey } from "../evidence/store.js";
+import {
+  defaultExposureDeps,
+  EXPOSURE_CHECK_NAMES,
+  type ExposureCheckName,
+  runExposureCheck,
+} from "../guardian/exposure/index.js";
 import {
   checkBackupFreshness,
   checkCredentials,
@@ -40,6 +50,8 @@ export type EngineCheckContext = {
   guardian?: GuardianConfig;
   /** Share scanner (default: resolved from `guardian.scan.engine`). */
   scanner?: FileScanner;
+  /** Exposure checks' network, DNS, clock and secrets (default: the real ones). */
+  exposure?: Partial<ExposureDeps>;
 };
 
 type Check = (args: Record<string, unknown>, ctx: EngineCheckContext) => string;
@@ -258,7 +270,39 @@ function guardianDisabled(cfg: GuardianConfig): string | null {
 const num = (v: unknown, min: number, max: number): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : undefined;
 
+/** An exposure check: verified domains only; anything not run or not clean escalates. */
+function exposureCheck(name: ExposureCheckName, okReason: string): AsyncCheck {
+  return async (_args, ctx) => {
+    const cfg = guardianConfig(ctx);
+    const off = guardianDisabled(cfg);
+    if (off) {
+      return off;
+    }
+    const home = ctx.home ?? resolveKoloHome();
+    const r = await runExposureCheck(name, cfg, {
+      ...defaultExposureDeps(home),
+      ...ctx.exposure,
+      home,
+    });
+    return postureVerdict(
+      { facts: r.facts, findings: r.findings.map((f) => ({ check: name, ...f })) },
+      okReason,
+    );
+  };
+}
+
+const EXPOSURE_OK: Record<ExposureCheckName, string> = {
+  guardian_exposure_subdomains: "certificate transparency read, no new subdomain",
+  guardian_exposure_dns: "SPF, DMARC and MX in place, no dangling CNAME",
+  guardian_exposure_web_secrets: "own sites crawled, no credential or key found",
+  guardian_exposure_lookalikes: "no registered lookalike domain",
+  guardian_exposure_breaches: "no breached account on the mail domains",
+  guardian_exposure_code: "no public code names the organisation next to a secret keyword",
+  guardian_exposure_people: "consented checks ran, nothing found",
+};
+
 const ASYNC_CHECKS: Record<string, AsyncCheck> = {
+  ...Object.fromEntries(EXPOSURE_CHECK_NAMES.map((n) => [n, exposureCheck(n, EXPOSURE_OK[n])])),
   guardian_backup: async (_args, ctx) => {
     const cfg = guardianConfig(ctx);
     return (
@@ -431,7 +475,9 @@ export async function runEngineToolAsync(
     source: "guardian.check",
     severity: ok
       ? "info"
-      : name === "guardian_scan" || name === "guardian_integrity"
+      : name === "guardian_scan" ||
+          name === "guardian_integrity" ||
+          name === "guardian_exposure_web_secrets"
         ? "high"
         : "medium",
     detail: text.slice(0, 2000),

@@ -1,0 +1,3 @@
+Rule Name,Description,Program
+Overtime rate,"Hours above 160 per month are paid at 1.5 times the hourly rate",PAYCALC
+Blank employee,"A record with a blank employee number is rejected",PAYCALC

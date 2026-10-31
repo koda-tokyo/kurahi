@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/money-forward",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "マネーフォワード クラウド請求書 business connector: billings, quotes and partners, read-only",
   "type": "module",
   "devDependencies": {

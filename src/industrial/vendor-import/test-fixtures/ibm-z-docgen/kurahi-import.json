@@ -1,0 +1,33 @@
+{
+  "schema": "kurahi.vendor-import/1",
+  "provider": "ibm-z",
+  "format": "understand-docgen-md",
+  "origin": {
+    "product": "IBM watsonx Code Assistant for Z - Z Understand",
+    "productVersion": "2.8.30",
+    "exportedAt": "2026-10-30T09:00:00Z",
+    "exportedBy": "alice",
+    "authorisedBy": "ops-lead",
+    "sourceSystem": "synthetic payroll sample"
+  },
+  "files": [
+    {
+      "path": "Documentation/application_document.md",
+      "sha256": "e5209a2828c5d7b12229fbe710877de1dd983cf12d9e1462c2cc19343ad93882",
+      "bytes": 546,
+      "role": "data"
+    },
+    {
+      "path": "Documentation/logs/docgen.log",
+      "sha256": "57e1865b56cdcb5a2d1ba11597e10a41e40c88dbf377fd481bc57c35b1c8bfc8",
+      "bytes": 86,
+      "role": "ignored"
+    },
+    {
+      "path": "Documentation/programs/PAYCALC.md",
+      "sha256": "4278bd01849bc5c6b24478ef08e9f3ec11227312d83cce5bf533b03a398672f0",
+      "bytes": 713,
+      "role": "data"
+    }
+  ]
+}

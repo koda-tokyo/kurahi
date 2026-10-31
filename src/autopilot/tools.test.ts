@@ -12,6 +12,13 @@ describe("gather read tools", () => {
       "guardian_integrity",
       "guardian_credentials",
       "guardian_scan",
+      "guardian_exposure_subdomains",
+      "guardian_exposure_dns",
+      "guardian_exposure_web_secrets",
+      "guardian_exposure_lookalikes",
+      "guardian_exposure_breaches",
+      "guardian_exposure_code",
+      "guardian_exposure_people",
     ]) {
       expect(readToolDef(name)).toEqual({ name, provider: "engine" });
       expect(gatherToolRefusal(name)).toBeNull();

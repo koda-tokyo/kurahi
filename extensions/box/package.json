@@ -1,6 +1,6 @@
 {
   "name": "@KoLo/box",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Box business connector: search, metadata and scanned fetch into the Project (read-only by default)",
   "type": "module",
   "devDependencies": {
