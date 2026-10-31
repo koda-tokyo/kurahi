@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { KoLoPluginApi, KoLoPluginToolContext } from "../../src/plugins/types.js";
 import { verifyEvidenceBundle } from "../../src/evidence/verify.js";
@@ -14,7 +15,7 @@ type Result = { content: Array<{ text: string }>; details?: Record<string, unkno
 type Tool = { name: string; execute: (id: string, p: Record<string, unknown>) => Promise<Result> };
 
 const FX = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(fileURLToPath(import.meta.url)),
   "../../test/fixtures/modernisation",
 );
 const tmpRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "kurahi-verify-tool-")));
